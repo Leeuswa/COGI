@@ -85,5 +85,18 @@ public class User {
         this.password = password;
     }
 
+    //로그인 실패: 실패횟수 + 1, 5회 이상이면 잠금
+    public void increaseLoginFailCount(){
+        this.loginFailCount++;
+        if(this.loginFailCount >= 5){
+            this.isLocked = true;
+        }
+    }
+
+    //로그인 성공:실패횟수 초기화
+    public void resetLoginFailCount(){
+        this.loginFailCount = 0;
+    }
+
 
 }
