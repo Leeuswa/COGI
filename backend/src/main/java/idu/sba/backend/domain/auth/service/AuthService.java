@@ -1,8 +1,6 @@
 package idu.sba.backend.domain.auth.service;
 
-import idu.sba.backend.domain.auth.dto.EmailSendCodeRequestDto;
-import idu.sba.backend.domain.auth.dto.EmailVerifyRequestDto;
-import idu.sba.backend.domain.auth.dto.SignupRequestDto;
+import idu.sba.backend.domain.auth.dto.*;
 
 public interface AuthService {
 
@@ -14,4 +12,7 @@ public interface AuthService {
 
     //회원가입
     Long signup(SignupRequestDto request);
+
+    //로그인
+    TokenResponseDto login(LoginRequestDTO request);
 }

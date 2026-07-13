@@ -1,8 +1,6 @@
 package idu.sba.backend.domain.auth.service;
 
-import idu.sba.backend.domain.auth.dto.EmailSendCodeRequestDto;
-import idu.sba.backend.domain.auth.dto.EmailVerifyRequestDto;
-import idu.sba.backend.domain.auth.dto.SignupRequestDto;
+import idu.sba.backend.domain.auth.dto.*;
 import idu.sba.backend.domain.auth.entity.EmailVerification;
 import idu.sba.backend.domain.auth.entity.Purpose;
 import idu.sba.backend.domain.auth.repository.EmailVerificationRepository;
@@ -11,10 +9,13 @@ import idu.sba.backend.domain.terms.entity.UserAgreement;
 import idu.sba.backend.domain.terms.repository.TermRepository;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
 import idu.sba.backend.domain.user.entity.User;
+import idu.sba.backend.domain.user.entity.UserStatus;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
+import idu.sba.backend.global.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,6 +32,10 @@ public class AuthServiceImpl implements AuthService {
 
     //인증코드 유효시간 5분
     private static final int CODE_TTL_MINUTES = 5;
+
+    private final JwtProvider jwtProvider;
+    @Value("${jwt.access-token-expiration}")
+    private Long accessTokenExpiration;
 
     //인증코드 난수 생성
     private final SecureRandom random = new SecureRandom();
@@ -138,6 +143,38 @@ public class AuthServiceImpl implements AuthService {
         message.setSubject("[COGI] 이메일 인증코드");  // 제목
         message.setText("인증코드: " + code + "\n5분 안에 입력해주세요.");  // 본문
         mailSender.send(message);             // 완성된 메일 발송
+    }
+
+
+    @Override
+    public TokenResponseDto login(LoginRequestDTO req) {
+        //이메일 유저 조회
+        User user = userRepository.findByEmail(req.getEmail())
+                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
+
+        //이미 잠긴 계정
+        if(Boolean.TRUE.equals(user.getIsLocked())){
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
+
+        //정지된 계정
+        if(user.getStatus() == UserStatus.SUSPENDED){
+            throw new BusinessException(ErrorCode.ACCOUNT_SUSPENDED);
+        }
+
+        //비밀번호 검증
+        if(!passwordEncoder.matches(req.getPassword(),user.getPassword())){
+            user.increaseLoginFailCount(); //실패 회수 + 1, 5회이상 -> 계정잠금
+            userRepository.save(user);
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
+        }
+
+
+        //성공시 실패회수 초기화, 토큰발급
+        user.resetLoginFailCount();
+        String token = jwtProvider.createToken(user.getId(),user.getRole().name());
+        return TokenResponseDto.of(token,accessTokenExpiration);
+
     }
 }
 

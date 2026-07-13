@@ -1,8 +1,6 @@
 package idu.sba.backend.domain.auth.controller;
 
-import idu.sba.backend.domain.auth.dto.EmailSendCodeRequestDto;
-import idu.sba.backend.domain.auth.dto.EmailVerifyRequestDto;
-import idu.sba.backend.domain.auth.dto.SignupRequestDto;
+import idu.sba.backend.domain.auth.dto.*;
 import idu.sba.backend.domain.auth.service.AuthService;
 import idu.sba.backend.global.common.ApiResponse;
 import jakarta.validation.Valid;
@@ -45,6 +43,14 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("회원가입이 완료되었습니다."));
+    }
+
+    //로그인
+    @PostMapping("/login")
+    public ApiResponse<TokenResponseDto> login(
+            @Valid @RequestBody LoginRequestDTO request) {
+        TokenResponseDto token = authService.login(request);
+        return ApiResponse.ok("로그인 성공",token);  //data에 토큰 담아서 응답
     }
 
 }
