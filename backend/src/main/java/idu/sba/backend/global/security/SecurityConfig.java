@@ -34,6 +34,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // /api/auth/ 로 시작하는 모든 경로 허용(로그인/회원가입/코드발송)
                         .requestMatchers("/api/auth/**","/error").permitAll()
+
+                        // /api/guest/** 로 시작하는 모든 경로 허용(비회원 로그인)
+                        .requestMatchers("/api/guest/**").permitAll()
+
+
                         // 나머지 모든 요청은 토큰 필요, 없으면 401에러
                         .anyRequest().authenticated()
                 )
