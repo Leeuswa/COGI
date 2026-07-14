@@ -5,10 +5,10 @@ import idu.sba.backend.domain.auth.dto.*;
 public interface AuthService {
 
     //인증코드 발송
-    void sendCode(EmailSendCodeRequestDto request);
+    void sendCode(EmailSendCodeRequestDTO request);
 
     //인증코드 검증
-    void verifyCode(EmailVerifyRequestDto request);
+    void verifyCode(EmailVerifyRequestDTO request);
 
     //회원가입
     Long signup(SignupRequestDTO request);

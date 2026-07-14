@@ -22,7 +22,7 @@ public class AuthController {
     //인증코드 발송
     @PostMapping("/email/send-code")
     public ApiResponse<Void> sendCode(
-            @Valid @RequestBody EmailSendCodeRequestDto request){
+            @Valid @RequestBody EmailSendCodeRequestDTO request){
         authService.sendCode(request);
         return ApiResponse.ok("인증코드 발송했습니다."); //성공 응답
     }
@@ -30,7 +30,7 @@ public class AuthController {
     //인증코드 검증
     @PostMapping("/email/verify-code")
     public ApiResponse<Void> verifyCode(
-            @Valid @RequestBody EmailVerifyRequestDto request){
+            @Valid @RequestBody EmailVerifyRequestDTO request){
         authService.verifyCode(request);
         return ApiResponse.ok("이메일 인증이 완료되었습니다.");
     }
