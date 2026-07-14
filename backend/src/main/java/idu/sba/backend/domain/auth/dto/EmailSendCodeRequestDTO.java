@@ -13,7 +13,7 @@ public class EmailSendCodeRequestDTO {
 
     @NotBlank
     @Email(message = "이메일 형식이 올바르지 않습니다.")
-    private String email;
+    private String email; //인증 받을 이메일
 
     @NotNull
     private Purpose purpose;
