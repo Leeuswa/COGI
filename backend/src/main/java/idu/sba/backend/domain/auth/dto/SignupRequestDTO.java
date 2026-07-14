@@ -6,7 +6,7 @@ import lombok.Getter;
 import java.util.List;
 
 @Getter
-public class SignupRequestDto {
+public class SignupRequestDTO {
 
     @NotBlank
     @Email(message = "이메일 형식이 올바르지 않습니다.")

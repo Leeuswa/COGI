@@ -38,7 +38,7 @@ public class AuthController {
     //회원가입
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<Void>> signup(
-            @Valid @RequestBody SignupRequestDto request){
+            @Valid @RequestBody SignupRequestDTO request){
         authService.signup(request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -47,9 +47,9 @@ public class AuthController {
 
     //로그인
     @PostMapping("/login")
-    public ApiResponse<TokenResponseDto> login(
+    public ApiResponse<TokenResponseDTO> login(
             @Valid @RequestBody LoginRequestDTO request) {
-        TokenResponseDto token = authService.login(request);
+        TokenResponseDTO token = authService.login(request);
         return ApiResponse.ok("로그인 성공",token);  //data에 토큰 담아서 응답
     }
 

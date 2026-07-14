@@ -17,6 +17,8 @@ public enum ErrorCode {
     EMAIL_NOT_VERIFIED(HttpStatus.BAD_REQUEST,"이메일 인증이 완료되지 않았습니다."),
     CODE_MISMATCH(HttpStatus.BAD_REQUEST,"인증 코드가 일치하지 않습니다."),
     CODE_EXPIRED(HttpStatus.GONE,"인증 코드가 만료되었습니다."),
+    CODE_LOCKED(HttpStatus.LOCKED,"인증 시도가 일시 정지 되었습니다. 잠시 후 다시 시도해주세요."),// 423
+    CODE_SEND_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS,"잠시 후 다시 시도해주세요.(60초)"), // 429
     REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST,"필수 약관에 모두 동의해야 합니다."),
 
     //로그인

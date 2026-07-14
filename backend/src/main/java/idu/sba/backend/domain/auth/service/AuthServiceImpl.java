@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -54,47 +55,67 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void sendCode(EmailSendCodeRequestDto req) {
+        LocalDateTime now = LocalDateTime.now();
+
+        var lastOpt = emailVerificationRepository.findFirstByEmailOrderByCreateAtDesc(req.getEmail());
+
+        lastOpt.ifPresent(last -> {
+            if(last.isLocked()) {       //정지중 -> 재발송 거부
+                throw new BusinessException(ErrorCode.CODE_LOCKED);
+            }
+            if(last.getCreateAt().isAfter(now.minusSeconds(60))) { // 60초 쿨타임
+                    throw new BusinessException(ErrorCode.CODE_SEND_COOLDOWN);
+            }
+        });
+        int carryStage = lastOpt.map(EmailVerification::getLockStage).orElse(0);
 
         //6자리 코드 생성
         String code = String.format("%06d",random.nextInt(1_000_000));
 
         //인증코드 레코드 저장
         emailVerificationRepository.save(
-                EmailVerification.issue(req.getEmail(), code,req.getPurpose(),CODE_TTL_MINUTES)
+                EmailVerification.issue(req.getEmail(), code,req.getPurpose(),CODE_TTL_MINUTES,carryStage)
         );
-
         //이메일 전송x
         sendMail(req.getEmail(), code);
     }
 
     @Override
-    @Transactional
     public void verifyCode(EmailVerifyRequestDto req) {
+
+
 
         //해당 이메일 최신 인증코드 1건 조회. 없으면 코드 불일치 처리
         EmailVerification ev = emailVerificationRepository
                 .findFirstByEmailOrderByCreateAtDesc(req.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CODE_MISMATCH));
 
+        if(ev.isLocked()){  //정지중
+            throw new BusinessException(ErrorCode.CODE_LOCKED);
+        }
+
         //만료됐으면 410
-        if(ev.isExpired()) {
+        if(ev.isExpired()) {  //만료
             throw new BusinessException(ErrorCode.CODE_EXPIRED);
         }
 
         //코드가 안맞으면 410
-        if(!ev.matches(req.getCode())){
-            throw new BusinessException(ErrorCode.CODE_MISMATCH);
+        if(!ev.matches(req.getCode())){ //불일치
+            ev.recordFail();
+            emailVerificationRepository.save(ev);
+            throw new BusinessException(ev.isLocked() ? ErrorCode.CODE_LOCKED : ErrorCode.CODE_MISMATCH);
         }
 
         //인증완료 처리
         ev.markVerified();
+        emailVerificationRepository.save(ev);
 
 
     }
 
     @Override
     @Transactional
-    public Long signup(SignupRequestDto req) {
+    public Long signup(SignupRequestDTO req) {
 
         //비밀번호 확인
         if(!req.getPassword().equals(req.getPasswordConfirm())){
@@ -151,7 +172,7 @@ public class AuthServiceImpl implements AuthService {
 
 
     @Override
-    public TokenResponseDto login(LoginRequestDTO req) {
+    public TokenResponseDTO login(LoginRequestDTO req) {
         //이메일 유저 조회
         User user = userRepository.findByEmail(req.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
@@ -177,7 +198,7 @@ public class AuthServiceImpl implements AuthService {
         //성공시 실패회수 초기화, 토큰발급
         user.resetLoginFailCount();
         String token = jwtProvider.createToken(user.getId(),user.getRole().name());
-        return TokenResponseDto.of(token,accessTokenExpiration);
+        return TokenResponseDTO.of(token,accessTokenExpiration);
 
     }
 }
