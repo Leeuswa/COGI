@@ -37,6 +37,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${jwt.access-token-expiration}")
     private Long accessTokenExpiration;
 
+    @Value("${spring.mail.username}")
+    private String mailFrom;
+
     //인증코드 난수 생성
     private final SecureRandom random = new SecureRandom();
 
@@ -139,6 +142,7 @@ public class AuthServiceImpl implements AuthService {
     //인증 메일코드 메일 발송
     private void sendMail(String to, String code) {
         SimpleMailMessage message = new SimpleMailMessage();  // 빈 메일 객체 생성
+        message.setFrom(mailFrom);
         message.setTo(to);                    // 받는 사람
         message.setSubject("[COGI] 이메일 인증코드");  // 제목
         message.setText("인증코드: " + code + "\n5분 안에 입력해주세요.");  // 본문
