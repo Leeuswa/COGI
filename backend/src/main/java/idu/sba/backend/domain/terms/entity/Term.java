@@ -26,7 +26,7 @@ public class Term {
 
     @Column(columnDefinition = "TEXT") // TEXT 타입(VARCHAR 길이 제한보다 길다)
     private String content; // 약관 본문
-    private Boolean isRequired = true; //필수 여부 (MARKETING만 false)
+    private Boolean isRequired = true; //필수 여부 (MARKETING는 선택,PAYMENT는 false)
 
     private LocalDate effectiveDate; // 시행일
 }

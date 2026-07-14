@@ -11,8 +11,8 @@ public interface AuthService {
     void verifyCode(EmailVerifyRequestDto request);
 
     //회원가입
-    Long signup(SignupRequestDto request);
+    Long signup(SignupRequestDTO request);
 
     //로그인
-    TokenResponseDto login(LoginRequestDTO request);
+    TokenResponseDTO login(LoginRequestDTO request);
 }
