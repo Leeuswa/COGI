@@ -54,7 +54,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void sendCode(EmailSendCodeRequestDto req) {
+    public void sendCode(EmailSendCodeRequestDTO req) {
         LocalDateTime now = LocalDateTime.now();
 
         var lastOpt = emailVerificationRepository.findFirstByEmailOrderByCreateAtDesc(req.getEmail());
@@ -81,7 +81,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void verifyCode(EmailVerifyRequestDto req) {
+    public void verifyCode(EmailVerifyRequestDTO req) {
 
 
 
