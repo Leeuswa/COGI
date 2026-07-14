@@ -52,11 +52,10 @@ public class GuestReviewService {
      */
     public GuestReviewResponse createReview(GuestReviewRequest request, String guestToken) {
 
-        // ── 1단계: 3회 제한 체크 ─────────────────────────────
-        // "guest:count:토큰" 이름표로 카운터 생성. (count 뒤 콜론 주의!)
+        // "guest:count:토큰" 이름표로 카운터 생성
         String countKey = "guest:count:" + guestToken;
 
-        // increment: 값을 1 올리고 "올린 뒤 현재값"을 반환. 처음이면 1, 다음이면 2...
+        // increment: 값을 1 올리고 "올린 뒤 현재값"을 반환.
         Long count = redisTemplate.opsForValue().increment(countKey);
 
         // increment는 이론상 null 가능 → 방어. null이면 1로 취급.
@@ -68,25 +67,15 @@ public class GuestReviewService {
             redisTemplate.expire(countKey, secondsUntilMidnight());
         }
 
-        // 3회 초과(4번째부터) → 예외. Controller가 이걸 403으로 바꿔줌.
+        // 3회 초과(4번째부터)예외처리 Controller가 이걸 403으로 바꿈
         if (current > TRIAL_LIMIT) {
             throw new TrialLimitExceededException("무료 체험 " + TRIAL_LIMIT + "회를 모두 사용했습니다.");
         }
 
-        // ── 2단계: 리뷰 생성 ──────────────────────────────────
-        // 비로그인은 기본 초급 지침으로 리뷰. (나중에 파라미터로 레벨 선택 가능)
+
         ReviewLevel level = ReviewLevel.BEGINNER;
 
-        // TODO(프롬프트/AI 연동 자리) ────────────────────────────────
-        //  아래 buildPrompt(...)로 프롬프트를 만들고, Gemini/Grok에 보내고,
-        //  응답(JSON)을 파싱해서 summary + List<ReviewComment>를 채우면 된다.
-        //
-        //  String prompt = buildPrompt(request.getCode(), request.getLanguage(), level);
-        //  String aiRaw  = aiClient.call(prompt);              // 실제 AI 호출 (담당 경계 확인 후)
-        //  파싱 결과로 summary, comments 채우기
-        //
-        //  지금은 AI 연동 전이라 더미 결과로 흐름만 완성해 둔다.
-        // ────────────────────────────────────────────────────────────
+
         String summary = "더미 리뷰 결과입니다. (AI 연동 전 임시 응답 / level=" + level + ")";
         List<ReviewComment> comments = List.of(
                 new ReviewComment("BUG", "CRITICAL", "user.ts", 88, "null 체크 누락 — 옵셔널 체이닝 또는 얼리 리턴 권장"),
@@ -96,7 +85,7 @@ public class GuestReviewService {
         String reviewId = "G-" + UUID.randomUUID();  // 리뷰마다 고유 이름표
         GuestReviewResponse response = new GuestReviewResponse(reviewId, summary, comments);
 
-        // ── 3단계: Redis에 저장 (다음 자정까지 보관) ──────────
+        // Redis에 저장 (다음 자정까지 보관)
         String reviewKey = "guest:review:" + guestToken + ":" + reviewId;
         try {
             String json = objectMapper.writeValueAsString(response);   // 객체 → JSON 문자열
@@ -105,24 +94,21 @@ public class GuestReviewService {
             throw new RuntimeException("게스트 리뷰 저장 실패", e);
         }
 
-        // ── 4단계: 결과 반환 ─────────────────────────────────
         return response;
     }
 
     private String buildPrompt(String code, String language, ReviewLevel level) {
-        // TODO: 프롬프트 조립해서 return. (지금은 자리만)
-        // 예) return switch (level) { case BEGINNER -> "..."; ... };
         return "";
     }
 
-    /** 지금부터 "다음 자정(Asia/Seoul 기준)"까지 남은 시간. 카운터·리뷰 수명에 사용. */
+//    지금부터 "다음 자정까지 남은 시간. 카운터·리뷰 수명에 사용.
     private Duration secondsUntilMidnight() {
         LocalDateTime now = LocalDateTime.now(KST);
         LocalDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(); // 내일 00:00
         return Duration.between(now, nextMidnight);
     }
 
-    /** 3회 초과 시 던지는 예외. Controller가 잡아 403으로 응답. */
+    // 3회 초과 시 던지는 예외. Controller가 잡아 403으로 응답.
     public static class TrialLimitExceededException extends RuntimeException {
         public TrialLimitExceededException(String message) {
             super(message);
