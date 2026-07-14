@@ -24,7 +24,19 @@ public enum ErrorCode {
     //로그인
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED,"이메일 또는 비밀번호가 일치하지 않습니다."), //401
     ACCOUNT_LOCKED(HttpStatus.LOCKED,"계정이 잠겼습니다. 비밀번호를 재설정해주세요"), //423
-    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN,"정지된 계정입니다."); //403
+    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN,"정지된 계정입니다."), //403
+
+    //AST 컨텍스트 추출
+    AST_PARSE_ERROR(HttpStatus.BAD_REQUEST,"코드를 파싱할 수 없습니다."),
+
+    //레포 팀원 초대(REV-006)
+    REPO_NOT_FOUND(HttpStatus.NOT_FOUND,"레포지토리를 찾을 수 없습니다."),
+    NOT_REPO_MEMBER(HttpStatus.FORBIDDEN,"레포 팀원이 아닙니다."),
+    INSUFFICIENT_REPO_PERMISSION(HttpStatus.FORBIDDEN,"해당 작업을 수행할 권한이 없습니다."),
+    INVITATION_NOT_FOUND(HttpStatus.NOT_FOUND,"초대를 찾을 수 없습니다."),
+    INVITATION_ALREADY_RESPONDED(HttpStatus.CONFLICT,"이미 응답한 초대입니다."),
+    ALREADY_REPO_MEMBER(HttpStatus.CONFLICT,"이미 레포에 소속된 사용자입니다."),
+    INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지
