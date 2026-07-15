@@ -99,4 +99,12 @@ public class User {
     }
 
 
+    //비밀번호 재설정: 새 비밀번호 변경 및 계정 잠금 해제
+    public void resetPassword(String encodedPassword){
+        this.password = encodedPassword; // 암호화된 비밀번호로 받음
+        this.loginFailCount = 0; //실패 횟수 초기화
+        this.isLocked = false; //계정 잠금 해제
+    }
+
+
 }
