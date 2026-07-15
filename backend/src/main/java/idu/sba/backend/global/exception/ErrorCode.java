@@ -34,8 +34,6 @@ public enum ErrorCode {
     SAME_AS_OLD_PASSWORD(HttpStatus.BAD_REQUEST, "기존 비밀번호와 다른 비밀번호를 사용해주세요."), // 400
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다."),                    // 404
 
-    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN,"정지된 계정입니다."), //403
-
     //AST 컨텍스트 추출
     AST_PARSE_ERROR(HttpStatus.BAD_REQUEST,"코드를 파싱할 수 없습니다."),
 
