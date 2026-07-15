@@ -32,6 +32,12 @@ public class User {
     @Column(length = 500)
     private String githubAccessToken;
 
+    @Enumerated(EnumType.STRING)
+    private Provider provider =Provider.LOCAL; // 가입 방식(기본 Local 설정)
+
+    @Column(unique = true)
+    private String kakaoId; //카카오 고유 ID
+
     private String totpSecret; //2단계 인증 시크릿
 
 
@@ -85,6 +91,29 @@ public class User {
         this.password = password;
     }
 
+    //github 최초 로그인 시
+    public static User createByGithub(String githubId, String githubUsername,
+                                      String email, String githubAccessToken){
+
+            User user = new User();
+            user.provider = Provider.GITHUB;
+            user.githubId = githubId;
+            user.githubUsername = githubUsername;
+            user.email =email;
+            user.githubAccessToken = githubAccessToken;
+            user.status = UserStatus.ACTIVE;
+            return user;
+    }
+
+    public static User createByKakao(String kakaoId, String email){
+        User user = new User();
+        user.provider = Provider.KAKAO;
+        user.kakaoId = kakaoId;
+        user.email = email;
+        user.status = UserStatus.ACTIVE;
+        return user;
+    }
+
     //로그인 실패: 실패횟수 + 1, 5회 이상이면 잠금
     public void increaseLoginFailCount(){
         this.loginFailCount++;
@@ -96,6 +125,14 @@ public class User {
     //로그인 성공:실패횟수 초기화
     public void resetLoginFailCount(){
         this.loginFailCount = 0;
+    }
+
+
+    //비밀번호 재설정: 새 비밀번호 변경 및 계정 잠금 해제
+    public void resetPassword(String encodedPassword){
+        this.password = encodedPassword; // 암호화된 비밀번호로 받음
+        this.loginFailCount = 0; //실패 횟수 초기화
+        this.isLocked = false; //계정 잠금 해제
     }
 
 
