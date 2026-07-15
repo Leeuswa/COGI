@@ -1,5 +1,6 @@
 package idu.sba.backend.global.security;
 
+import idu.sba.backend.domain.repo.service.RepoMemberService;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,12 +15,14 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
+    private final RepoMemberService repoMemberService; //레포 초대 자동 매칭용(담당: 홍성찬)
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -39,9 +42,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             String email = (String) attributes.get("email");   // 비공개면 null 가능
             String accessToken = userRequest.getAccessToken().getTokenValue();
 
-            user = userRepository.findByGithubId(githubId)
-                    .orElseGet(() -> userRepository.save(
-                            User.createByGithub(githubId, username, email, accessToken)));
+            Optional<User> existingUser = userRepository.findByGithubId(githubId);
+            if (existingUser.isPresent()) {
+                user = existingUser.get();
+            } else {
+                user = userRepository.save(User.createByGithub(githubId, username, email, accessToken));
+                //레포 초대 자동 매칭: 이 GitHub 계정/이메일로 대기 중인 초대가 있으면 자동 수락(케이스③)
+                repoMemberService.autoMatchPendingInvitations(user);
+            }
         } else { // kakao
             String kakaoId = String.valueOf(attributes.get("id"));
             // 카카오는 이메일이 중첩됨: kakao_account.email

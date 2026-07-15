@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "repo_invitations")
@@ -20,7 +21,12 @@ public class RepoInvitation {
     private Long repoId;
     private Long inviterId;
     private String invitedGithubUsername;
-    private Long invitedUserId; //nullable, 수락 시점에 설정
+    private Long invitedUserId; //nullable — GitHub 연동된 기존 사용자면 초대 즉시 설정, 이메일 경로면 가입/연동 완료 시 설정
+
+    private String inviteeEmail; //nullable — githubUsername으로 대상을 못 찾았을 때만 사용
+    @Column(unique = true)
+    private String inviteToken; //nullable — 이메일 경로일 때만 발급(추측 불가능한 값)
+    private LocalDateTime expiresAt; //nullable — 이메일 경로일 때만 사용
 
     @Enumerated(EnumType.STRING)
     private RepoInvitationStatus status;
@@ -35,15 +41,35 @@ public class RepoInvitation {
         this.createdAt = LocalDateTime.now();
     }
 
-    private RepoInvitation(Long repoId, Long inviterId, String invitedGithubUsername){
+    private RepoInvitation(Long repoId, Long inviterId, String invitedGithubUsername, Long invitedUserId,
+                            String inviteeEmail, String inviteToken, LocalDateTime expiresAt){
         this.repoId = repoId;
         this.inviterId = inviterId;
         this.invitedGithubUsername = invitedGithubUsername;
+        this.invitedUserId = invitedUserId;
+        this.inviteeEmail = inviteeEmail;
+        this.inviteToken = inviteToken;
+        this.expiresAt = expiresAt;
         this.status = RepoInvitationStatus.PENDING;
     }
 
-    public static RepoInvitation issue(Long repoId, Long inviterId, String invitedGithubUsername){
-        return new RepoInvitation(repoId, inviterId, invitedGithubUsername);
+    //① 가입 + GitHub 연동된 사용자를 즉시 찾은 경우
+    public static RepoInvitation issueMatched(Long repoId, Long inviterId, String invitedGithubUsername, Long matchedUserId){
+        return new RepoInvitation(repoId, inviterId, invitedGithubUsername, matchedUserId, null, null, null);
+    }
+
+    //② 미가입 또는 GitHub 미연동 — 이메일 경로
+    public static RepoInvitation issueByEmail(Long repoId, Long inviterId, String invitedGithubUsername, String inviteeEmail, int ttlHours){
+        return new RepoInvitation(repoId, inviterId, invitedGithubUsername, null,
+                inviteeEmail, UUID.randomUUID().toString(), LocalDateTime.now().plusHours(ttlHours));
+    }
+
+    public boolean isEmailInvite(){
+        return inviteeEmail != null;
+    }
+
+    public boolean isExpired(){
+        return expiresAt != null && expiresAt.isBefore(LocalDateTime.now());
     }
 
     public void accept(Long userId){

@@ -44,7 +44,8 @@ public enum ErrorCode {
     INVITATION_NOT_FOUND(HttpStatus.NOT_FOUND,"초대를 찾을 수 없습니다."),
     INVITATION_ALREADY_RESPONDED(HttpStatus.CONFLICT,"이미 응답한 초대입니다."),
     ALREADY_REPO_MEMBER(HttpStatus.CONFLICT,"이미 레포에 소속된 사용자입니다."),
-    INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다.");
+    INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다."),
+    GITHUB_USER_NOT_FOUND(HttpStatus.BAD_REQUEST,"GitHub를 연동하지 않았거나 사이트에 가입하지 않은 사용자입니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지
