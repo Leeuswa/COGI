@@ -6,6 +6,7 @@ import idu.sba.backend.domain.payment.repository.PaymentMethodRepository;
 import idu.sba.backend.domain.payment.repository.PlanRepository;
 import idu.sba.backend.domain.payment.repository.SubscriptionHistoryRepository;
 import idu.sba.backend.domain.payment.repository.SubscriptionRepository;
+import idu.sba.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final PaymentMethodRepository paymentMethodRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionHistoryRepository subscriptionHistoryRepository;
+    private final UserRepository userRepository;
+
 
     // FREE 플랜 판별 기준
     private static final String FREE_PLAN_NAME = "FREE";
@@ -82,13 +85,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         );
         subscriptionHistoryRepository.save(history);
 
-        // 3) users.plan_id 캐시 갱신
+        // users.plan_id 캐시 갱신
         // TODO: User 도메인 연계 — userRepository 로 users.plan_id = newPlan.getId() 갱신
 
         return saved.getId();
     }
 
-    // 구독 시작 ( 최초구독시 가격 그대로 )
+    // 플랜 변경
     @Override
     @Transactional
     public SubscriptionHistoryResponseDTO changeSubscription(Long subId, SubscriptionChangeDTO dto) {

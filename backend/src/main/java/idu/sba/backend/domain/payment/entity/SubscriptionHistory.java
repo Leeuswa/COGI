@@ -19,17 +19,17 @@ public class SubscriptionHistory {
     private Long subscriptionId; // 대상 구독 건 (subscriptions.id)
 
     @Column(name = "previous_plan_id", nullable = false)
-    private Long previousPlanId; // 변경 전 플랜 — ★ 정의서상 NOT NULL (이전 초안의 nullable 아님)
+    private Long previousPlanId; // 변경 전 플랜 (변경 전이 없다면 FREE 로 대체)
 
     @Column(name = "new_plan_id", nullable = false)
-    private Long newPlanId; // 변경 후 플랜
+    private Long newPlanId; // 변경 후 플랜 (plans_id)
 
     @Enumerated(EnumType.STRING)
     @Column(name = "change_type", nullable = false, length = 20)
     private ChangeType changeType; // UPGRADE / DOWNGRADE / CANCEL
 
     @Column(name = "prorated_amount")
-    private Integer proratedAmount; // 일할계산 표시금액(테스트용) — ★ nullable 이라 int 아닌 Integer
+    private Integer proratedAmount; // 계산 표시금액(테스트용)
 
     @Column(name = "changed_at", nullable = false)
     private LocalDateTime changedAt; // 변경 일시

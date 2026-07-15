@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Table(name = "subscriptions")
 @Getter
 @NoArgsConstructor
-public class Subscription {
+public class Subscription { // 구독 현재 상태 엔티티
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,13 +26,13 @@ public class Subscription {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private SubscriptionStatus status; // ACTIVE / CANCELLED (DB 기본값 ACTIVE)
+    private SubscriptionStatus status; //  구독 상태 ACTIVE / CANCELLED (DB 기본값 ACTIVE)
 
     @Column(name = "started_at", nullable = false)
     private LocalDateTime startedAt; // 구독 시작 일시
 
     @Column(name = "cancelled_at")
-    private LocalDateTime cancelledAt; // 해지 일시 (해지 전 NULL)
+    private LocalDateTime cancelledAt; // 해지 일시 (해지 전 NULL) 빌링키를 넣기 때문에 필요
 
     // 상태 변경은 setter 대신 의미 있는 메서드로
     public void changePlan(Long newPlanId) {
