@@ -41,6 +41,7 @@ dependencies {
     // OAuth2 소셜 로그인 (GitHub, 카카오)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
