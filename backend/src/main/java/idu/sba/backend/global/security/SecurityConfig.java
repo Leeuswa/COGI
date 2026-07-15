@@ -20,6 +20,8 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtProvider jwtProvider;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
@@ -32,18 +34,19 @@ public class SecurityConfig {
                 .sessionManagement(sm ->
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // /api/auth/ 로 시작하는 모든 경로 허용(로그인/회원가입/코드발송)
-                        .requestMatchers("/api/auth/**","/error").permitAll()
-
+                        // /api/auth/ 로 시작하는 모든 경로 허용(로그인/회원가입/코드발송/소셜로그인)
+                        .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error").permitAll()
                         // /api/guest/** 로 시작하는 모든 경로 허용(비회원 로그인)
                         .requestMatchers("/api/guest/**").permitAll()
-
-
                         // 나머지 모든 요청은 토큰 필요, 없으면 401에러
                         .anyRequest().authenticated()
                 )
+                // OAuth2 로그인 연결
+                .oauth2Login(oauth -> oauth
+                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))  // 유저정보 처리
+                        .successHandler(oAuth2LoginSuccessHandler))   // 성공 시 = JWT 발급 핸들러
                 //요청이 오기전에 토큰 검사 후 인증 등록
-                .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
+                        .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();
     }
