@@ -17,16 +17,16 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
-// @Service : 이 클래스는 서비스(핵심 로직)라고 스프링에 등록. Controller가 가져다 씀.
+
 @Service
-// @RequiredArgsConstructor : 아래 final 필드(redisTemplate, objectMapper)를 채우는 생성자를 자동 생성 → 스프링이 주입.
+
 @RequiredArgsConstructor
 public class GuestReviewService {
 
     // Redis 리모컨 (카운트·저장에 사용)
     private final StringRedisTemplate redisTemplate;
 
-    // 객체 <-> JSON 문자열 변환기 (Redis에 문자열로 저장하려고 사용)
+    // 객체 , JSON 문자열 변환기 (Redis에 문자열로 저장하려고 사용)
     private final ObjectMapper objectMapper;
 
     // 비로그인 체험 제한 횟수(3회). 한 곳에서만 관리하려고 상수로.
@@ -35,21 +35,11 @@ public class GuestReviewService {
     // 자정 초기화 기준 시간대. 서버가 UTC라도 한국 자정에 맞추려고 명시.
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
-    /**
-     * 리뷰 수준. 비로그인은 기본 초급(BEGINNER)을 쓰지만,
-     * 나중에 초급/중급/고급을 고를 수 있게 파라미터로 받을 수 있도록 enum으로 준비.
-     * (관리자 review_guidelines의 BEGINNER/INTERMEDIATE/ADVANCED 와 동일 체계)
-     */
+
     public enum ReviewLevel {
         BEGINNER, INTERMEDIATE, ADVANCED
     }
 
-    /**
-     * 비로그인 리뷰 생성 (API-039)
-     * @param request    프론트가 보낸 코드/언어
-     * @param guestToken 쿠키에서 꺼낸 게스트 식별값 (Controller가 넘겨줌)
-     * @return 리뷰 결과(응답 DTO)
-     */
     public GuestReviewResponse createReview(GuestReviewRequest request, String guestToken) {
 
         // "guest:count:토큰" 이름표로 카운터 생성
