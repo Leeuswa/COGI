@@ -32,6 +32,12 @@ public class User {
     @Column(length = 500)
     private String githubAccessToken;
 
+    @Enumerated(EnumType.STRING)
+    private Provider provider =Provider.LOCAL; // 가입 방식(기본 Local 설정)
+
+    @Column(unique = true)
+    private String kakaoId; //카카오 고유 ID
+
     private String totpSecret; //2단계 인증 시크릿
 
 
@@ -83,6 +89,29 @@ public class User {
     public User(String email, String password){
         this.email = email;
         this.password = password;
+    }
+
+    //github 최초 로그인 시
+    public static User createByGithub(String githubId, String githubUsername,
+                                      String email, String githubAccessToken){
+
+            User user = new User();
+            user.provider = Provider.GITHUB;
+            user.githubId = githubId;
+            user.githubUsername = githubUsername;
+            user.email =email;
+            user.githubAccessToken = githubAccessToken;
+            user.status = UserStatus.ACTIVE;
+            return user;
+    }
+
+    public static User createByKakao(String kakaoId, String email){
+        User user = new User();
+        user.provider = Provider.KAKAO;
+        user.kakaoId = kakaoId;
+        user.email = email;
+        user.status = UserStatus.ACTIVE;
+        return user;
     }
 
     //로그인 실패: 실패횟수 + 1, 5회 이상이면 잠금

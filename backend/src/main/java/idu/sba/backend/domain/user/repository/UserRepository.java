@@ -13,4 +13,9 @@ public interface UserRepository extends JpaRepository<User,Long> {
     //로그인시 이메일 체크
     Optional<User> findByEmail(String email);
 
+    //github 아이디 여부 확인
+    Optional<User> findByGithubId(String githubId);
+    //카카오 아이디 여부 확인
+    Optional<User> findByKakaoId(String kakaoId);
+
 }
