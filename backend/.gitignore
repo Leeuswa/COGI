@@ -38,3 +38,5 @@ out/
 
 ### Project secrets ###
 src/main/resources/application.properties
+
+/docs/

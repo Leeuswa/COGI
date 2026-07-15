@@ -35,6 +35,12 @@ dependencies {
     // Spring Security - 인증/인가 (JWT 필터, URL 접근 제어)
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
+    // AST 기반 컨텍스트 추출용 Java 파서
+    implementation 'com.github.javaparser:javaparser-core:3.26.4'
+
+    // OAuth2 소셜 로그인 (GitHub, 카카오)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

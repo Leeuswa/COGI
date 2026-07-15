@@ -2,8 +2,10 @@ package idu.sba.backend.domain.auth.service;
 
 import idu.sba.backend.domain.auth.dto.*;
 import idu.sba.backend.domain.auth.entity.EmailVerification;
+import idu.sba.backend.domain.auth.entity.PasswordResetToken;
 import idu.sba.backend.domain.auth.entity.Purpose;
 import idu.sba.backend.domain.auth.repository.EmailVerificationRepository;
+import idu.sba.backend.domain.auth.repository.PasswordResetTokenRepository;
 import idu.sba.backend.domain.terms.entity.Term;
 import idu.sba.backend.domain.terms.entity.UserAgreement;
 import idu.sba.backend.domain.terms.repository.TermRepository;
@@ -26,6 +28,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +36,11 @@ public class AuthServiceImpl implements AuthService {
 
     //인증코드 유효시간 5분
     private static final int CODE_TTL_MINUTES = 5;
+
+    //재설정 토큰 유효시간 30분
+    private static final int RESET_TOKEN_TTL_MINUTES = 30;
+
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     private final JwtProvider jwtProvider;
     @Value("${jwt.access-token-expiration}")
@@ -199,6 +207,80 @@ public class AuthServiceImpl implements AuthService {
         user.resetLoginFailCount();
         String token = jwtProvider.createToken(user.getId(),user.getRole().name());
         return TokenResponseDTO.of(token,accessTokenExpiration);
+
+    }
+
+    @Override
+    public String resetRequest(PasswordResetRequestDTO req) {
+        EmailVerification ev = emailVerificationRepository.findFirstByEmailOrderByCreateAtDesc(req.getEmail())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CODE_MISMATCH));
+
+        if(ev.isLocked()){
+            throw new BusinessException(ErrorCode.CODE_LOCKED);
+        }
+        if (ev.isExpired()){
+            throw new BusinessException(ErrorCode.CODE_EXPIRED);
+        }
+
+        if(!ev.matches(req.getCode())){
+            ev.recordFail();
+            emailVerificationRepository.save(ev);
+            throw new BusinessException(ev.isLocked() ? ErrorCode.CODE_LOCKED : ErrorCode.CODE_MISMATCH);
+        }
+
+        //인증 완료
+        ev.markVerified();
+        emailVerificationRepository.save(ev);
+
+        //가입된 계정인지 확인
+        if(!userRepository.existsByEmail(req.getEmail())){
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        //재설정 토큰 발급 (UUID로 랜덤 값 발급)
+        String token = UUID.randomUUID().toString();
+        passwordResetTokenRepository.save(
+                PasswordResetToken.issue(req.getEmail(),token,RESET_TOKEN_TTL_MINUTES));
+            return token;
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(PasswordResetDTO req) {
+
+        //새 비밀번호랑 새 비밀번호 재인증
+        if(!req.getNewPassword().equals(req.getNewPasswordConfirm())){
+            throw new BusinessException(ErrorCode.PASSWORD_MISMATCH);
+        }
+
+        //토큰 조회 + 검증
+        PasswordResetToken token = passwordResetTokenRepository
+                .findByResetToken(req.getResetToken())
+                .orElseThrow(() ->  new BusinessException(ErrorCode.RESET_TOKEN_INVALID));
+
+        //만료 되었는지
+        if(token.isExpired()){
+            throw new BusinessException(ErrorCode.RESET_TOKEN_EXPIRED);
+        }
+
+        //비밀번호 재설정 토큰을 사용한적이 있는지
+        if (Boolean.TRUE.equals(token.getUsed())){
+            throw new BusinessException(ErrorCode.RESET_TOKEN_USED);
+        }
+
+        //대상 유저 조회
+        User user = userRepository.findByEmail(token.getEmail())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        //기존 비밀번호와 같으면 거부
+        if(passwordEncoder.matches(req.getNewPassword(),user.getPassword())){
+            throw new BusinessException(ErrorCode.SAME_AS_OLD_PASSWORD);
+        }
+
+        //비밀번호 변경 + 계정 잠금 해제 + 토큰 사용처리
+        user.resetPassword(passwordEncoder.encode(req.getNewPassword()));
+        token.markUsed();
+
 
     }
 }
