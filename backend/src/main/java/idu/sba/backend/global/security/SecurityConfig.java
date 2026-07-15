@@ -3,6 +3,7 @@ package idu.sba.backend.global.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -38,6 +39,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error").permitAll()
                         // /api/guest/** 로 시작하는 모든 경로 허용(비회원 로그인)
                         .requestMatchers("/api/guest/**").permitAll()
+
+                        // /api/plans 요금제 목록 조회 (GET만 허용)
+                        .requestMatchers(HttpMethod.GET, "/api/plans").permitAll()
+
                         // 나머지 모든 요청은 토큰 필요, 없으면 401에러
                         .anyRequest().authenticated()
                 )
