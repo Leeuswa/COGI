@@ -24,7 +24,16 @@ public enum ErrorCode {
     //로그인
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED,"이메일 또는 비밀번호가 일치하지 않습니다."), //401
     ACCOUNT_LOCKED(HttpStatus.LOCKED,"계정이 잠겼습니다. 비밀번호를 재설정해주세요"), //423
-    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN,"정지된 계정입니다."); //403
+    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN,"정지된 계정입니다."), //403
+
+
+    //비밀번호 재설정
+    RESET_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "유효하지 않은 재설정 토큰입니다."),        // 400
+    RESET_TOKEN_EXPIRED(HttpStatus.GONE, "재설정 토큰이 만료되었습니다."),                  // 410
+    RESET_TOKEN_USED(HttpStatus.BAD_REQUEST, "이미 사용된 재설정 토큰입니다."),             // 400
+    SAME_AS_OLD_PASSWORD(HttpStatus.BAD_REQUEST, "기존 비밀번호와 다른 비밀번호를 사용해주세요."), // 400
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다.");                    // 404
+
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지
