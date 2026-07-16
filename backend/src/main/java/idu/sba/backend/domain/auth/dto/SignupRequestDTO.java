@@ -22,6 +22,9 @@ public class SignupRequestDTO {
     @NotBlank
     private String passwordConfirm; //비밀번호 확인
 
+
+    private String nickname;
+
     @NotEmpty(message = "약관 동의가 필요합니다.")
     private List<Long> termIds; //동의한 약관 ID 목록
 

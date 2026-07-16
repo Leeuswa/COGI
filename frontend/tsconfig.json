@@ -1,7 +1,21 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "compilerOptions": {
+    /* Vite + React 표준 설정. 번들링은 Vite가, 타입 검사는 tsc --noEmit이 담당 */
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "useDefineForClassFields": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* ponytail: JS→TS 이행 1단계라 strict는 끔.
+       파일 전체가 TS로 컴파일되는 것부터 보장하고,
+       타입을 점진적으로 붙인 뒤 strict: true로 올리는 게 업그레이드 경로 */
+    "strict": false,
+    "noImplicitAny": false
+  },
+  "include": ["src", "vite.config.ts"]
 }

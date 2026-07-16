@@ -9,7 +9,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+        //같은 이메일 이어도 provider가 다르면 별개 계정 허용
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_provider_email",
+                columnNames = {"provider", "email"}))
 @Getter
 //아무나 빈 객체 만들지 못하게 protected로 막음
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -19,10 +23,14 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true)
-    private String email;   //GitHub 전용 가입자는 null 일 수 있음
+
+    //   LOCAL: 가입 이메일
+    //   GITHUB/KAKAO: 소셜 계정 이메일(없으면 null 가능)
+    private String email;
 
     private String password;
+
+    private String nickname;
 
     @Column(unique = true)
     private String githubId; //GitHub OAuth 식별자
@@ -86,9 +94,10 @@ public class User {
     }
 
     @Builder
-    public User(String email, String password){
+    public User(String email, String password,String nickname){
         this.email = email;
         this.password = password;
+        this.nickname = nickname;
     }
 
     //github 최초 로그인 시
@@ -99,16 +108,18 @@ public class User {
             user.provider = Provider.GITHUB;
             user.githubId = githubId;
             user.githubUsername = githubUsername;
+            user.nickname = githubUsername;
             user.email =email;
             user.githubAccessToken = githubAccessToken;
             user.status = UserStatus.ACTIVE;
             return user;
     }
 
-    public static User createByKakao(String kakaoId, String email){
+    public static User createByKakao(String kakaoId,String nickname ,String email){
         User user = new User();
         user.provider = Provider.KAKAO;
         user.kakaoId = kakaoId;
+        user.nickname = nickname;
         user.email = email;
         user.status = UserStatus.ACTIVE;
         return user;
@@ -140,6 +151,27 @@ public class User {
         this.planId = planId;
     }
 
+
+    //GitHub 재로그인 시 토큰 갱신(스코프 재동의로 토큰이 바뀔 수 있음)
+    public void updateGithubAccessToken(String githubAccessToken){
+        this.githubAccessToken = githubAccessToken;
+    }
+
+
+    // 프로필 수정 (관심기술/수준)
+    public void updateProfile(String nickname,Level level, String interests) {
+        this.nickname = nickname;
+        this.level = level;
+        this.interests = interests;
+    }
+
+    // 온보딩 제출
+    public void completeOnboarding(Level level, String interests, boolean guideConfirmed) {
+        this.level = level;
+        this.interests = interests;
+        this.guideConfirmed = guideConfirmed;
+        this.onboardingCompleted = true;   // 온보딩 완료 표시
+    }
 
 
 }
