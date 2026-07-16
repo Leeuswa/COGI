@@ -24,6 +24,8 @@ public class User {
 
     private String password;
 
+    private String nickname;
+
     @Column(unique = true)
     private String githubId; //GitHub OAuth 식별자
 
@@ -86,9 +88,10 @@ public class User {
     }
 
     @Builder
-    public User(String email, String password){
+    public User(String email, String password,String nickname){
         this.email = email;
         this.password = password;
+        this.nickname = nickname;
     }
 
     //github 최초 로그인 시
@@ -99,16 +102,18 @@ public class User {
             user.provider = Provider.GITHUB;
             user.githubId = githubId;
             user.githubUsername = githubUsername;
+            user.nickname = githubUsername;
             user.email =email;
             user.githubAccessToken = githubAccessToken;
             user.status = UserStatus.ACTIVE;
             return user;
     }
 
-    public static User createByKakao(String kakaoId, String email){
+    public static User createByKakao(String kakaoId,String nickname ,String email){
         User user = new User();
         user.provider = Provider.KAKAO;
         user.kakaoId = kakaoId;
+        user.nickname = nickname;
         user.email = email;
         user.status = UserStatus.ACTIVE;
         return user;
@@ -133,6 +138,22 @@ public class User {
         this.password = encodedPassword; // 암호화된 비밀번호로 받음
         this.loginFailCount = 0; //실패 횟수 초기화
         this.isLocked = false; //계정 잠금 해제
+    }
+
+
+    // 프로필 수정 (관심기술/수준)
+    public void updateProfile(String nickname,Level level, String interests) {
+        this.nickname = nickname;
+        this.level = level;
+        this.interests = interests;
+    }
+
+    // 온보딩 제출
+    public void completeOnboarding(Level level, String interests, boolean guideConfirmed) {
+        this.level = level;
+        this.interests = interests;
+        this.guideConfirmed = guideConfirmed;
+        this.onboardingCompleted = true;   // 온보딩 완료 표시
     }
 
 

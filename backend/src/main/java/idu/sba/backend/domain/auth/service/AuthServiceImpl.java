@@ -157,6 +157,7 @@ public class AuthServiceImpl implements AuthService {
                 User.builder()
                         .email(req.getEmail())
                         .password(passwordEncoder.encode(req.getPassword()))
+                        .nickname(req.getNickname())
                         .build());
 
         //동의 이력 저장
