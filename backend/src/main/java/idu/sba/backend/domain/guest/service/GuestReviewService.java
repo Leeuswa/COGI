@@ -8,6 +8,8 @@ import idu.sba.backend.domain.guest.dto.GuestReviewResponse;
 import idu.sba.backend.domain.guest.dto.ReviewComment;
 import idu.sba.backend.global.ai.AiModel;
 import idu.sba.backend.global.ai.AiReviewClient;
+import idu.sba.backend.global.ai.AiReviewResult;
+import idu.sba.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -70,17 +72,20 @@ public class GuestReviewService {
         ReviewLevel level = ReviewLevel.BEGINNER;
 
         String summary;
-
-        // AI 호출 실패 시 방금 올린 체험 횟수를 롤백하고, 원인 유지한 채 예외를 다시 던짐
         List<ReviewComment> comments;
         try {
-            AiReviewClient.AiReview ai = aiReviewClient.review(
-                    AiModel.GEMINI_FLASH_LITE, request.getCode(), request.getLanguage(), level.name());
-            summary = ai.summary();
-            comments = ai.toReviewComments();
-        } catch (Exception e) {
-            redisTemplate.opsForValue().decrement(countKey); // 실패한 시도는 체험 횟수에서 차감 되지 않게
-            throw new RuntimeException("AI 리뷰 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.", e);
+            String systemPrompt = buildPrompt(request.getLanguage(), level);
+            AiReviewResult result = aiReviewClient.review(
+                    AiModel.GEMINI_FLASH_LITE, systemPrompt, request.getCode(), request.getLanguage());
+            summary = result.summary();
+            comments = result.issues().stream()
+                    .map(i -> new ReviewComment(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))
+                    .toList();
+        } catch (BusinessException e) {
+            // AI 호출 실패 시 방금 올린 체험 횟수를 롤백하고, 에러코드(AI_MODEL_CALL_FAILED)는 그대로 유지한 채 재던짐
+            // — GlobalExceptionHandler가 502로 통일 응답하도록(예전처럼 500 RuntimeException으로 뭉개지 않음)
+            redisTemplate.opsForValue().decrement(countKey);
+            throw e;
         }
 
         String reviewId = "G-" + UUID.randomUUID();  // 리뷰마다 고유 이름표
@@ -98,8 +103,19 @@ public class GuestReviewService {
         return response;
     }
 
-    private String buildPrompt(String code, String language, ReviewLevel level) {
-        return "";
+    // 시스템 프롬프트만 만든다 — 코드 본문은 AiReviewClient가 별도 user 메시지로 넣는다.
+    // "issues" 키/필드명은 AiReviewClientImpl의 공용 파싱 계약과 반드시 일치해야 함.
+    private String buildPrompt(String language, ReviewLevel level) {
+        return """
+                당신은 %s 수준 개발자를 위한 코드 리뷰어입니다.
+                이어지는 %s 코드를 리뷰하고, 다른 텍스트 없이 반드시 다음 JSON 형식으로만 답하세요:
+                {"summary":"전체 요약 한두 문장",
+                 "issues":[{"category":"BUG|PERFORMANCE|CODE_SMELL|CONVENTION|SECURITY",
+                            "severity":"CRITICAL|MAJOR|MINOR",
+                            "filePath":"파일명(모르면 input)",
+                            "lineNumber":1,
+                            "description":"문제와 개선 방법"}]}
+                """.formatted(level.name(), language);
     }
 
 //    지금부터 "다음 자정까지 남은 시간. 카운터·리뷰 수명에 사용.
