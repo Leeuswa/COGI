@@ -58,6 +58,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return new MyPlanResponseDTO(plan.getId(), plan.getName() , sub.getStartedAt());
     }
 
+    //현재 적용 중인 플랜 엔티티(ACTIVE 구독 없으면 FREE로 간주 — users.plan_id의 "null=FREE" 규칙과 동일)
+    @Override
+    public Plan getCurrentPlanEntity(Long userId) {
+        return subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
+                .map(sub -> planRepository.findById(sub.getPlanId())
+                        .orElseThrow(() -> new IllegalStateException("구독중인 플랜을 찾을 수 없습니다.")))
+                .orElseGet(() -> planRepository.findByName(FREE_PLAN_NAME)
+                        .orElseThrow(() -> new IllegalStateException("FREE 플랜 시드 데이터가 없습니다.")));
+    }
+
 
     @Override
     @Transactional
