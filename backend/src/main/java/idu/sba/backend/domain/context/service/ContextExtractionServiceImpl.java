@@ -33,6 +33,8 @@ public class ContextExtractionServiceImpl implements ContextExtractionService {
 
         String fileName = request.getFileName();
         Integer startLine = request.getStartLine();
+        //diff 한 덩어리(hunk) 범위 지원 — endLine 없으면 단일 라인으로 취급
+        Integer endLine = request.getEndLine() != null ? request.getEndLine() : startLine;
 
         //1단계: 전체 파일(패키지+import+클래스) 가정
         Optional<CompilationUnit> cuOpt = tryParse(request.getCode());
@@ -67,20 +69,21 @@ public class ContextExtractionServiceImpl implements ContextExtractionService {
                 .toList();
 
         List<ClassOrInterfaceDeclaration> classes = cu.findAll(ClassOrInterfaceDeclaration.class);
-        ClassOrInterfaceDeclaration target = pickTargetClass(classes, startLine);
+        ClassOrInterfaceDeclaration target = pickTargetClass(classes, startLine, endLine);
         String className = target != null ? target.getNameAsString() : null;
 
         List<MethodDeclaration> methods = target != null ? target.getMethods() : List.of();
         MethodDeclaration enclosingMethod = startLine != null
-                ? methods.stream().filter(m -> containsLine(m.getRange(), startLine)).findFirst().orElse(null)
+                ? methods.stream().filter(m -> overlapsRange(m.getRange(), startLine, endLine)).findFirst().orElse(null)
                 : null;
 
+        //최소 컨텍스트: 형제 메서드는 시그니처만(비용 절감), enclosing 메서드만 javadoc 포함
         List<MethodSummaryDTO> siblingMethods = methods.stream()
                 .filter(m -> m != enclosingMethod)
-                .map(this::toMethodSummary)
+                .map(m -> toMethodSummary(m, false))
                 .toList();
 
-        MethodSummaryDTO enclosingSummary = enclosingMethod != null ? toMethodSummary(enclosingMethod) : null;
+        MethodSummaryDTO enclosingSummary = enclosingMethod != null ? toMethodSummary(enclosingMethod, true) : null;
 
         List<FieldSummaryDTO> fields = target != null
                 ? target.getFields().stream().map(this::toFieldSummary).toList()
@@ -109,24 +112,27 @@ public class ContextExtractionServiceImpl implements ContextExtractionService {
         return Optional.empty();
     }
 
-    //startLine이 속한 클래스를 우선 선택(중첩 클래스 대응), 없으면 첫 번째 클래스
-    private ClassOrInterfaceDeclaration pickTargetClass(List<ClassOrInterfaceDeclaration> classes, Integer startLine) {
+    //[startLine, endLine] 범위와 겹치는 클래스를 우선 선택(중첩 클래스 대응), 없으면 첫 번째 클래스
+    private ClassOrInterfaceDeclaration pickTargetClass(List<ClassOrInterfaceDeclaration> classes, Integer startLine, Integer endLine) {
         if (classes.isEmpty()) return null;
         if (startLine != null) {
             return classes.stream()
-                    .filter(c -> containsLine(c.getRange(), startLine))
+                    .filter(c -> overlapsRange(c.getRange(), startLine, endLine))
                     .findFirst()
                     .orElse(classes.get(0));
         }
         return classes.get(0);
     }
 
-    private boolean containsLine(Optional<Range> range, int line) {
-        return range.map(r -> line >= r.begin.line && line <= r.end.line).orElse(false);
+    //diff hunk([startLine, endLine])와 노드 범위가 겹치는지 확인
+    private boolean overlapsRange(Optional<Range> range, int startLine, int endLine) {
+        return range.map(r -> startLine <= r.end.line && endLine >= r.begin.line).orElse(false);
     }
 
-    private MethodSummaryDTO toMethodSummary(MethodDeclaration method) {
-        String javadoc = method.getJavadocComment().map(JavadocComment::getContent).orElse(null);
+    private MethodSummaryDTO toMethodSummary(MethodDeclaration method, boolean includeJavadoc) {
+        String javadoc = includeJavadoc
+                ? method.getJavadocComment().map(JavadocComment::getContent).orElse(null)
+                : null;
         Range range = method.getRange().orElse(Range.range(0, 0, 0, 0));
         return MethodSummaryDTO.of(method.getDeclarationAsString(), javadoc, range.begin.line, range.end.line);
     }

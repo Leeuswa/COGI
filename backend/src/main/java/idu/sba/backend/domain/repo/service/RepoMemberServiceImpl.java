@@ -141,6 +141,14 @@ public class RepoMemberServiceImpl implements RepoMemberService {
         }
     }
 
+    @Override
+    @Transactional
+    public void registerOwner(Long repoId, Long ownerUserId) {
+        if (!repoMemberRepository.existsByRepoIdAndUserId(repoId, ownerUserId)) {
+            repoMemberRepository.save(RepoMember.of(repoId, ownerUserId, RepoRole.OWNER));
+        }
+    }
+
     private String repoNameOf(Long repoId) {
         return githubRepositoryRepository.findById(repoId).map(GithubRepository::getRepoName).orElse(null);
     }

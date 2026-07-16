@@ -25,4 +25,7 @@ public interface RepoMemberService {
     //GitHub 가입/연동 완료 시 대기 중인 초대를 자동으로 매칭·수락 처리(케이스③ 훅)
     void autoMatchPendingInvitations(User newUser);
 
+    //레포 연동(API-023) 완료 시 등록자를 OWNER로 등록 — 레포 연동 API 담당자가 호출할 훅
+    void registerOwner(Long repoId, Long ownerUserId);
+
 }
