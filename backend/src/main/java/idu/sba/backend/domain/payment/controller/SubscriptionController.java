@@ -1,6 +1,7 @@
 package idu.sba.backend.domain.payment.controller;
 
 import idu.sba.backend.domain.payment.dto.*;
+import idu.sba.backend.domain.payment.service.CreditUsageService;
 import idu.sba.backend.domain.payment.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import java.util.List;
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+    private final CreditUsageService creditUsageService;
 
     //전체 요금제 목록 (인증 불필요)
     @GetMapping("/plans")
@@ -29,6 +31,14 @@ public class SubscriptionController {
             @AuthenticationPrincipal Long userId
     ) {
         return ResponseEntity.ok(subscriptionService.getMyPlan(userId));
+    }
+
+    //API-055: 오늘 크레딧 사용량/한도 조회
+    @GetMapping("/users/me/credit-usage")
+    public ResponseEntity<CreditUsageResponseDTO> getCreditUsage(
+            @AuthenticationPrincipal Long userId
+    ) {
+        return ResponseEntity.ok(creditUsageService.getStatus(userId));
     }
 
     //결제수단 등록
