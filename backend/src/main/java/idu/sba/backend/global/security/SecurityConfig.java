@@ -38,7 +38,7 @@ public class SecurityConfig {
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // /api/auth/ 로 시작하는 모든 경로 허용(로그인/회원가입/코드발송/소셜로그인)
-                        .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error").permitAll()
+                        .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error","/api/terms").permitAll()
                         // /api/guest/** 로 시작하는 모든 경로 허용(비회원 로그인)
                         .requestMatchers("/api/guest/**").permitAll()
                         // /api/plans 요금제 목록 조회 (GET만 허용)

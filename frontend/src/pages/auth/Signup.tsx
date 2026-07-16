@@ -29,6 +29,7 @@ export default function Signup() {
 
   const [step, setStep] = useState(1);            // 이메일 가입 전용 (1: 입력, 2: 코드)
   const [email, setEmail] = useState('');
+  const [nickname, setNickname] = useState('');   // 선택 — 비우면 서버가 이메일 앞부분으로 채움
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [terms, setTerms] = useState([]);         // 약관 목록 (API-063)
@@ -55,18 +56,9 @@ export default function Signup() {
   };
 
   /* ── 소셜 가입: 버튼 클릭 → 프로필 받아오기 ── */
-  const startSocial = async (provider) => {
-    setErr('');
-    // 실서버: OAuth 페이지로 이동. 콜백 후 /signup?social=kakao 로 돌아와 이 화면이 이어진다.
-    const url = provider === 'KAKAO' ? api.kakaoOAuthUrl() : api.githubOAuthUrl();
-    if (url.startsWith('http')) { window.location.href = url; return; }
-    // 목: 동의 끝난 셈 치고 바로 프로필 조회
-    setBusy(true);
-    try {
-      const p = await api.socialProfile(provider);
-      setProfile(p);
-      setMode('social');
-    } finally { setBusy(false); }
+  const startSocial = (provider) => {
+    // 소셜 가입/로그인은 백엔드 OAuth 진입점으로 풀페이지 이동. 동의 후 백엔드가 쿠키를 세팅하고 /oauth/callback 으로 돌려보낸다.
+    window.location.href = provider === 'KAKAO' ? api.kakaoOAuthUrl() : api.githubOAuthUrl();
   };
 
   /* ── 소셜 가입: 약관 동의 → 확정 ── */
@@ -105,13 +97,12 @@ export default function Signup() {
     setErr('');
     setBusy(true);
     try {
-      await api.verifyEmailCode(email, code);            // 5분 만료 검증
-      const res = await api.signup(email, pw, pw2, agreed); // 가입 (약관 동의 포함)
-      await api.submitAgreements(agreed.map((id) => ({ termId: id, agreed: true })));
-      signIn(res.accessToken, res.user); // 닉네임 초기값은 @ 앞부분 — 마이페이지에서 수정 가능
-      nav('/onboarding', { state: { from: backTo } });
+      await api.verifyEmailCode(email, code);              // 5분 만료 검증
+      await api.signup(email, pw, pw2, agreed, nickname);  // 가입만 (약관 동의는 백엔드가 함께 저장, nickname 선택)
+      // 가입은 여기까지. 로그인 화면으로 보내고, 로그인 시 온보딩 미완료면 온보딩으로 이동한다.
+      nav('/login', { state: { signupDone: true, from: backTo } });
     } catch {
-      setErr('인증코드가 맞지 않아요. (목 모드 힌트: 000000)');
+      setErr('인증코드가 맞지 않아요.');
     } finally { setBusy(false); }
   };
 
@@ -203,6 +194,10 @@ export default function Signup() {
               <div>
                 <label>이메일</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              </div>
+              <div>
+                <label>닉네임 (선택 — 비우면 이메일 앞부분으로 자동)</label>
+                <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={20} autoComplete="nickname" />
               </div>
               <div>
                 <label>비밀번호 (8자 이상)</label>

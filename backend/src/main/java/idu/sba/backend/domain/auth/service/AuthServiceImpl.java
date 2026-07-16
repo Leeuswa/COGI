@@ -152,12 +152,16 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.REQUIRED_TERMS_NOT_AGREED);
         }
 
+        //닉네임 설정 안할시 이메일의 @앞에 가져옴
+        String nickname = (req.getNickname() != null && !req.getNickname().isBlank())
+                ? req.getNickname()
+                : req.getEmail().split("@")[0];
         //유저 저장
         User user = userRepository.save(
                 User.builder()
                         .email(req.getEmail())
                         .password(passwordEncoder.encode(req.getPassword()))
-                        .nickname(req.getNickname())
+                        .nickname(nickname)
                         .build());
 
         //동의 이력 저장

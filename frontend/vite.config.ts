@@ -1,10 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// 특별한 설정 없음. 백엔드(Spring Boot :8080) 붙일 때 proxy 주석만 풀면 된다.
 export default defineConfig({
   plugins: [react()],
-  // server: {
-  //   proxy: { '/api': 'http://localhost:8080', '/oauth2': 'http://localhost:8080' },
-  // },
+  server: {
+    // 프론트(:5173) 요청을 백엔드(:8080)로 전달 (CORS/쿠키 편해짐)
+    proxy: {
+      '/api': 'http://localhost:8080',
+      '/oauth2': 'http://localhost:8080',
+      '/login': 'http://localhost:8080',
+    },
+  },
 });
