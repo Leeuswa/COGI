@@ -7,7 +7,7 @@ import java.util.Arrays;
 public enum AiModel {
 
     // 비로그인 체험
-    GEMINI_FLASH_LITE("gemini-3.5-flash-lite",     AiProvider.GEMINI),
+    GEMINI_FLASH("gemini-3.5-flash",          AiProvider.GEMINI),
     GROQ_LLAMA_70B    ("llama-3.3-70b-versatile",  AiProvider.GROQ),
 
     // FREE

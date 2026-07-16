@@ -75,7 +75,7 @@ public class GuestReviewService {
         List<ReviewComment> comments;
         try {
             AiReviewClient.AiReview ai = aiReviewClient.review(
-                    AiModel.GEMINI_FLASH_LITE, request.getCode(), request.getLanguage(), level.name());
+                    AiModel.GEMINI_FLASH, request.getCode(), request.getLanguage(), level.name());
             summary = ai.summary();
             comments = ai.toReviewComments();
         } catch (Exception e) {

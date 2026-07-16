@@ -40,13 +40,28 @@ public class AiReviewClient {
         String json = provider.anthropicStyle()
                 ? callAnthropic(provider, model.id(), prompt)
                 : callOpenAiCompatible(provider, model.id(), prompt);
-        return objectMapper.readValue(json, AiReview.class);
+        return objectMapper.readValue(stripCodeFence(json), AiReview.class);
+    }
+
+    // 일부 모델이 JSON을 ```json ... ``` 코드블럭으로 감싸서 응답하는 경우 방어
+    private String stripCodeFence(String raw) {
+        String trimmed = raw.strip();
+        if (trimmed.startsWith("```")) {
+            trimmed = trimmed.replaceFirst("^```[a-zA-Z]*\\s*", "");
+            if (trimmed.endsWith("```")) {
+                trimmed = trimmed.substring(0, trimmed.length() - 3);
+            }
+        }
+        return trimmed.strip();
     }
 
     // OpenAI 호환 (Gemini/Groq/OpenAI)
     private String callOpenAiCompatible(AiProvider p, String modelId, String prompt) {
+        // OpenAI 최신 모델은 max_tokens를 거부하고 max_completion_tokens를 요구함. 다른 provider는 max_tokens 그대로 사용.
+        String maxTokensKey = (p == AiProvider.OPENAI) ? "max_completion_tokens" : "max_tokens";
         Map<String, Object> body = Map.of(
                 "model", modelId,
+                maxTokensKey, 2048,
                 "messages", List.of(Map.of("role", "user", "content", prompt)),
                 "response_format", Map.of("type", "json_object")
         );
