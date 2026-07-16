@@ -19,15 +19,15 @@ public interface SubscriptionService {
     // 현재 적용 중인 플랜 엔티티 조회 (ACTIVE 구독 없으면 FREE로 간주) — 크레딧 한도 등 내부 로직용
     Plan getCurrentPlanEntity(Long userId);
 
-    // 결제수단 등록 (cardInfo로 빌링키 발급 -> payment_methods로 저장)
+    // 결제수단 등록 (카드정보로 빌링키 발급 -> payment_methods로 저장)
     Long registerPaymentMethod(Long userId , PaymentMethodRequestDTO dto);
 
     //구독 시작
     Long createSubscription(Long userId, SubscriptionCreateDTO dto);
 
-    //플랜 변경
-    SubscriptionHistoryResponseDTO changeSubscription(Long subId,  SubscriptionChangeDTO dto);
+    //플랜 변경 (본인 구독만)
+    SubscriptionHistoryResponseDTO changeSubscription(Long userId, Long subId, SubscriptionChangeDTO dto);
 
-    //구독 해지
-    void cancelSubscription(Long subId);
+    //구독 해지 (본인 구독만)
+    void cancelSubscription(Long userId, Long subId);
 }

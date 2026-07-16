@@ -146,6 +146,12 @@ public class User {
         this.isLocked = false; //계정 잠금 해제
     }
 
+    // 구독 플랜 변경: 캐시용 plan_id 갱신
+    public void updatePlanId(Long planId) {
+        this.planId = planId;
+    }
+
+
     //GitHub 재로그인 시 토큰 갱신(스코프 재동의로 토큰이 바뀔 수 있음)
     public void updateGithubAccessToken(String githubAccessToken){
         this.githubAccessToken = githubAccessToken;
