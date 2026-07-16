@@ -45,6 +45,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             Optional<User> existingUser = userRepository.findByGithubId(githubId);
             if (existingUser.isPresent()) {
                 user = existingUser.get();
+                //스코프 재동의 등으로 토큰이 바뀔 수 있어 재로그인 시마다 갱신(레포 연동 API가 최신 토큰을 써야 함)
+                user.updateGithubAccessToken(accessToken);
+                userRepository.save(user);
             } else {
                 user = userRepository.save(User.createByGithub(githubId, username, email, accessToken));
                 //레포 초대 자동 매칭: 이 GitHub 계정/이메일로 대기 중인 초대가 있으면 자동 수락(케이스③)

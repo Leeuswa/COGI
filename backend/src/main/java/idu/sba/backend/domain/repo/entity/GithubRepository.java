@@ -9,8 +9,7 @@ import java.time.LocalDateTime;
 
 /**
  * 테이블 정의서의 repositories — GitHub 레포지토리 연동 정보.
- * 실제 GitHub 연동(OAuth·webhook 등록, API-022/023)은 별도 작업(레포 연동)의 몫이며,
- * 여기서는 repo_members/repo_invitations가 참조할 최소 스텁만 둔다.
+ * Webhook 자동 등록(webhookId)은 별도 작업(Webhook 수신)의 몫이라 이번 연동 단계에서는 null로 남긴다.
  */
 @Entity
 @Table(name = "repositories")
@@ -26,7 +25,7 @@ public class GithubRepository {
     private String githubRepoId;
     private String repoName;
     private Boolean isPrivate = false;
-    private String webhookId; //nullable
+    private String webhookId; //nullable — Webhook 수신 작업에서 채워짐
 
     @Column(updatable = false)
     private LocalDateTime linkedAt;
@@ -34,6 +33,17 @@ public class GithubRepository {
     @PrePersist
     protected void onCreate(){
         this.linkedAt = LocalDateTime.now();
+    }
+
+    private GithubRepository(Long userId, String githubRepoId, String repoName, boolean isPrivate){
+        this.userId = userId;
+        this.githubRepoId = githubRepoId;
+        this.repoName = repoName;
+        this.isPrivate = isPrivate;
+    }
+
+    public static GithubRepository link(Long userId, String githubRepoId, String repoName, boolean isPrivate){
+        return new GithubRepository(userId, githubRepoId, repoName, isPrivate);
     }
 
 }
