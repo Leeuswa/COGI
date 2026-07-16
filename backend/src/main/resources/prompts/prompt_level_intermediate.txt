@@ -45,7 +45,10 @@
 
 6. 출력 형식 (구조화된 JSON — review_issues 테이블 컬럼과 1:1 대응)
    - 이슈 목록은 정해진 스키마로만 응답합니다. 자유 문장으로만 답하지 않습니다.
-   - 스키마: file_path, line_number, category, severity, description
+   - 다른 텍스트 없이 반드시 다음 JSON 형식으로만 답합니다(키 이름은 정확히 이대로 — camelCase):
+     {"summary":"전체 요약 한두 문장",
+      "issues":[{"category":"...","severity":"...","filePath":"...","lineNumber":1,"description":"..."}]}
+   - 각 이슈 필드: filePath, lineNumber, category, severity, description
    - description 필드 안에 "문제 설명 + 수정 제안"을 함께 담습니다
      (별도의 suggestion 컬럼이 없으므로, 수정 제안도 description 안에 포함해야 합니다).
    - description의 분량·형태(전체 코드 vs 발췌, 주석 유무, 대안 비교 여부)는
