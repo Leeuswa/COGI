@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -36,15 +38,23 @@ public class SecurityConfig {
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // /api/auth/ 로 시작하는 모든 경로 허용(로그인/회원가입/코드발송/소셜로그인)
-                        .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error").permitAll()
+                        .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error","/api/terms").permitAll()
                         // /api/guest/** 로 시작하는 모든 경로 허용(비회원 로그인)
                         .requestMatchers("/api/guest/**").permitAll()
-
                         // /api/plans 요금제 목록 조회 (GET만 허용)
                         .requestMatchers(HttpMethod.GET, "/api/plans").permitAll()
-
                         // 나머지 모든 요청은 토큰 필요, 없으면 401에러
                         .anyRequest().authenticated()
+                )
+                // 인증 안 된 요청 → 401 JSON
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpStatus.UNAUTHORIZED.value());   // 401
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write(
+                                    "{\"success\":false,\"message\":\"로그인이 필요합니다.\",\"data\":null}");
+                        })
                 )
                 // OAuth2 로그인 연결
                 .oauth2Login(oauth -> oauth

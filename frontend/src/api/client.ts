@@ -12,27 +12,41 @@
 import * as M from '../data/mock';
 import { MODEL_TIERS, PLAN_TIER } from '../data/constants';
 
-const USE_MOCK = true;
+const USE_MOCK = false; // 목 데이터 → 실제 백엔드
 const BASE = ''; // 프록시 쓰면 '' 그대로, 직접 붙이면 'http://localhost:8080'
 
 // 목 응답 헬퍼. structuredClone으로 원본 오염 방지
-// 목/실서버 반환은 일단 any — 화면별 응답 타입은 점진적으로 붙인다 (strict 이행 시)
+// 목/실서버 반환은 일단 any — 화면별 응답 타입은 점진적으로 붙인다 (strict 이행 시)ß
 const mock = (data: any, ms = 250): Promise<any> =>
   new Promise((res) => setTimeout(() => res(structuredClone(data)), ms));
 
 // 실서버 호출 헬퍼. JWT는 localStorage에서 꺼내 Authorization 헤더로
+// async function http(method: string, path: string, body?: unknown): Promise<any> {
+//   const token = localStorage.getItem('cogi-jwt');
+//   const res = await fetch(BASE + path, {
+//     method,
+//     headers: {
+//       'Content-Type': 'application/json',
+//       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+//     },
+//     body: body ? JSON.stringify(body) : undefined,
+//   });
+//   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+//   return res.status === 204 ? null : res.json();
+// }
+
+// 실서버 호출. JWT는 HttpOnly 쿠키라 JS가 안 만지고, credentials로 쿠키 자동 전송
 async function http(method: string, path: string, body?: unknown): Promise<any> {
-  const token = localStorage.getItem('cogi-jwt');
   const res = await fetch(BASE + path, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',   // 쿠키 자동 첨부
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
-  return res.status === 204 ? null : res.json();
+  const json = res.status === 204 ? null : await res.json();
+  // 백엔드가 {success,message,data}로 감싸므로 data만 꺼내 화면에 전달
+  return json && json.data !== undefined ? json.data : json;
 }
 
 /* ══════════ 회원/인증 (AUTH) ══════════ */
@@ -76,11 +90,12 @@ export const socialLogin = (provider) =>
     : Promise.reject(new Error('실서버 소셜 로그인은 리다이렉트 흐름을 사용'));
 
 // API-003 POST /api/auth/signup — 이메일+비밀번호 가입 (약관 동의 포함, FR-89)
-export const signup = (email, password, passwordConfirm, agreeTermIds) =>
+// nickname은 선택 — 비우면 백엔드가 이메일 앞부분으로 채운다. 약관 동의 이력은 가입 트랜잭션에서 함께 저장(별도 호출 불필요).
+export const signup = (email, password, passwordConfirm, agreeTermIds, nickname) =>
   USE_MOCK
     ? mock({ status: 'EMAIL_PENDING', email, accessToken: 'mock-jwt',
-        user: { ...M.mockUser, email, name: email.split('@')[0], provider: 'EMAIL', onboardingCompleted: false } })
-    : http('POST', '/api/auth/signup', { email, password, passwordConfirm, agreeTerms: agreeTermIds });
+        user: { ...M.mockUser, email, name: nickname || email.split('@')[0], provider: 'EMAIL', onboardingCompleted: false } })
+    : http('POST', '/api/auth/signup', { email, password, passwordConfirm, termIds: agreeTermIds, nickname });
 
 // API-004 POST /api/auth/email/send-code — 인증코드 발송 (SIGNUP/FIND_ID/RESET_PW 공용)
 export const sendEmailCode = (email, purpose) =>
@@ -97,7 +112,8 @@ export const verifyEmailCode = (email, code) =>
 // API-006 POST /api/auth/login — 아이디(또는 이메일) 로그인. 5회 오류 잠금(423)은 백엔드 소관
 // 목: mock/user.js 의 테스트 계정(user/1234, adim/1234)만 통과. 그 외엔 401과 같은 실패
 export const login = (loginId, password) => {
-  if (!USE_MOCK) return http('POST', '/api/auth/login', { loginId, password });
+  // 백엔드는 이메일로 로그인. 성공 시 JWT는 응답 body가 아니라 HttpOnly 쿠키로 내려온다.
+  if (!USE_MOCK) return http('POST', '/api/auth/login', { email: loginId, password });
   const id = String(loginId).trim().toLowerCase(); // 공백/대문자 실수 방어
   const acc = M.mockAccounts.find((a) => a.loginId === id && a.password === String(password).trim());
   if (!acc) return new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('401'), { status: 401 })), 300));
@@ -106,6 +122,10 @@ export const login = (loginId, password) => {
     user: { ...M.mockUser, ...acc, onboardingCompleted: true }, // githubUsername 은 계정별 (user 는 null)
   });
 };
+
+// POST /api/auth/logout — 서버가 HttpOnly 쿠키를 만료시켜 세션을 끊는다. (JS로는 못 지우는 쿠키라 서버 호출 필수)
+export const logout = () =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/auth/logout');
 
 // [설계 추론] 로그인 상태 비밀번호 변경 — 비밀번호 찾기(API-008)와 별개로,
 // 마이페이지에서 현재 비밀번호 확인 후 즉시 교체. 백엔드 협의 필요
@@ -130,15 +150,15 @@ export const totpVerify = (totpCode, tempToken) =>
 
 // API-007 POST /api/auth/password/reset-request — 재설정 토큰 발급
 export const passwordResetRequest = (email, verifiedCode) =>
-  USE_MOCK ? mock({ resetToken: 'mock-reset' }) : http('POST', '/api/auth/password/reset-request', { email, verifiedCode });
+  USE_MOCK ? mock({ resetToken: 'mock-reset' }) : http('POST', '/api/auth/password/reset-request', { email, code: verifiedCode });
 
 // API-008 PATCH /api/auth/password/reset — 새 비밀번호 저장(잠금 해제 포함)
 export const passwordReset = (resetToken, newPassword) =>
-  USE_MOCK ? mock({ ok: true }) : http('PATCH', '/api/auth/password/reset', { resetToken, newPassword });
+  USE_MOCK ? mock({ ok: true }) : http('PATCH', '/api/auth/password/reset', { resetToken, newPassword, newPasswordConfirm: newPassword }); // 확인값은 화면에서 이미 일치 검증됨
 
 // API-009 GET /api/users/me/profile — 프로필+현재 플랜
 export const getProfile = () =>
-  USE_MOCK ? mock(M.mockUser) : http('GET', '/api/users/me/profile');
+  USE_MOCK ? mock(M.mockUser) : http('GET', '/api/users/me/profile').then((u) => ({ ...u, name: u.nickname }));
 
 // FR-91 약관 재동의 필요 여부 — 필수 약관 버전이 올라갔는데 내 동의가 구버전이면 required=true.
 // 목 기본값은 false. 배너 테스트: mock/terms.js 의 mockReagreement.required 를 true 로
@@ -148,7 +168,7 @@ export const checkReagreement = () =>
 // API-010 PATCH /api/users/me/profile — 프로필 수정(즉시 반영, FR-12)
 // name(닉네임)은 이메일 가입자만 수정 가능. 소셜(카카오/GitHub) 가입자가 보내면 서버가 400으로 거절해야 한다.
 export const updateProfile = (name, level, interests) =>
-  USE_MOCK ? mock({ name, level, interests }) : http('PATCH', '/api/users/me/profile', { name, level, interests });
+  USE_MOCK ? mock({ name, level, interests }) : http('PATCH', '/api/users/me/profile', { nickname: name, level, interests });
 
 // API-011 GET /api/users/me/onboarding-status
 export const getOnboardingStatus = () =>

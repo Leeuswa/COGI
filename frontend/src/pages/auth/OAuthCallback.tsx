@@ -18,16 +18,14 @@ export default function OAuthCallback() {
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    const token = params.get('token');
-    if (!token) { setErr('토큰이 없어요. 로그인부터 다시 시도해주세요.'); return; }
-    // 프로필 조회에 JWT가 필요하니 먼저 저장 → 받아온 유저로 세션 확정
-    localStorage.setItem('cogi-jwt', token);
+    // JWT는 백엔드가 이미 HttpOnly 쿠키로 심어놨다(URL에 토큰 없음). 쿠키로 프로필을 받아 세션을 연다.
+    const isNew = params.get('isNew') === 'true';
     api.getProfile()
       .then((user) => {
-        signIn(token, user);
-        nav(params.get('isNew') === 'true' || !user.onboardingCompleted ? '/onboarding' : '/app', { replace: true });
+        signIn(user);
+        nav(isNew || !user.onboardingCompleted ? '/onboarding' : '/app', { replace: true });
       })
-      .catch(() => setErr('프로필을 불러오지 못했어요. 잠시 후 다시 로그인해주세요.'));
+      .catch(() => setErr('로그인 처리에 실패했어요. 잠시 후 다시 시도해주세요.'));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps — 최초 1회만
 
   return (

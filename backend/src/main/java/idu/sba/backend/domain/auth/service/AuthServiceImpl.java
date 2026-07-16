@@ -10,6 +10,7 @@ import idu.sba.backend.domain.terms.entity.Term;
 import idu.sba.backend.domain.terms.entity.UserAgreement;
 import idu.sba.backend.domain.terms.repository.TermRepository;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
+import idu.sba.backend.domain.user.entity.Provider;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.entity.UserStatus;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -64,6 +65,10 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void sendCode(EmailSendCodeRequestDTO req) {
         LocalDateTime now = LocalDateTime.now();
+            // 회원가입 목적인데 이미 가입된 이메일이면 코드 발송 전에 막음
+        if (req.getPurpose() == Purpose.SIGNUP && userRepository.existsByEmail(req.getEmail())) {
+            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
 
         var lastOpt = emailVerificationRepository.findFirstByEmailOrderByCreateAtDesc(req.getEmail());
 
@@ -135,8 +140,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED);
         }
 
-        //이메일 중복확인
-        if(userRepository.existsByEmail(req.getEmail())){
+        //이메일 중복확인(LOCAL에서 같은 이메일이 있는지)
+        if(userRepository.existsByProviderAndEmail(Provider.LOCAL,req.getEmail())){
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
@@ -152,12 +157,16 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.REQUIRED_TERMS_NOT_AGREED);
         }
 
+        //닉네임 설정 안할시 이메일의 @앞에 가져옴
+        String nickname = (req.getNickname() != null && !req.getNickname().isBlank())
+                ? req.getNickname()
+                : req.getEmail().split("@")[0];
         //유저 저장
         User user = userRepository.save(
                 User.builder()
                         .email(req.getEmail())
                         .password(passwordEncoder.encode(req.getPassword()))
-                        .nickname(req.getNickname())
+                        .nickname(nickname)
                         .build());
 
         //동의 이력 저장
@@ -183,7 +192,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public TokenResponseDTO login(LoginRequestDTO req) {
         //이메일 유저 조회
-        User user = userRepository.findByEmail(req.getEmail())
+        User user = userRepository.findByProviderAndEmail(Provider.LOCAL,req.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
 
         //이미 잠긴 계정
@@ -206,6 +215,7 @@ public class AuthServiceImpl implements AuthService {
 
         //성공시 실패회수 초기화, 토큰발급
         user.resetLoginFailCount();
+        userRepository.save(user);
         String token = jwtProvider.createToken(user.getId(),user.getRole().name());
         return TokenResponseDTO.of(token,accessTokenExpiration);
 
@@ -270,7 +280,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         //대상 유저 조회
-        User user = userRepository.findByEmail(token.getEmail())
+        User user = userRepository.findByProviderAndEmail(Provider.LOCAL,token.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         //기존 비밀번호와 같으면 거부
