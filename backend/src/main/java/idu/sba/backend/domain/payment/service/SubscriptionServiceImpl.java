@@ -39,6 +39,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final TermRepository termRepository;
     private final UserAgreementRepository userAgreementRepository;
 
+    private static final String FREE_PLAN_NAME = "FREE"; // FREE 플랜 시드의 이름
+
 
 
     //결제수단 등록
@@ -99,10 +101,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
                 .ifPresent(s -> { throw new BusinessException(ErrorCode.ALREADY_SUBSCRIBED); });
 
-        // 약관 검증: (1) 존재하는 약관 id인지 (2) 결제 필수 약관에 동의했는지
+        // 약관 검증:  존재하는 약관 id인지 ,  결제 필수 약관에 동의했는지
         List<Term> allTerms = termRepository.findAll();
         Set<Long> validTermIds = allTerms.stream().map(Term::getId).collect(Collectors.toSet());
-        if (!validTermIds.containsAll(dto.agreeTerms())) {          // #9 존재하지 않는 약관 거절
+        if (!validTermIds.containsAll(dto.agreeTerms())) {          // 존재하지 않는 약관 거절
             throw new BusinessException(ErrorCode.INVALID_TERMS);
         }
         for (Term t : allTerms) {
@@ -119,7 +121,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Plan newPlan = planRepository.findById(dto.planId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
 
-        // #3 결제수단 존재 + 소유 검증 (남의 결제수단으로 구독 못 하게)
+        // 결제수단 존재 + 소유 검증 (남의 결제수단으로 구독 못 하게)
         PaymentMethod pm = paymentMethodRepository.findById(dto.paymentMethodId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_METHOD_NOT_FOUND));
         if (!pm.getUserId().equals(userId))
@@ -130,7 +132,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         sub.start(userId, newPlan.getId(), pm.getId()); // status=ACTIVE, startedAt=now
         Subscription saved = subscriptionRepository.save(sub);
 
-        // #5 최초 결제 — 빌링키로 즉시 1회 청구 (실패 시 @Transactional 롤백)
+        // 최초 결제 — 빌링키로 즉시 1회 청구 (실패 시 @Transactional 롤백)
         String orderId = "SUB-" + saved.getId() + "-" + UUID.randomUUID();
         tossPaymentClient.confirmBilling(
                 pm.getBillingKey(), pm.getCustomerKey(), newPlan.getPrice(),
@@ -162,7 +164,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Subscription sub = subscriptionRepository.findById(subId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
-        // #1 소유자 검증 — 남의 구독은 변경 불가
+        // 소유자 검증 — 남의 구독은 변경 불가
         if (!sub.getUserId().equals(userId))
             throw new BusinessException(ErrorCode.SUBSCRIPTION_FORBIDDEN);
 
@@ -202,7 +204,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Subscription sub = subscriptionRepository.findById(subId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
-        // #1 소유자 검증 — 남의 구독은 해지 불가
+        //  소유자 검증 — 남의 구독은 해지 불가
         if (!sub.getUserId().equals(userId))
             throw new BusinessException(ErrorCode.SUBSCRIPTION_FORBIDDEN);
 
