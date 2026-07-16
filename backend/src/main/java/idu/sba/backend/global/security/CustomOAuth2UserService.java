@@ -8,6 +8,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 user.updateGithubAccessToken(accessToken);
                 userRepository.save(user);
             } else {
+                //같은 이메일 있는지 확인
+                if (email != null && userRepository.existsByEmail(email)) {
+                    throw new OAuth2AuthenticationException(new OAuth2Error("email_exists"), "이미 이 이메일로 가입된 계정이 있습니다.");
+                }
                 user = userRepository.save(User.createByGithub(githubId, username, email, accessToken));
                 //레포 초대 자동 매칭: 이 GitHub 계정/이메일로 대기 중인 초대가 있으면 자동 수락
                 repoMemberService.autoMatchPendingInvitations(user);
@@ -64,9 +69,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             //닉네임 가져오기
             Map<String, Object> profile = (account != null) ? (Map<String, Object>) account.get("profile") : null;
             String nickname = (profile != null) ? (String) profile.get("nickname") : null;
-            user = userRepository.findByKakaoId(kakaoId)
-                    .orElseGet(() -> userRepository.save(
-                            User.createByKakao(kakaoId,nickname,email)));
+            user = userRepository.findByKakaoId(kakaoId).orElse(null);
+            if (user == null) {
+                //같은 이메일 있는지 확인
+                if (email != null && userRepository.existsByEmail(email)) {
+                    throw new OAuth2AuthenticationException(new OAuth2Error("email_exists"), "이미 이 이메일로 가입된 계정이 있습니다.");
+                }
+                user = userRepository.save(User.createByKakao(kakaoId, nickname, email));
+            }
         }
 
         //성공 핸들러에서 쓸 수 있게 userId/role 담아 반환

@@ -3,7 +3,7 @@
  * 상태와 저장/연동/OTP 핸들러는 여기, 화면은 tabs/ 아래 파일 하나씩.
  */
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
@@ -35,6 +35,24 @@ export default function MyPage() {
 
   useEffect(() => { api.getTerms().then(setTerms); }, []);
 
+  // GitHub 연동 리다이렉트 결과 처리 — 백엔드 콜백이 ?linked=1 또는 ?error=... 로 되돌려보낸다
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (params.get('linked')) {
+      notify('GitHub 연동 완료!');
+      api.getProfile().then((u) => patchUser({ githubUsername: u.githubUsername }));
+      setTab('github');
+      setParams({}, { replace: true });   // URL에서 쿼리 정리
+    } else if (params.get('error')) {
+      const e = params.get('error');
+      notify(e === 'github_already_linked'
+        ? '이미 다른 계정에 연결된 GitHub이에요.'
+        : 'GitHub 연동에 실패했어요. 다시 시도해주세요.');
+      setTab('github');
+      setParams({}, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- 최초 1회만
+
   const toggle = (t) =>
     setInterests((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
@@ -50,20 +68,9 @@ export default function MyPage() {
     } finally { setBusy(false); }
   };
 
-  const linkGh = async () => {
-    setBusy(true);
-    try {
-      const res = await api.linkGithub(); // 실서버는 OAuth 리다이렉트, 목은 즉시 성공
-      patchUser({ githubUsername: res.githubUsername });
-      notify(`@${res.githubUsername} 연동 완료!`);
-      // 이메일 초대를 받아둔 계정이면 — 연동이 끝났으니 팀 수락 화면으로 안내 (요구 #11)
-      const myTeam = await api.getMyTeam(user.loginId);
-      if (myTeam.none && myTeam.invite) {
-        notify('이제 팀 초대를 수락할 수 있어요. 팀 페이지로 이동합니다');
-        nav('/app/team');
-      }
-    } finally { setBusy(false); }
-  };
+  // GitHub 연동 — 백엔드 authorize로 풀페이지 이동(OAuth 시작).
+  // 동의 후 백엔드 콜백이 /app/my?linked=1 (또는 ?error=...) 로 되돌려보낸다.
+  const linkGh = () => { window.location.href = '/api/users/me/github/authorize'; };
 
   // 비밀번호 변경 — 프론트에서 형식 검증, 현재 비번 대조는 서버(목: 1234)
   const changePw = async () => {

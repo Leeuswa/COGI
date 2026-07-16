@@ -1,6 +1,8 @@
 package idu.sba.backend.global.security;
 
 
+import idu.sba.backend.global.exception.BusinessException;
+import idu.sba.backend.global.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -61,6 +63,31 @@ public class JwtProvider {
             return false; //서명불일치,토큰만료,형식오류
         }
 
+    }
+
+    // GitHub 연동용 state 토큰 유효시간 (5분)
+    private static final long LINK_STATE_EXPIRATION = 5 * 60 * 1000L;
+
+    // 연동 시작 시 발급하는 state 토큰
+    public String createGithubLinkState(Long userId) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + LINK_STATE_EXPIRATION);
+        return Jwts.builder()
+                .subject(String.valueOf(userId))   // 연동을 시작한 사용자 id
+                .claim("purpose", "github_link")   // 용도 표시 (로그인 토큰과 구분)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(key)                     //  비밀키로 서명 → 위조 불가
+                .compact();
+    }
+
+    // 콜백에서 받은 state 검증 → 연동 시작한 userId 반환 (위조·만료·용도불일치면 예외)
+    public Long parseGithubLinkState(String state) {
+        Claims claims = parse(state);              // 서명·만료 검증 (실패 시 예외 터짐)
+        if (!"github_link".equals(claims.get("purpose", String.class))) {
+            throw new BusinessException(ErrorCode.GITHUB_LINK_FAILED);
+        }
+        return Long.valueOf(claims.getSubject());
     }
 
     //토큰을 검증하며 payload(Claims) 꺼냄

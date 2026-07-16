@@ -140,8 +140,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED);
         }
 
-        //이메일 중복확인(LOCAL에서 같은 이메일이 있는지)
-        if(userRepository.existsByProviderAndEmail(Provider.LOCAL,req.getEmail())){
+        //이메일 중복확인
+        if (userRepository.existsByEmail(req.getEmail())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 

@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -38,7 +39,8 @@ public class SecurityConfig {
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // /api/auth/ 로 시작하는 모든 경로 허용(로그인/회원가입/코드발송/소셜로그인)
-                        .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error","/api/terms").permitAll()
+                        .requestMatchers("/api/auth/**","/oauth2/**","/login/**","/error","/api/terms",
+                                "/api/users/me/github/callback").permitAll()
                         // /api/guest/** 로 시작하는 모든 경로 허용(비회원 로그인)
                         .requestMatchers("/api/guest/**").permitAll()
                         // /api/plans 요금제 목록 조회 (GET만 허용)
@@ -58,8 +60,13 @@ public class SecurityConfig {
                 )
                 // OAuth2 로그인 연결
                 .oauth2Login(oauth -> oauth
-                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))  // 유저정보 처리
-                        .successHandler(oAuth2LoginSuccessHandler))   // 성공 시 = JWT 발급 핸들러
+                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                        .successHandler(oAuth2LoginSuccessHandler)
+                        .failureHandler((request, response, exception) -> {   // ← 추가
+                            String code = (exception instanceof OAuth2AuthenticationException oae)
+                                    ? oae.getError().getErrorCode() : "social";
+                            response.sendRedirect("http://localhost:5173/login?error=" + code);
+                        }))
                 //요청이 오기전에 토큰 검사 후 인증 등록
                         .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
 

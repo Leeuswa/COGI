@@ -32,7 +32,11 @@ public enum ErrorCode {
     RESET_TOKEN_EXPIRED(HttpStatus.GONE, "재설정 토큰이 만료되었습니다."),                  // 410
     RESET_TOKEN_USED(HttpStatus.BAD_REQUEST, "이미 사용된 재설정 토큰입니다."),             // 400
     SAME_AS_OLD_PASSWORD(HttpStatus.BAD_REQUEST, "기존 비밀번호와 다른 비밀번호를 사용해주세요."), // 400
-    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다."),                    // 404
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다."), // 404
+
+    //깃허브 연동
+    GITHUB_LINK_FAILED(HttpStatus.BAD_REQUEST, "GitHub 연동에 실패했습니다."),
+    GITHUB_ALREADY_LINKED(HttpStatus.CONFLICT, "이미 다른 계정에 연결된 GitHub입니다."),
 
     //AST 컨텍스트 추출
     AST_PARSE_ERROR(HttpStatus.BAD_REQUEST,"코드를 파싱할 수 없습니다."),
