@@ -1,6 +1,6 @@
 package idu.sba.backend.domain.payment.dto;
 
-public record TossBillingKeyResponse (
+public record TossBillingKeyResponseDTO(
         String billingKey,
         String customerKey,
         Card card

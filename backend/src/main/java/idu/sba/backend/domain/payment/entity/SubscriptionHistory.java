@@ -18,8 +18,8 @@ public class SubscriptionHistory {
     @Column(name = "subscription_id", nullable = false)
     private Long subscriptionId; // 대상 구독 건 (subscriptions.id)
 
-    @Column(name = "previous_plan_id", nullable = false)
-    private Long previousPlanId; // 변경 전 플랜 (변경 전이 없다면 FREE 로 대체)
+    @Column(name = "previous_plan_id")
+    private Long previousPlanId; // 변경 전 플랜 (변경 전이 없다면 null)
 
     @Column(name = "new_plan_id", nullable = false)
     private Long newPlanId; // 변경 후 플랜 (plans_id)
