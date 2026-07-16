@@ -2,6 +2,7 @@ package idu.sba.backend.global.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     // Authorization 헤더에서 "Bearer xxx" 형태의 토큰만 추출
     private String resolveToken(HttpServletRequest request) {
+
+
+        //쿠키 찾기
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if (CookieUtil.ACCESS_TOKEN.equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        //쿠키에 없으면 헤더로 찾기
         String bearer = request.getHeader("Authorization");
         if (bearer != null && bearer.startsWith("Bearer ")) {
             return bearer.substring(7); // "Bearer " 7글자 잘라내고 토큰
