@@ -12,10 +12,7 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -36,11 +33,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         Map<String,Object> attributes = oAuth2User.getAttributes();
 
         User user;
+
         if ("github".equals(registrationId)) {
             String githubId = String.valueOf(attributes.get("id"));
             String username = (String) attributes.get("login");
             String email = (String) attributes.get("email");   // 비공개면 null 가능
             String accessToken = userRequest.getAccessToken().getTokenValue();
+
+            if(email == null){
+                email = fetchGithubPrimaryEmail(accessToken);
+            }
 
             Optional<User> existingUser = userRepository.findByGithubId(githubId);
             if (existingUser.isPresent()) {
@@ -50,7 +52,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 userRepository.save(user);
             } else {
                 user = userRepository.save(User.createByGithub(githubId, username, email, accessToken));
-                //레포 초대 자동 매칭: 이 GitHub 계정/이메일로 대기 중인 초대가 있으면 자동 수락(케이스③)
+                //레포 초대 자동 매칭: 이 GitHub 계정/이메일로 대기 중인 초대가 있으면 자동 수락
                 repoMemberService.autoMatchPendingInvitations(user);
             }
         } else { // kakao
@@ -77,5 +79,25 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 customAttrs,
                 "userId");   // 이 attributes에서 이름(식별자)으로 쓸 키
 
+    }
+    // GitHub /user/emails 로 primary·verified 이메일 조회 (프로필 이메일이 비공개일 때)
+    private String fetchGithubPrimaryEmail(String accessToken) {
+        try {
+            List<Map<String, Object>> emails = org.springframework.web.client.RestClient.create()
+                    .get()
+                    .uri("https://api.github.com/user/emails")
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .body(new org.springframework.core.ParameterizedTypeReference<>() {});
+            if (emails == null) return null;
+            return emails.stream()
+                    .filter(e -> Boolean.TRUE.equals(e.get("primary"))
+                            && Boolean.TRUE.equals(e.get("verified")))
+                    .map(e -> (String) e.get("email"))
+                    .findFirst()
+                    .orElse(null);
+        } catch (Exception e) {
+            return null;   // 조회 실패해도 로그인은 진행(email 없이)
+        }
     }
 }

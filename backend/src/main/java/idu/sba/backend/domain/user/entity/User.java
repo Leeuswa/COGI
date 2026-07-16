@@ -9,7 +9,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+        //같은 이메일 이어도 provider가 다르면 별개 계정 허용
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_provider_email",
+                columnNames = {"provider", "email"}))
 @Getter
 //아무나 빈 객체 만들지 못하게 protected로 막음
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -19,8 +23,10 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true)
-    private String email;   //GitHub 전용 가입자는 null 일 수 있음
+
+    //   LOCAL: 가입 이메일
+    //   GITHUB/KAKAO: 소셜 계정 이메일(없으면 null 가능)
+    private String email;
 
     private String password;
 
