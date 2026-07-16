@@ -115,9 +115,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     // modelName 미지정 시 플랜의 첫 번째 허용 모델을 기본값으로 사용
     private String resolveModelName(String requestedModel, Plan plan) {
-        List<String> allowed = Arrays.stream(plan.getAllowedModels().split(","))
-                .map(String::trim)
-                .toList();
+        List<String> allowed = splitAllowedModels(plan);
 
         if (requestedModel == null || requestedModel.isBlank()) {
             return allowed.get(0);
@@ -126,6 +124,18 @@ public class ReviewServiceImpl implements ReviewService {
             throw new BusinessException(ErrorCode.MODEL_NOT_ALLOWED_FOR_PLAN);
         }
         return requestedModel;
+    }
+
+    @Override
+    public List<String> getModelOptions(Long userId) {
+        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+        return splitAllowedModels(plan);
+    }
+
+    private List<String> splitAllowedModels(Plan plan) {
+        return Arrays.stream(plan.getAllowedModels().split(","))
+                .map(String::trim)
+                .toList();
     }
 
     private User requireUser(Long userId) {

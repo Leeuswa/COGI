@@ -151,4 +151,13 @@ class ReviewServiceImplTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.AI_MODEL_CALL_FAILED);
     }
 
+    @Test
+    void 모델_옵션_조회는_플랜의_allowedModels를_그대로_분리해서_반환한다() {
+        when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan());
+
+        var options = service.getModelOptions(USER_ID);
+
+        assertThat(options).containsExactly("claude-haiku-4-5", "gpt-5.6-luna", "gemini-3.5-flash-lite");
+    }
+
 }

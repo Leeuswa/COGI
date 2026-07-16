@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/reviews")
@@ -22,6 +23,12 @@ import java.nio.charset.StandardCharsets;
 public class ReviewController {
 
     private final ReviewService reviewService;
+
+    //API-027: 내 요금제에서 선택 가능한 모델 목록
+    @GetMapping("/model-options")
+    public ApiResponse<List<String>> getModelOptions(@AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(reviewService.getModelOptions(userId));
+    }
 
     //API-040: 로그인 사용자 코드 붙여넣기 리뷰
     @PostMapping("/paste")
