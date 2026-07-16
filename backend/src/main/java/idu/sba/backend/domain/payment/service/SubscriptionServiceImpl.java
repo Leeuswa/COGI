@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.payment.service;
 
+import idu.sba.backend.domain.payment.client.TossPaymentClient;
 import idu.sba.backend.domain.payment.dto.*;
 import idu.sba.backend.domain.payment.entity.*;
 import idu.sba.backend.domain.payment.repository.PaymentMethodRepository;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +25,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionHistoryRepository subscriptionHistoryRepository;
     private final UserRepository userRepository;
+    private final TossPaymentClient tossPaymentClient;
+
 
 
     // FREE 플랜 판별 기준
@@ -31,8 +35,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     //결제수단 등록
     @Override
     public Long registerPaymentMethod(Long userId, PaymentMethodRequestDTO dto) {
-        // 더미데이터 PG 연동 예정
-        PaymentMethod pm = new PaymentMethod(userId, "TEST_BILLING_KEY_...", "****-****-****-1234");
+        // customerKey 새로 생성 (UUID 형태) 구매자를 식별하기 위함
+        String customerKey = UUID.randomUUID().toString();
+
+        var response = tossPaymentClient.issueBillingKey(customerKey, dto); // 실제 토스 호출
+
+        PaymentMethod pm = new PaymentMethod(
+                userId, customerKey, response.billingKey(), response.card().number());
         return paymentMethodRepository.save(pm).getId();
     }
 
@@ -69,19 +78,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Plan freePlan = planRepository.findByName(FREE_PLAN_NAME)
                 .orElseThrow(() -> new IllegalStateException("FREE 플랜 시드 데이터가 없습니다."));
 
-        // 1) 구독 생성
+        // 구독 생성
         Subscription sub = new Subscription();
         sub.start(userId, newPlan.getId(), dto.paymentMethodId()); // status=ACTIVE, startedAt=now
         Subscription saved = subscriptionRepository.save(sub);
 
-        // 2) history 기록 (previous=FREE, UPGRADE, prorated=새 플랜 가격 그대로)
+        //history 기록 (previous=FREE, UPGRADE, prorated=새 플랜 가격 그대로)
         SubscriptionHistory history = new SubscriptionHistory();
         history.record(
                 saved.getId(),
                 freePlan.getId(),        // previous_plan_id = FREE
                 newPlan.getId(),         // new_plan_id
                 ChangeType.UPGRADE,
-                newPlan.getPrice()       // ★ 최초 구독은 일할계산 X, 가격 그대로
+                newPlan.getPrice()       // 최초 구독은 일할계산 X 가격은 그대로
         );
         subscriptionHistoryRepository.save(history);
 
@@ -126,7 +135,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 savedHistory.getChangedAt());
     }
 
-    // API-062
+
     @Override
     @Transactional
     public void cancelSubscription(Long subId) {
