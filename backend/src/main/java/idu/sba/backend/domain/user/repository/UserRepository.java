@@ -10,7 +10,6 @@ public interface UserRepository extends JpaRepository<User,Long> {
 
     //가입시 이메일 체크
     boolean existsByEmail(String  email);
-
     // 로그인/비번재설정 조회용
     Optional<User> findByProviderAndEmail(Provider provider, String email);
     //github 아이디 여부 확인
@@ -20,7 +19,5 @@ public interface UserRepository extends JpaRepository<User,Long> {
     //레포 초대 시 GitHub 아이디로 대상 사용자 조회
     Optional<User> findByGithubUsername(String githubUsername);
 
-    // 같은 provider + email 조합이 이미 있나 (가입 중복 체크용)
-    boolean existsByProviderAndEmail(Provider provider, String email);
 
 }
