@@ -59,9 +59,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             Map<String, Object> account = (Map<String, Object>) attributes.get("kakao_account");
             String email = (account != null) ? (String) account.get("email") : null;
 
+            //닉네임 가져오기
+            Map<String, Object> profile = (account != null) ? (Map<String, Object>) account.get("profile") : null;
+            String nickname = (profile != null) ? (String) profile.get("nickname") : null;
             user = userRepository.findByKakaoId(kakaoId)
                     .orElseGet(() -> userRepository.save(
-                            User.createByKakao(kakaoId, email)));
+                            User.createByKakao(kakaoId,nickname,email)));
         }
 
         //성공 핸들러에서 쓸 수 있게 userId/role 담아 반환
