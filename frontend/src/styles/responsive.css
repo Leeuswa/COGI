@@ -1,0 +1,26 @@
+/* 반응형 — 랜딩·앱 공통 브레이크포인트를 한 곳에서 관리 */
+/* ───── 반응형 ───── */
+@media (max-width: 980px) {
+  .hero { grid-template-columns: 1fr; gap: 40px; text-align: center; }
+  .hero-copy .sub { margin-left: auto; margin-right: auto; }
+  .hero-copy .cta-row { justify-content: center; }
+  .rev-grid { grid-template-columns: 1fr; }
+  .loop-grid { grid-template-columns: 1fr 1fr; }
+  .care-grid, .chars { grid-template-columns: 1fr; }
+  .g-grid { grid-template-columns: repeat(2, 1fr); }
+  .g-grid .g-card:last-child { grid-column: span 2; }
+  .panel-grid.c2, .panel-grid.c3 { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  nav.gnb { height: 80px; padding: 0 16px; }
+  nav.gnb .logo img { height: 44px; }
+  nav.gnb .links { gap: 14px; font-size: 12px; overflow-x: auto; padding-bottom: 2px; }
+  section { padding: 64px 22px; }
+  .hero { padding: 38px 18px 60px; min-height: auto; }
+  .loop-grid { grid-template-columns: 1fr; }
+  .pad { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  .rv { opacity: 1; transform: none; }
+}
