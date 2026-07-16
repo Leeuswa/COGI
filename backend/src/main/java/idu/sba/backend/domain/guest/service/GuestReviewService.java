@@ -6,6 +6,8 @@ package idu.sba.backend.domain.guest.service;
 import idu.sba.backend.domain.guest.dto.GuestReviewRequest;
 import idu.sba.backend.domain.guest.dto.GuestReviewResponse;
 import idu.sba.backend.domain.guest.dto.ReviewComment;
+import idu.sba.backend.global.ai.AiModel;
+import idu.sba.backend.global.ai.AiReviewClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -29,12 +31,14 @@ public class GuestReviewService {
     // 객체 , JSON 문자열 변환기 (Redis에 문자열로 저장하려고 사용)
     private final ObjectMapper objectMapper;
 
+    // 실제 AI 리뷰 API 호출을 위임할 클라이언트 (DI로 주입)
+    private final AiReviewClient aiReviewClient;
+
     // 비로그인 체험 제한 횟수(3회). 한 곳에서만 관리하려고 상수로.
     private static final int TRIAL_LIMIT = 3;
 
     // 자정 초기화 기준 시간대. 서버가 UTC라도 한국 자정에 맞추려고 명시.
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-
 
     public enum ReviewLevel {
         BEGINNER, INTERMEDIATE, ADVANCED
@@ -65,12 +69,19 @@ public class GuestReviewService {
 
         ReviewLevel level = ReviewLevel.BEGINNER;
 
+        String summary;
 
-        String summary = "더미 리뷰 결과입니다. (AI 연동 전 임시 응답 / level=" + level + ")";
-        List<ReviewComment> comments = List.of(
-                new ReviewComment("BUG", "CRITICAL", "user.ts", 88, "null 체크 누락 — 옵셔널 체이닝 또는 얼리 리턴 권장"),
-                new ReviewComment("CONVENTION", "MINOR", "date.ts", 12, "네이밍 컨벤션 — camelCase 통일 권장")
-        );
+        // AI 호출 실패 시 방금 올린 체험 횟수를 롤백하고, 원인 유지한 채 예외를 다시 던짐
+        List<ReviewComment> comments;
+        try {
+            AiReviewClient.AiReview ai = aiReviewClient.review(
+                    AiModel.GEMINI_FLASH_LITE, request.getCode(), request.getLanguage(), level.name());
+            summary = ai.summary();
+            comments = ai.toReviewComments();
+        } catch (Exception e) {
+            redisTemplate.opsForValue().decrement(countKey); // 실패한 시도는 체험 횟수에서 차감 되지 않게
+            throw new RuntimeException("AI 리뷰 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.", e);
+        }
 
         String reviewId = "G-" + UUID.randomUUID();  // 리뷰마다 고유 이름표
         GuestReviewResponse response = new GuestReviewResponse(reviewId, summary, comments);
