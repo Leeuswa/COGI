@@ -14,13 +14,17 @@ import idu.sba.backend.domain.terms.repository.TermRepository;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
+import idu.sba.backend.global.exception.BusinessException;
+import idu.sba.backend.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -78,19 +82,22 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     public Long createSubscription(Long userId, SubscriptionCreateDTO dto) {
 
 
-        if(dto.agreeTerms() == null || dto.agreeTerms().isEmpty())
-            throw new IllegalArgumentException("결제 약관 동의가 필요합니다");
+        if (dto.agreeTerms() == null || dto.agreeTerms().isEmpty())
+            throw new BusinessException(ErrorCode.REQUIRED_TERMS_NOT_AGREED);
 
+        // #2 중복 ACTIVE 구독 방지 — 이미 구독 중이면 거절
+        subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
+                .ifPresent(s -> { throw new BusinessException(ErrorCode.ALREADY_SUBSCRIBED); });
 
-        // 결제 필수 약관(PAYMENT) 동의 및 검증
-        List<Term> paymentTerms = termRepository.findAll().stream()
-                .filter(t -> t.getType() == TermType.PAYMENT)
-                .toList();
-
-        // 결제 약관 미동의시 예외처리
-        for (Term t : paymentTerms) {
-            if (!dto.agreeTerms().contains(t.getId())) {
-                throw new IllegalArgumentException("결제 약관 동의가 필요합니다.");
+        // 약관 검증: (1) 존재하는 약관 id인지 (2) 결제 필수 약관에 동의했는지
+        List<Term> allTerms = termRepository.findAll();
+        Set<Long> validTermIds = allTerms.stream().map(Term::getId).collect(Collectors.toSet());
+        if (!validTermIds.containsAll(dto.agreeTerms())) {          // #9 존재하지 않는 약관 거절
+            throw new BusinessException(ErrorCode.INVALID_TERMS);
+        }
+        for (Term t : allTerms) {
+            if (t.getType() == TermType.PAYMENT && !dto.agreeTerms().contains(t.getId())) {
+                throw new BusinessException(ErrorCode.REQUIRED_TERMS_NOT_AGREED);
             }
         }
 
@@ -98,17 +105,28 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         dto.agreeTerms().forEach(termId ->
                 userAgreementRepository.save(UserAgreement.of(userId, termId)));
 
-
-        // 새로 구독할 플랜조회 ( + 예외처리 구문)
+        // 새로 구독할 플랜 조회
         Plan newPlan = planRepository.findById(dto.planId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플랜입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        // #3 결제수단 존재 + 소유 검증 (남의 결제수단으로 구독 못 하게)
+        PaymentMethod pm = paymentMethodRepository.findById(dto.paymentMethodId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_METHOD_NOT_FOUND));
+        if (!pm.getUserId().equals(userId))
+            throw new BusinessException(ErrorCode.PAYMENT_METHOD_FORBIDDEN);
 
         // 구독 생성 (status=ACTIVE, startedAt=now) 후 저장
         Subscription sub = new Subscription();
-        sub.start(userId, newPlan.getId(), dto.paymentMethodId()); // status=ACTIVE, startedAt=now
+        sub.start(userId, newPlan.getId(), pm.getId()); // status=ACTIVE, startedAt=now
         Subscription saved = subscriptionRepository.save(sub);
 
-        //history 기록 (previous = 전 플랜 또는 null , UPGRADE, prorated=새 플랜 가격 그대로)
+        // #5 최초 결제 — 빌링키로 즉시 1회 청구 (실패 시 @Transactional 롤백)
+        String orderId = "SUB-" + saved.getId() + "-" + UUID.randomUUID();
+        tossPaymentClient.confirmBilling(
+                pm.getBillingKey(), pm.getCustomerKey(), newPlan.getPrice(),
+                orderId, newPlan.getName() + " 구독 결제");
+
+        //history 기록 (최초구독 previous=null, UPGRADE, prorated=가격 그대로)
         SubscriptionHistory history = new SubscriptionHistory();
         history.record(
                 saved.getId(),
@@ -119,9 +137,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         );
         subscriptionHistoryRepository.save(history);
 
-        //user 테이블 plan_id 갱신 ( + 예외처리 구문)
+        //user 테이블 plan_id 캐시 갱신
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.updatePlanId(newPlan.getId());
 
         return saved.getId();
@@ -130,34 +148,34 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     // 플랜 변경
     @Override
     @Transactional
-    public SubscriptionHistoryResponseDTO changeSubscription(Long subId, SubscriptionChangeDTO dto) {
+    public SubscriptionHistoryResponseDTO changeSubscription(Long userId, Long subId, SubscriptionChangeDTO dto) {
         Subscription sub = subscriptionRepository.findById(subId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
+
+        // #1 소유자 검증 — 남의 구독은 변경 불가
+        if (!sub.getUserId().equals(userId))
+            throw new BusinessException(ErrorCode.SUBSCRIPTION_FORBIDDEN);
 
         Long previousPlanId = sub.getPlanId();
         Plan oldPlan = planRepository.findById(previousPlanId)
-                .orElseThrow(() -> new IllegalStateException("기존 플랜을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
         Plan newPlan = planRepository.findById(dto.newPlanId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 플랜입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
 
         //일할계산 (남은일수 기준 차액)
         int prorated = calculateProratedAmount(
                 oldPlan.getPrice(), newPlan.getPrice(), LocalDate.now());
-
-        // 업그레이드/다운그레이드 판별 (가격 비교)
-        ChangeType changeType = newPlan.getPrice() >= oldPlan.getPrice()
-                ? ChangeType.UPGRADE : ChangeType.DOWNGRADE;
 
         // 기존 구독 행 유지 + plan_id만 전환
         sub.changePlan(newPlan.getId());
 
         //history 기록
         SubscriptionHistory history = new SubscriptionHistory();
-        history.record(subId, previousPlanId, newPlan.getId(), changeType, prorated);
+        history.record(subId, previousPlanId, newPlan.getId(), ChangeType.UPGRADE, prorated);
         SubscriptionHistory savedHistory = subscriptionHistoryRepository.save(history);
 
         User user = userRepository.findById(sub.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.updatePlanId(newPlan.getId());
 
 
@@ -170,10 +188,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     @Transactional
-    public void cancelSubscription(Long subId) {
+    public void cancelSubscription(Long userId, Long subId) {
         Subscription sub = subscriptionRepository.findById(subId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 구독입니다."));
-        sub.reserveCancel(); // status=CANCELLED, cancelledAt=now
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
+
+        // #1 소유자 검증 — 남의 구독은 해지 불가
+        if (!sub.getUserId().equals(userId))
+            throw new BusinessException(ErrorCode.SUBSCRIPTION_FORBIDDEN);
+
+        // 해지 예약 — cancelledAt만 기록, status는 ACTIVE 유지. 만료일에 스케줄러가 FREE 강등
+        sub.reserveCancel();
     }
 
     // 일할계산: (새가격 - 기존가격) × 남은일수 ÷ 그 달 총일수

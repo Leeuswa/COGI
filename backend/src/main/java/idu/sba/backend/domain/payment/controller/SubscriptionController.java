@@ -51,19 +51,23 @@ public class SubscriptionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(subId);
     }
 
-    //플랜 변경
+    //플랜 변경 (본인 구독만)
     @PatchMapping("/subscriptions/{subId}")
     public ResponseEntity<SubscriptionHistoryResponseDTO> changeSubscription(
+            @AuthenticationPrincipal Long userId,
             @PathVariable Long subId,
             @RequestBody SubscriptionChangeDTO dto
     ) {
-        return ResponseEntity.ok(subscriptionService.changeSubscription(subId, dto));
+        return ResponseEntity.ok(subscriptionService.changeSubscription(userId, subId, dto));
     }
 
-    //구독 해지
+    //구독 해지 (본인 구독만)
     @DeleteMapping("/subscriptions/{subId}")
-    public ResponseEntity<Void> cancelSubscription(@PathVariable Long subId) {
-        subscriptionService.cancelSubscription(subId);
+    public ResponseEntity<Void> cancelSubscription(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long subId
+    ) {
+        subscriptionService.cancelSubscription(userId, subId);
         return ResponseEntity.ok().build();
     }
 }

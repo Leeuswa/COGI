@@ -26,7 +26,7 @@ public class SubscriptionHistory {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "change_type", nullable = false, length = 20)
-    private ChangeType changeType; // UPGRADE / DOWNGRADE / CANCEL
+    private ChangeType changeType; // UPGRADE / RENEWAL / CANCEL
 
     @Column(name = "prorated_amount")
     private Integer proratedAmount; // 계산 표시금액(테스트용)

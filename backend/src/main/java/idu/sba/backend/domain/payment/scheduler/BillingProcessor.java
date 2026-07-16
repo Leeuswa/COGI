@@ -13,9 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
-// 구독 1건 처리 (정기결제 or 강등). 스케줄러와 분리한 이유:
 // @Transactional은 스프링 프록시가 걸어줘서, 같은 클래스 self-invocation이면 무시됨.
-// 별도 빈으로 주입받아 호출해야 트랜잭션이 실제로 적용된다.
 @Service
 @RequiredArgsConstructor
 public class BillingProcessor {
@@ -32,11 +30,9 @@ public class BillingProcessor {
         //트랜잭션 안에서 다시 조회 → managed 상태 → expire()/extend()/updatePlanId() 더티체킹 반영
         Subscription sub = subscriptionRepository.findById(subId).orElseThrow();
 
-        // 해지 예약 + 기간 만료 → FREE 강등
+        // 해지 예약 + 기간 만료 → FREE 강등 (CANCEL 이력 남김)
         if (sub.getCancelledAt() != null) {
-            sub.expire();
-            userRepository.findById(sub.getUserId())
-                    .ifPresent(u -> u.updatePlanId(freeId));
+            downgradeToFree(sub, freeId);
             return;
         }
 
@@ -50,9 +46,31 @@ public class BillingProcessor {
                 orderId, plan.getName() + " 정기결제");
 
         sub.extend(); // 다음 달로 (더티체킹으로 저장)
+        // 정기결제 = RENEWAL (기존엔 UPGRADE로 잘못 기록)
+        saveHistory(sub.getId(), sub.getPlanId(), sub.getPlanId(), ChangeType.RENEWAL, plan.getPrice());
+        // 결제 실패 시 confirmBilling에서 예외 → 트랜잭션 롤백 + 스케줄러가 handlePaymentFailure 호출
+    }
+
+    // 결제 실패 시: FREE 강등. 스케줄러 catch에서 별도 트랜잭션으로 호출
+    // (processOne 롤백과 분리해야 강등 기록이 남음)
+    @Transactional
+    public void handlePaymentFailure(Long subId, Long freeId) {
+        Subscription sub = subscriptionRepository.findById(subId).orElseThrow();
+        downgradeToFree(sub, freeId);
+    }
+
+    // FREE 강등 공통 처리 (해지 만료 / 결제 실패 둘 다) + CANCEL 이력
+    private void downgradeToFree(Subscription sub, Long freeId) {
+        Long previousPlanId = sub.getPlanId();
+        sub.expire();
+        userRepository.findById(sub.getUserId())
+                .ifPresent(u -> u.updatePlanId(freeId));
+        saveHistory(sub.getId(), previousPlanId, freeId, ChangeType.CANCEL, 0);
+    }
+
+    private void saveHistory(Long subId, Long prevPlanId, Long newPlanId, ChangeType type, Integer amount) {
         SubscriptionHistory h = new SubscriptionHistory();
-        h.record(sub.getId(), sub.getPlanId(), sub.getPlanId(), ChangeType.UPGRADE, plan.getPrice());
+        h.record(subId, prevPlanId, newPlanId, type, amount);
         historyRepository.save(h);
-        // 결제 실패 시 confirmBilling에서 예외 → 트랜잭션 롤백 + 스케줄러 catch로 빠짐
     }
 }

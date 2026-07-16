@@ -28,7 +28,13 @@ public class BillingScheduler {
             try {
                 billingProcessor.processOne(sub.getId(), freeId); // id만 넘김 (안에서 재조회)
             } catch (Exception e) {
-                // 한 건 실패가 배치 전체를 죽이면 안 됨 → 로깅만 하고 계속
+                // 정기결제 실패 → FREE 강등 (별도 트랜잭션)
+                // 한 건 실패가 배치 전체를 죽이면 안 됨
+                try {
+                    billingProcessor.handlePaymentFailure(sub.getId(), freeId);
+                } catch (Exception ignore) {
+                    // log.error("downgrade after billing failure failed subId={}", sub.getId(), ignore);
+                }
                 // log.error("billing failed subId={}", sub.getId(), e);
             }
         }
