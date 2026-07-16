@@ -2,6 +2,7 @@ package idu.sba.backend.global.ai;
 
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -13,6 +14,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Component
 public class AiReviewClientImpl implements AiReviewClient {
 
@@ -46,22 +48,39 @@ public class AiReviewClientImpl implements AiReviewClient {
                     ? callAnthropic(provider, model.id(), systemPrompt, userContent)
                     : callOpenAiCompatible(provider, model.id(), systemPrompt, userContent);
 
-            AiJsonResponse parsed = objectMapper.readValue(result.content(), AiJsonResponse.class);
+            AiJsonResponse parsed = objectMapper.readValue(stripCodeFence(result.content()), AiJsonResponse.class);
             List<AiReviewIssue> issues = parsed.issues() == null ? List.of() : parsed.issues().stream()
                     .map(i -> new AiReviewIssue(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))
                     .toList();
             double cost = model.calculateCost(result.inputTokens(), result.outputTokens());
 
             return new AiReviewResult(parsed.summary(), issues, result.inputTokens(), result.outputTokens(), cost);
-        } catch (RestClientResponseException e) { //4xx/5xx
+        } catch (RestClientResponseException e) { //4xx/5xx — 벤더가 응답은 했지만 실패로 응답한 경우
+            log.error("AI 모델 호출 실패 - model={}, provider={}, status={}, body={}",
+                    model.id(), model.provider(), e.getStatusCode(), e.getResponseBodyAsString(), e);
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
-        } catch (Exception e) { //JSON 파싱 실패 등 — AI가 지시한 스키마를 벗어난 응답을 준 경우 포함
+        } catch (Exception e) { //연결 실패, JSON 파싱 실패(AI가 지시한 스키마를 벗어난 응답 포함) 등
+            log.error("AI 리뷰 처리 실패 - model={}, provider={}", model.id(), model.provider(), e);
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }
     }
 
     private String buildUserContent(String code, String language) {
         return (language != null && !language.isBlank() ? "언어: " + language + "\n\n" : "") + "코드:\n" + code;
+    }
+
+    // "JSON으로만 답하라"고 지시해도 모델이 ```json ... ``` 코드펜스로 감싸는 경우가 흔해서 방어적으로 벗겨낸다
+    private String stripCodeFence(String content) {
+        String trimmed = content.trim();
+        if (!trimmed.startsWith("```")) {
+            return trimmed;
+        }
+        int firstNewline = trimmed.indexOf('\n');
+        int lastFence = trimmed.lastIndexOf("```");
+        if (firstNewline == -1 || lastFence <= firstNewline) {
+            return trimmed;
+        }
+        return trimmed.substring(firstNewline + 1, lastFence).trim();
     }
 
     // OpenAI 호환 (Gemini/Groq/OpenAI)
