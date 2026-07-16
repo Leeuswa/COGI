@@ -295,16 +295,17 @@
   padding: 13px 18px; font: inherit; font-weight: 700; font-size: 14px;
   background: var(--yellow); border: none; border-bottom: 3px solid var(--navy); cursor: pointer;
 }
-.dock-stage { display: grid; grid-template-columns: 1fr 260px; border-bottom: 3px solid var(--navy); }
-.dock-canvas { overflow: auto; height: 380px; background:
-  repeating-conic-gradient(#f3efe4 0 25%, #fbf8ef 0 50%) 0 0 / 22px 22px; } /* 포토샵식 체커보드 */
+.dock-stage { display: grid; grid-template-columns: 1fr 300px; border-bottom: 3px solid var(--navy); }
+.dock-canvas { overflow: auto; height: 380px; background: #eae4d4; padding: 16px; } /* 종이 톤 작업 배경 */
 .dock-scale { transform-origin: top left; }
-.dock-frame { width: 100%; height: 380px; border: none; background: #fff; display: block; }
+.dock-frame { width: 100%; height: 348px; background: #fff; display: block;
+  border: 3px solid var(--navy); box-shadow: 6px 6px 0 var(--navy); } /* 픽셀 프레임 — 캔버스 위에 떠 있는 느낌 */
 .dock-props { border-left: 3px solid var(--navy); background: #fffbe8; padding: 12px; overflow-y: auto; max-height: 380px; }
 .prop-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; font-size: 12px; color: var(--sub); }
 .prop-row input[type="text"], .prop-row input[type="number"], .prop-row select {
   width: 118px; padding: 6px 8px; border: 2px solid var(--navy); font-size: 12px; background: #fff;
 }
+.prop-row input:focus, .prop-row select:focus { outline: none; box-shadow: 0 0 0 3px var(--yellow); }
 .prop-row input[type="color"] { width: 46px; height: 30px; border: 2px solid var(--navy); padding: 1px; background: #fff; cursor: pointer; }
 .nudge { display: flex; gap: 5px; }
 .nudge button { width: 28px; height: 28px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 12px; }
@@ -326,7 +327,11 @@
 .term-link:hover { color: var(--coral); }
 
 /* 도크 헤더 + 전체화면 */
-.dock-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: #f1ece0; border-bottom: 3px solid var(--navy); }
+.dock-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f1ece0; border-bottom: 3px solid var(--navy); }
+/* 사용법 칩이 남은 폭을 차지하되, 좁으면 칩 쪽만 가로 스크롤 — 줌·전체화면은 항상 오른쪽 한 줄 고정 */
+.dock-bar .dock-help { flex: 1 1 auto; min-width: 0; overflow-x: auto; flex-wrap: nowrap; padding: 3px 1px; scrollbar-width: none; }
+.dock-bar .dock-help::-webkit-scrollbar { display: none; }
+.dock-bar > .dock-add, .dock-bar > .dock-tool, .dock-bar > .dock-full-btn { flex-shrink: 0; }
 .dock-full-btn { font: inherit; font-size: 12px; font-weight: 700; padding: 6px 12px; border: 2px solid var(--navy); background: #fff; cursor: pointer; box-shadow: 2px 2px 0 var(--navy); }
 .dock-full-btn:active { transform: translate(2px, 2px); box-shadow: none; }
 .dock.full { position: fixed; inset: 0; z-index: 95; background: var(--white); display: flex; flex-direction: column; }
@@ -349,6 +354,7 @@
 /* 도크 v2: 툴바·섹션·버튼 그룹 */
 .dock-add { padding: 7px 8px; border: 2px solid var(--navy); background: #fff; font-size: 12px; font-family: inherit; }
 .dock-tool { width: 32px; height: 32px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 14px; box-shadow: 2px 2px 0 var(--navy); }
+.dock-tool:hover { background: var(--sky); }
 .dock-tool:active { transform: translate(2px, 2px); box-shadow: none; }
 .prop-sect { border: 2px solid var(--navy); background: #fff; margin-bottom: 10px; }
 .prop-sect summary { cursor: pointer; font-weight: 700; font-size: 12.5px; padding: 8px 10px; background: var(--sky); border-bottom: 2px solid transparent; list-style: none; }
@@ -361,6 +367,54 @@
 .btn3 button { width: 34px; height: 30px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 13px; }
 .btn3 button:hover { background: var(--yellow); }
 .prop-row input[type="range"] { width: 118px; accent-color: var(--coral); }
+
+/* ── 대시보드 컴팩트 — 100% 줌에서 한 화면(≈900px)에 다 보이도록 ──
+   랜딩의 .device 원본은 그대로 두고 .dash 스코프에서만 줄인다 */
+.dash { padding-top: 18px; padding-bottom: 28px; }
+.dash .page-head { margin-bottom: 14px; }
+.dash .page-head h1, .dash .page-head h2 { font-size: 26px; }
+.dash .page-head .sec-lead, .dash .page-head .lead { font-size: 13px; line-height: 1.6; }
+.dash .panel { padding: 16px 18px; }
+.dash .panel h3 { margin-bottom: 10px; }
+.dash .panel-grid { margin-bottom: 0; }
+
+/* 다마고치 축소판 */
+.dash .device { width: min(400px, 94vw); padding: 14px 16px 16px; border-radius: 20px 20px 26px 26px; }
+.dash .device .brand { margin-bottom: 8px; }
+.dash .lcd { height: 168px; }
+.dash .meta-row { margin-top: 10px; }
+.dash .stats { margin-top: 9px; gap: 7px 14px; }
+.dash .pad { margin-top: 10px; gap: 8px; }
+.dash .pad button { padding: 7px 4px 6px; }
+
+/* 스트릭 사슬·헤더 축소 */
+.dash .streak-head .flame { font-size: 19px; }
+.dash .streak-head .num { font-size: 26px; }
+.dash .chain { row-gap: 10px; }
+.dash .chain .day { width: 29px; height: 29px; border-width: 2px; }
+.dash .chain .day b { font-size: 11px; }
+.dash .chain .day.hit em { font-size: 13px; }
+.dash .chain .link { width: 11px; height: 5px; }
+
+/* 약점 미니 행 축소 */
+.dash .weak-mini { padding: 6px 0; }
+.dash .weak-mini .weak-count { width: 40px; height: 40px; }
+.dash .weak-mini .weak-count b { font-size: 16px; }
+
+/* 미리보기 사용법 — 칩으로 강조 */
+.dock-help { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.dock-help i {
+  font-style: normal; font-size: 11px; line-height: 1; color: var(--sub);
+  background: #fff; border: 2px solid var(--navy); padding: 5px 8px; box-shadow: 2px 2px 0 var(--navy);
+  white-space: nowrap;
+}
+.dock-help i b { color: var(--navy); margin-right: 3px; }
+.dock-guide { font-size: 12px; line-height: 1.9; }
+.dock-guide > b { display: block; margin-bottom: 8px; font-size: 13px; }
+.dock-guide ol { padding-left: 16px; margin-bottom: 10px; }
+.dock-guide li { white-space: nowrap; }         /* 항목은 항상 한 줄 */
+.dock-guide li + li { margin-top: 6px; }
+.dock-guide li b { color: var(--navy); background: var(--sky); padding: 1px 5px; border: 1px solid var(--navy); }
 
 /* 팀 직접 초대 2열 */
 .invite-direct { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
@@ -454,15 +508,25 @@
 .studio-done { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
   margin-top: 14px; padding: 14px 16px; border: 3px dashed #b9c6de; background: #f6f2e8; font-size: 13px; }
 .studio-done.ready { border-style: solid; border-color: var(--navy); background: var(--sky); }
+.studio-done .next-issue { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.studio-done .next-issue .codebox { margin: 0; max-height: 120px; overflow: auto; }
 
 /* 요금제 카드 — 기본은 모두 같은 높이·크기, 현재 플랜만 확대·강조 */
 .panel-grid.c3 { align-items: stretch; }         /* 모든 카드 같은 높이 */
+/* 현재 카드가 위로 떠오르고(-10px·확대) 그 위에 '현재 이용 중' 플래그까지 얹히므로,
+   세 카드를 통째로 내려 위 안내 문구가 가려지지 않게 여유를 확보 */
+.panel-grid.c3:has(> .plan-card) { margin-top: 32px; }
 .plan-card { position: relative; display: flex; flex-direction: column; transition: transform .12s; }
+/* 핵심: `.panel + .panel { margin-top: 22px }` 전역 규칙이 2·3번째 카드에 그대로 적용되고 있었다.
+   (0,2,0) 특이도라 .plan-card 의 margin 으론 못 이김 → 더 높은 특이도로 '모든' 카드의 마진 제거.
+   이전 수정은 :not(.current) 에만 margin:0 을 줘서, 하필 '선택된' PRO/MAX 카드만 22px 아래로 밀렸다. */
+.panel-grid.c3 .plan-card { margin: 0; }
+.plan-card:not(.current) { transform: none; }    /* 현재 플랜 외에는 항상 기본 크기·위치 */
 .plan-card .btn { margin-top: auto; }            /* 버튼을 바닥에 정렬 → 내용 달라도 높이 통일 */
 .plan-card.current {
   z-index: 2;
-  /* transform 은 레이아웃에 영향이 없어서 다른 카드는 그대로, 현재 카드만 떠오른다 */
-  transform: translateY(-12px) scale(1.05); transform-origin: top center;
+  /* 가운데 기준으로 사방으로 커지면서 위로 — 어느 칸이든 똑같이 '떠오르는' 느낌 */
+  transform: translateY(-10px) scale(1.06); transform-origin: center center;
   outline: 4px solid var(--yellow); box-shadow: 8px 8px 0 var(--navy);
   background: #fffdf3;
 }

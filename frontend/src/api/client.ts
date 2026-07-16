@@ -150,15 +150,15 @@ export const totpVerify = (totpCode, tempToken) =>
 
 // API-007 POST /api/auth/password/reset-request — 재설정 토큰 발급
 export const passwordResetRequest = (email, verifiedCode) =>
-  USE_MOCK ? mock({ resetToken: 'mock-reset' }) : http('POST', '/api/auth/password/reset-request', { email, verifiedCode });
+  USE_MOCK ? mock({ resetToken: 'mock-reset' }) : http('POST', '/api/auth/password/reset-request', { email, code: verifiedCode });
 
 // API-008 PATCH /api/auth/password/reset — 새 비밀번호 저장(잠금 해제 포함)
 export const passwordReset = (resetToken, newPassword) =>
-  USE_MOCK ? mock({ ok: true }) : http('PATCH', '/api/auth/password/reset', { resetToken, newPassword });
+  USE_MOCK ? mock({ ok: true }) : http('PATCH', '/api/auth/password/reset', { resetToken, newPassword, newPasswordConfirm: newPassword }); // 확인값은 화면에서 이미 일치 검증됨
 
 // API-009 GET /api/users/me/profile — 프로필+현재 플랜
 export const getProfile = () =>
-  USE_MOCK ? mock(M.mockUser) : http('GET', '/api/users/me/profile');
+  USE_MOCK ? mock(M.mockUser) : http('GET', '/api/users/me/profile').then((u) => ({ ...u, name: u.nickname }));
 
 // FR-91 약관 재동의 필요 여부 — 필수 약관 버전이 올라갔는데 내 동의가 구버전이면 required=true.
 // 목 기본값은 false. 배너 테스트: mock/terms.js 의 mockReagreement.required 를 true 로
@@ -168,7 +168,7 @@ export const checkReagreement = () =>
 // API-010 PATCH /api/users/me/profile — 프로필 수정(즉시 반영, FR-12)
 // name(닉네임)은 이메일 가입자만 수정 가능. 소셜(카카오/GitHub) 가입자가 보내면 서버가 400으로 거절해야 한다.
 export const updateProfile = (name, level, interests) =>
-  USE_MOCK ? mock({ name, level, interests }) : http('PATCH', '/api/users/me/profile', { name, level, interests });
+  USE_MOCK ? mock({ name, level, interests }) : http('PATCH', '/api/users/me/profile', { nickname: name, level, interests });
 
 // API-011 GET /api/users/me/onboarding-status
 export const getOnboardingStatus = () =>

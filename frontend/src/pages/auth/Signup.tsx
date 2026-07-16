@@ -88,6 +88,10 @@ export default function Signup() {
     try {
       await api.sendEmailCode(email, 'SIGNUP');
       setStep(2);
+    } catch (ex) {
+      setErr(ex.status === 409
+        ? '이미 가입된 이메일이에요. 로그인하거나 비밀번호 찾기를 이용해주세요.'
+        : '인증코드 발송에 실패했어요. 잠시 후 다시 시도해주세요.');
     } finally { setBusy(false); }
   };
 

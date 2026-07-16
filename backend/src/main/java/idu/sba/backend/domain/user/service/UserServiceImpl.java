@@ -33,7 +33,8 @@ public class UserServiceImpl implements UserService{
                 user.getPlanId(),
             Boolean.TRUE.equals(user.getOnboardingCompleted()),
                 Boolean.TRUE.equals(user.getGuideConfirmed()),
-                user.getProvider());
+                user.getProvider(),
+                user.getGithubUsername());
     }
 
     //프로필 수정
