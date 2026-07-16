@@ -3,10 +3,6 @@ package idu.sba.backend.domain.review.service;
 import idu.sba.backend.domain.payment.entity.Plan;
 import idu.sba.backend.domain.payment.service.CreditUsageService;
 import idu.sba.backend.domain.payment.service.SubscriptionService;
-import idu.sba.backend.domain.review.client.AiReviewClient;
-import idu.sba.backend.domain.review.client.AiReviewIssueDto;
-import idu.sba.backend.domain.review.client.AiReviewRequest;
-import idu.sba.backend.domain.review.client.AiReviewResult;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewResultResponseDTO;
@@ -22,6 +18,10 @@ import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.Level;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
+import idu.sba.backend.global.ai.AiModel;
+import idu.sba.backend.global.ai.AiReviewClient;
+import idu.sba.backend.global.ai.AiReviewIssue;
+import idu.sba.backend.global.ai.AiReviewResult;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReviewServiceImpl implements ReviewService {
 
-    private static final String INPUT_TYPE_PASTED = "pasted_code";
     private static final String REQUEST_TYPE_REVIEW = "REVIEW";
 
     private final ReviewRepository reviewRepository;
@@ -86,28 +85,38 @@ public class ReviewServiceImpl implements ReviewService {
     private List<ReviewIssue> runReview(Review review, User user, Plan plan, String modelName, String code, String language) {
         Level level = user.getLevel() != null ? user.getLevel() : Level.BEGINNER; //온보딩 전(level null)이면 초급 취급
         String systemPrompt = promptBuilder.build(level, plan.getName());
+        AiModel model = resolveAiModel(modelName);
 
-        AiReviewResult result = aiReviewClient.review(
-                new AiReviewRequest(modelName, systemPrompt, code, language, INPUT_TYPE_PASTED));
+        AiReviewResult result = aiReviewClient.review(model, systemPrompt, code, language);
 
-        List<ReviewIssue> issues = result.getIssues().stream()
-                .map(dto -> toIssueEntity(review.getId(), dto))
+        List<ReviewIssue> issues = result.issues().stream()
+                .map(issue -> toIssueEntity(review.getId(), issue))
                 .toList();
         reviewIssueRepository.saveAll(issues);
 
         aiUsageLogRepository.save(AiUsageLog.of(review.getUserId(), modelName,
-                result.getInputTokens(), result.getOutputTokens(), result.getCost(), REQUEST_TYPE_REVIEW));
+                result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_REVIEW));
 
         review.markCompleted();
         return issues;
     }
 
-    private ReviewIssue toIssueEntity(Long reviewId, AiReviewIssueDto dto) {
+    // resolveModelName이 이미 plan.allowedModels 기준으로 검증했으므로 정상적으로는 항상 매핑되지만,
+    // AiModel enum과 plans.allowed_models 목록이 어긋나는 경우(설정 드리프트)에 대한 방어
+    private AiModel resolveAiModel(String modelName) {
+        try {
+            return AiModel.fromId(modelName);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
+    }
+
+    private ReviewIssue toIssueEntity(Long reviewId, AiReviewIssue issue) {
         try {
             return ReviewIssue.of(reviewId,
-                    IssueCategory.valueOf(dto.getCategory()),
-                    IssueSeverity.valueOf(dto.getSeverity()),
-                    dto.getFilePath(), dto.getLineNumber(), dto.getDescription());
+                    IssueCategory.valueOf(issue.category()),
+                    IssueSeverity.valueOf(issue.severity()),
+                    issue.filePath(), issue.lineNumber(), issue.description());
         } catch (IllegalArgumentException e) { //AI가 _common_rules.txt의 고정 스키마를 벗어난 값을 준 경우
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }

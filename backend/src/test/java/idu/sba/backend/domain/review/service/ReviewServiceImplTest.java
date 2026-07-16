@@ -3,15 +3,15 @@ package idu.sba.backend.domain.review.service;
 import idu.sba.backend.domain.payment.entity.Plan;
 import idu.sba.backend.domain.payment.service.CreditUsageService;
 import idu.sba.backend.domain.payment.service.SubscriptionService;
-import idu.sba.backend.domain.review.client.AiReviewClient;
-import idu.sba.backend.domain.review.client.AiReviewIssueDto;
-import idu.sba.backend.domain.review.client.AiReviewResult;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
 import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
+import idu.sba.backend.global.ai.AiReviewClient;
+import idu.sba.backend.global.ai.AiReviewIssue;
+import idu.sba.backend.global.ai.AiReviewResult;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
@@ -106,7 +106,7 @@ class ReviewServiceImplTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.CREDIT_LIMIT_EXCEEDED);
 
         verify(reviewRepository, never()).save(any());
-        verify(aiReviewClient, never()).review(any());
+        verify(aiReviewClient, never()).review(any(), any(), any(), any());
     }
 
     @Test
@@ -114,8 +114,8 @@ class ReviewServiceImplTest {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
         when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan());
         when(promptBuilder.build(any(), eq("FREE"))).thenReturn("system-prompt");
-        when(aiReviewClient.review(any())).thenReturn(new AiReviewResult(
-                List.of(new AiReviewIssueDto("BUG", "CRITICAL", "Foo.java", 10, "null 체크 누락")),
+        when(aiReviewClient.review(any(), any(), any(), any())).thenReturn(new AiReviewResult(
+                "요약", List.of(new AiReviewIssue("BUG", "CRITICAL", "Foo.java", 10, "null 체크 누락")),
                 100, 50, 0.01));
         when(reviewRepository.save(any())).thenAnswer(inv -> {
             var review = inv.getArgument(0, idu.sba.backend.domain.review.entity.Review.class);
@@ -141,8 +141,8 @@ class ReviewServiceImplTest {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
         when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan());
         when(promptBuilder.build(any(), eq("FREE"))).thenReturn("system-prompt");
-        when(aiReviewClient.review(any())).thenReturn(new AiReviewResult(
-                List.of(new AiReviewIssueDto("NOT_A_REAL_CATEGORY", "CRITICAL", "Foo.java", 10, "설명")),
+        when(aiReviewClient.review(any(), any(), any(), any())).thenReturn(new AiReviewResult(
+                null, List.of(new AiReviewIssue("NOT_A_REAL_CATEGORY", "CRITICAL", "Foo.java", 10, "설명")),
                 100, 50, 0.01));
         when(reviewRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
