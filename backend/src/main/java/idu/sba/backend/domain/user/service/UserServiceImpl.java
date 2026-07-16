@@ -30,7 +30,10 @@ public class UserServiceImpl implements UserService{
                 user.getEmail(),
                 user.getLevel(),
                 toList(user.getInterests()),
-                user.getPlanId());
+                user.getPlanId(),
+            Boolean.TRUE.equals(user.getOnboardingCompleted()),
+                Boolean.TRUE.equals(user.getGuideConfirmed()),
+                user.getProvider());
     }
 
     //프로필 수정

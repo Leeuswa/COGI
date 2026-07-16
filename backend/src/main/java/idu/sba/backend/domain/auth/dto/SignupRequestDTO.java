@@ -22,8 +22,7 @@ public class SignupRequestDTO {
     @NotBlank
     private String passwordConfirm; //비밀번호 확인
 
-    @NotBlank(message = "닉네임을 입력해주세요.")
-    @Size(min = 2,max = 20,message = "닉네은 2~20자이어야 합니다.")
+
     private String nickname;
 
     @NotEmpty(message = "약관 동의가 필요합니다.")

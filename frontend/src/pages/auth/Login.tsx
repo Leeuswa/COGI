@@ -27,14 +27,17 @@ export default function Login() {
     setErr('');
     setBusy(true);
     try {
+      // 로그인 성공 시 JWT는 HttpOnly 쿠키로 세팅됨(응답 body엔 토큰 없음).
       const res = await api.login(email, password);
-      if (res.totpRequired) {
-        // 2차 인증으로. JWT는 OTP 통과 후에 받는다
-        nav('/otp', { state: { tempToken: res.tempToken, user: res.user, from } });
+      if (res?.totpRequired) {
+        // OTP 활성 계정은 2차 인증으로. 최종 JWT는 OTP 통과 후 발급 (TOTP 구현 시 사용)
+        nav('/otp', { state: { tempToken: res.tempToken, from } });
         return;
       }
-      signIn(res.accessToken, res.user);
-      nav(res.user.onboardingCompleted ? from : '/onboarding');
+      // 쿠키로 인증된 상태에서 내 프로필을 받아 세션을 연다.
+      const user = await api.getProfile();
+      signIn(user);
+      nav(user.onboardingCompleted ? from : '/onboarding');
     } catch (ex) {
       setErr(ex.status === 423
         ? '5회 이상 실패로 계정이 잠겼어요. 비밀번호 찾기로 잠금을 풀 수 있습니다.'
@@ -44,13 +47,9 @@ export default function Login() {
     }
   };
 
-  // 소셜 로그인. 실서버: OAuth 리다이렉트(→ /oauth/callback) / 목: client가 만든 계정으로 즉시 로그인
-  const social = async (provider) => {
-    const url = provider === 'github' ? api.githubOAuthUrl() : api.kakaoOAuthUrl();
-    if (url.startsWith('http')) { window.location.href = url; return; }
-    const res = await api.socialLogin(provider === 'github' ? 'GITHUB' : 'KAKAO');
-    signIn(res.accessToken, res.user); // provider가 실려 있어 마이페이지 이름·이메일 잠금이 걸린다
-    nav('/onboarding');
+  // 소셜 로그인 — 백엔드 OAuth 진입점으로 풀페이지 이동. 동의 후 백엔드가 쿠키를 세팅하고 /oauth/callback 으로 돌려보낸다.
+  const social = (provider) => {
+    window.location.href = provider === 'github' ? api.githubOAuthUrl() : api.kakaoOAuthUrl();
   };
 
   return (
