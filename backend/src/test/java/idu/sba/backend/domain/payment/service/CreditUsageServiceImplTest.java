@@ -116,4 +116,31 @@ class CreditUsageServiceImplTest {
         assertThat(usage.getUsedCredits()).isEqualTo(19); // 실패 시 소모되지 않아야 함
     }
 
+    @Test
+    void 오늘_사용_이력이_있으면_그대로_조회된다() {
+        CreditUsage usage = usageStartingAt(5);
+        setField(usage, "dailyLimit", 20);
+        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+
+        var status = service.getStatus(USER_ID);
+
+        assertThat(status.usedCredits()).isEqualTo(5);
+        assertThat(status.dailyLimit()).isEqualTo(20);
+        assertThat(status.remaining()).isEqualTo(15);
+    }
+
+    @Test
+    void 오늘_사용_이력이_없으면_플랜_한도로_0_사용_반환() {
+        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.empty());
+        Plan freePlan = plan("FREE", "claude-haiku-4-5");
+        setField(freePlan, "dailyCreditLimit", 20);
+        when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan);
+
+        var status = service.getStatus(USER_ID);
+
+        assertThat(status.usedCredits()).isEqualTo(0);
+        assertThat(status.dailyLimit()).isEqualTo(20);
+        assertThat(status.remaining()).isEqualTo(20);
+    }
+
 }

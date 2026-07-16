@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.payment.service;
 
+import idu.sba.backend.domain.payment.dto.CreditUsageResponseDTO;
 import idu.sba.backend.domain.payment.entity.CreditUsage;
 import idu.sba.backend.domain.payment.entity.Plan;
 import idu.sba.backend.domain.payment.repository.CreditUsageRepository;
@@ -50,6 +51,17 @@ public class CreditUsageServiceImpl implements CreditUsageService {
             throw new BusinessException(ErrorCode.CREDIT_LIMIT_EXCEEDED);
         }
         usage.consume(weight);
+    }
+
+    @Override
+    public CreditUsageResponseDTO getStatus(Long userId) {
+        LocalDate today = LocalDate.now(KST);
+        return creditUsageRepository.findByUserIdAndUsageDate(userId, today)
+                .map(usage -> CreditUsageResponseDTO.of(usage.getUsedCredits(), usage.getDailyLimit()))
+                .orElseGet(() -> {
+                    Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+                    return CreditUsageResponseDTO.of(0, plan.getDailyCreditLimit());
+                });
     }
 
     // FREE 목록에 있으면 1, 아니면 PRO 목록(FREE 포함 누적)에 있으면 2, 아니면 MAX 목록에 있으면 3
