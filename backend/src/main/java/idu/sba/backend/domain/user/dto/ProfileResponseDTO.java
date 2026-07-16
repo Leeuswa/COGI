@@ -10,6 +10,7 @@ import java.util.List;
 public class ProfileResponseDTO {
 
     private final String nickname;
+    private final String githubUsername; // GitHub 연동 탭 표시용
     private final String email;
     private final Level level;
     private final List<String> interests;
@@ -19,7 +20,7 @@ public class ProfileResponseDTO {
     private final Provider provider;             // 가입 방식 (마이페이지 표시/분기용)
 
     private ProfileResponseDTO(String nickname, String email, Level level, List<String> interests,
-                               Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider) {
+                               Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider,String githubUsername) {
         this.nickname = nickname;
         this.email = email;
         this.level = level;
@@ -28,11 +29,12 @@ public class ProfileResponseDTO {
         this.onboardingCompleted = onboardingCompleted;
         this.guideConfirmed = guideConfirmed;
         this.provider = provider;
+        this.githubUsername = githubUsername;
     }
 
     public static ProfileResponseDTO of(String nickname, String email, Level level, List<String> interests,
-                                        Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider) {
-        return new ProfileResponseDTO(nickname, email, level, interests, planId, onboardingCompleted, guideConfirmed, provider);
+                                        Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider,String githubUsername) {
+        return new ProfileResponseDTO(nickname, email, level, interests, planId, onboardingCompleted, guideConfirmed, provider,githubUsername);
     }
 
 }

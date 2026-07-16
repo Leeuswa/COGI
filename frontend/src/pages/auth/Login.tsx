@@ -14,7 +14,12 @@ import { useAuth } from '../../context/AuthContext';
 export default function Login() {
   const { signIn } = useAuth();
   const nav = useNavigate();
-  const from = useLocation().state?.from || '/app';
+  const st = useLocation().state;
+  const from = st?.from || '/app';
+  // 가입/비번재설정 완료 후 넘어온 안내 (한 번만 캡처)
+  const [notice] = useState(
+    st?.notice || (st?.signupDone ? '회원가입이 완료됐어요. 새 계정으로 로그인해주세요.' : '')
+  );
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,6 +62,7 @@ export default function Login() {
       <div className="auth-card">
         <h2>다시 만나서 반가워요</h2>
         <p className="desc">코기가 기다리고 있었어요. 밥 줄 시간입니다.</p>
+        {notice && <p className="desc" style={{ color: '#1a7f37', fontWeight: 700 }}>{notice}</p>}
 
         <div className="sns">
           <button className="sns-btn github" onClick={() => social('github')}>

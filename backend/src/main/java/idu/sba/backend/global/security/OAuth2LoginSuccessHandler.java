@@ -20,7 +20,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private static final String FRONT_CALLBACK = "http://localhost:5173/oauth/callback";
     private final JwtProvider jwtProvider;
     private  final CookieUtil cookieUtil;
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
 
 
 

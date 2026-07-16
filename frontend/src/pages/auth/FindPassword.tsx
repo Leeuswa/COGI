@@ -34,7 +34,7 @@ export default function FindPassword() {
       setResetToken(res.resetToken);
       setStep(3);
       setErr('');
-    } catch { setErr('인증코드가 맞지 않아요. (목 모드 힌트: 000000)'); }
+    } catch { setErr('인증코드가 맞지 않아요.'); }
     finally { setBusy(false); }
   };
 
@@ -45,7 +45,7 @@ export default function FindPassword() {
     setBusy(true);
     try {
       await api.passwordReset(resetToken, pw);
-      nav('/login');
+      nav('/login', { state: { notice: '비밀번호가 재설정됐어요. 새 비밀번호로 로그인하세요.' } });
     } finally { setBusy(false); }
   };
 
