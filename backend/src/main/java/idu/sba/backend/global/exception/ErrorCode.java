@@ -32,8 +32,26 @@ public enum ErrorCode {
     RESET_TOKEN_EXPIRED(HttpStatus.GONE, "재설정 토큰이 만료되었습니다."),                  // 410
     RESET_TOKEN_USED(HttpStatus.BAD_REQUEST, "이미 사용된 재설정 토큰입니다."),             // 400
     SAME_AS_OLD_PASSWORD(HttpStatus.BAD_REQUEST, "기존 비밀번호와 다른 비밀번호를 사용해주세요."), // 400
-    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다.");                    // 404
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다."),                    // 404
 
+    //AST 컨텍스트 추출
+    AST_PARSE_ERROR(HttpStatus.BAD_REQUEST,"코드를 파싱할 수 없습니다."),
+
+    //레포 팀원 초대(REV-006)
+    REPO_NOT_FOUND(HttpStatus.NOT_FOUND,"레포지토리를 찾을 수 없습니다."),
+    NOT_REPO_MEMBER(HttpStatus.FORBIDDEN,"레포 팀원이 아닙니다."),
+    INSUFFICIENT_REPO_PERMISSION(HttpStatus.FORBIDDEN,"해당 작업을 수행할 권한이 없습니다."),
+    INVITATION_NOT_FOUND(HttpStatus.NOT_FOUND,"초대를 찾을 수 없습니다."),
+    INVITATION_ALREADY_RESPONDED(HttpStatus.CONFLICT,"이미 응답한 초대입니다."),
+    ALREADY_REPO_MEMBER(HttpStatus.CONFLICT,"이미 레포에 소속된 사용자입니다."),
+    INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다."),
+    GITHUB_USER_NOT_FOUND(HttpStatus.BAD_REQUEST,"GitHub를 연동하지 않았거나 사이트에 가입하지 않은 사용자입니다."),
+
+    //GitHub 레포 연동(API-022/023)
+    GITHUB_NOT_LINKED(HttpStatus.BAD_REQUEST,"GitHub 계정이 연동되어 있지 않습니다."),
+    GITHUB_API_ERROR(HttpStatus.BAD_GATEWAY,"GitHub API 호출에 실패했습니다."),
+    GITHUB_REPO_NOT_FOUND(HttpStatus.NOT_FOUND,"GitHub에서 해당 레포지토리를 찾을 수 없습니다."),
+    REPO_ALREADY_LINKED(HttpStatus.CONFLICT,"이미 연동된 레포지토리입니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지
