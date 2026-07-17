@@ -160,6 +160,7 @@ export default function Studio() {
       ]);
     } catch {
       refundCredit(modelWeight(model)); // 서버도 @Transactional 롤백으로 안 썼으니 로컬도 원복
+      push({ who: "cogi", text: "리뷰 처리 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 시도해주세요." });
       setBusy(false);
     }
   };
@@ -174,6 +175,7 @@ export default function Studio() {
       push({ who: "cogi", text: res.answer });
     } catch {
       refundCredit(1);
+      push({ who: "cogi", text: "답변 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 물어봐주세요." });
     } finally {
       setBusy(false);
     }
@@ -204,6 +206,7 @@ export default function Studio() {
       ]);
     } catch {
       refundCredit(modelWeight(model));
+      push({ who: "cogi", text: "리뷰 처리 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 시도해주세요." });
       setBusy(false);
     }
   };
