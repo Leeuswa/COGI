@@ -41,6 +41,8 @@ import WeeklyReports from './pages/growth/WeeklyReports';
 import TeamPage from './pages/team/TeamPage';
 import InviteLanding from './pages/team/InviteLanding';
 import Plan from './pages/plan/Plan';
+import BillingSuccess from './pages/plan/BillingSuccess';
+import BillingFail from './pages/plan/BillingFail';
 import MyPage from './pages/my/MyPage';
 import Admin from './pages/admin/Admin';
 
@@ -106,6 +108,8 @@ export default function App() {
             <Route path="/app/reports" element={<WeeklyReports />} />
             <Route path="/app/team" element={<TeamPage />} />
             <Route path="/app/plan" element={<Plan />} />
+            <Route path="/app/billing/success" element={<BillingSuccess />} /> {/* 토스 결제창 성공 콜백 */}
+            <Route path="/app/billing/fail" element={<BillingFail />} /> {/* 토스 결제창 실패 콜백 */}
             <Route path="/app/my" element={<MyPage />} />
             <Route path="/app/admin" element={<Admin />} />
           </Route>
