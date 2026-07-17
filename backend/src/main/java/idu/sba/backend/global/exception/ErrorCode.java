@@ -20,6 +20,9 @@ public enum ErrorCode {
     CODE_LOCKED(HttpStatus.LOCKED,"인증 시도가 일시 정지 되었습니다. 잠시 후 다시 시도해주세요."),// 423
     CODE_SEND_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS,"잠시 후 다시 시도해주세요.(60초)"), // 429
     REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST,"필수 약관에 모두 동의해야 합니다."),
+    CODE_LOCKED_30M(HttpStatus.LOCKED, "인증 3회 실패로 30분간 정지됐어요. 30분 뒤 다시 시도해주세요."),
+    CODE_LOCKED_24H(HttpStatus.LOCKED, "반복 실패로 24시간 정지됐어요. 내일 다시 시도해주세요."),
+
 
     //로그인
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED,"이메일 또는 비밀번호가 일치하지 않습니다."), //401
