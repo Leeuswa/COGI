@@ -9,7 +9,7 @@ class AiModelTest {
 
     @Test
     void 모델_ID로_provider를_올바르게_찾는다() {
-        assertThat(AiModel.fromId("gemini-3.5-flash-lite")).isEqualTo(AiModel.GEMINI_FLASH_LITE);
+        assertThat(AiModel.fromId("gemini-3.5-flash")).isEqualTo(AiModel.GEMINI_FLASH_LITE);
         assertThat(AiModel.fromId("llama-3.3-70b-versatile")).isEqualTo(AiModel.GROQ_LLAMA_70B);
         assertThat(AiModel.fromId("claude-haiku-4-5")).isEqualTo(AiModel.CLAUDE_HAIKU);
         assertThat(AiModel.fromId("claude-sonnet-5")).isEqualTo(AiModel.CLAUDE_SONNET);

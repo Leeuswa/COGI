@@ -53,11 +53,11 @@ class CreditUsageServiceImplTest {
     // (등급이 낮은 모델을 테스트할 땐 PRO/MAX 스텁이 실제로는 안 쓰임) → lenient로 미사용 스텁 경고를 피함
     private void stubPlans() {
         lenient().when(planRepository.findByName("FREE")).thenReturn(Optional.of(
-                plan("FREE", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash-lite")));
+                plan("FREE", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash")));
         lenient().when(planRepository.findByName("PRO")).thenReturn(Optional.of(
-                plan("PRO", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash-lite,claude-sonnet-5,gpt-5.6-terra")));
+                plan("PRO", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash,claude-sonnet-5,gpt-5.6-terra")));
         lenient().when(planRepository.findByName("MAX")).thenReturn(Optional.of(
-                plan("MAX", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash-lite,claude-sonnet-5,gpt-5.6-terra,claude-opus-4-8,gpt-5.6-sol")));
+                plan("MAX", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash,claude-sonnet-5,gpt-5.6-terra,claude-opus-4-8,gpt-5.6-sol")));
     }
 
     private CreditUsage usageStartingAt(int usedCredits) {

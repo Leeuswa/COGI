@@ -56,7 +56,7 @@ class ReviewServiceImplTest {
         Plan plan = new Plan();
         setField(plan, "name", "FREE");
         setField(plan, "dailyCreditLimit", 20);
-        setField(plan, "allowedModels", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash-lite");
+        setField(plan, "allowedModels", "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash");
         setField(plan, "price", 0);
         return plan;
     }
@@ -157,7 +157,7 @@ class ReviewServiceImplTest {
 
         var options = service.getModelOptions(USER_ID);
 
-        assertThat(options).containsExactly("claude-haiku-4-5", "gpt-5.6-luna", "gemini-3.5-flash-lite");
+        assertThat(options).containsExactly("claude-haiku-4-5", "gpt-5.6-luna", "gemini-3.5-flash");
     }
 
 }
