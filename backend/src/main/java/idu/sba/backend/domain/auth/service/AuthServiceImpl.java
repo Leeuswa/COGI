@@ -295,6 +295,13 @@ public class AuthServiceImpl implements AuthService {
 
     }
 
+    @Override
+    public String refreshToken(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        return jwtProvider.createToken(user.getId(), user.getRole().name());
+    }
+
     // 정지 단계에 따라 문구 선택 (1=30분, 2=24시간)
     private ErrorCode lockError(EmailVerification ev) {
         return ev.getLockStage() >= 2 ? ErrorCode.CODE_LOCKED_24H : ErrorCode.CODE_LOCKED_30M;

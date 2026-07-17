@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as api from '../../api/client';
+import { isValidPassword, PW_HINT } from '../../utils/password';
 import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
 import { PageHead, Tabs } from '../../components/ui';
@@ -27,6 +28,7 @@ export default function MyPage() {
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ cur: '', next: '', confirm: '' });
   const [pwBusy, setPwBusy] = useState(false);
+  const [linkError, setLinkError] = useState(''); // GitHub 연동 실패 안내 (카드에 표시)
 
   // 카카오/GitHub 가입자는 이름(닉네임)·이메일이 소셜 계정 소유 정보라 여기서 못 바꾼다.
   const isSocial = user.provider === 'KAKAO' || user.provider === 'GITHUB';
@@ -44,8 +46,8 @@ export default function MyPage() {
       setParams({}, { replace: true });   // URL에서 쿼리 정리
     } else if (params.get('error')) {
       const e = params.get('error');
-      notify(e === 'github_already_linked'
-        ? '이미 다른 계정에 연결된 GitHub이에요.'
+      setLinkError(e === 'github_already_linked'
+        ? '이미 연결된 GitHub 계정입니다.'
         : 'GitHub 연동에 실패했어요. 다시 시도해주세요.');
       setTab('github');
       setParams({}, { replace: true });
@@ -75,11 +77,11 @@ export default function MyPage() {
 
   // 비밀번호 변경 — 프론트에서 형식 검증, 현재 비번 대조는 서버(목: 1234)
   const changePw = async () => {
-    if (pw.next.length < 8) return notify('새 비밀번호는 8자 이상이어야 해요');
+    if (!isValidPassword(pw.next)) return notify(PW_HINT);
     if (pw.next !== pw.confirm) return notify('새 비밀번호가 서로 달라요. 다시 확인해주세요');
     setPwBusy(true);
     try {
-      await api.changePassword(pw.cur, pw.next);
+      await api.changePassword(pw.cur, pw.next, pw.confirm);
       notify('비밀번호를 바꿨어요. 다음 로그인부터 적용됩니다');
       setPw({ cur: '', next: '', confirm: '' });
       setPwOpen(false);
@@ -109,7 +111,7 @@ export default function MyPage() {
           interests={interests} toggle={toggle} onSave={saveProfile} busy={busy}
           pw={pw} setPw={setPw} pwOpen={pwOpen} setPwOpen={setPwOpen} onChangePw={changePw} pwBusy={pwBusy} />
       )}
-      {tab === 'github' && <GithubTab user={user} onLink={linkGh} busy={busy} />}
+      {tab === 'github' && <GithubTab user={user} onLink={linkGh} busy={busy} error={linkError} />}
       {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} busy={busy} />}
       {tab === 'terms' && <TermsTab terms={terms} />}
     </main>

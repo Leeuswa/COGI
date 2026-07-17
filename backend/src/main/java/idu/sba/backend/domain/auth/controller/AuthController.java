@@ -3,6 +3,8 @@ package idu.sba.backend.domain.auth.controller;
 import idu.sba.backend.domain.auth.dto.*;
 import idu.sba.backend.domain.auth.service.AuthService;
 import idu.sba.backend.global.common.ApiResponse;
+import idu.sba.backend.global.exception.BusinessException;
+import idu.sba.backend.global.exception.ErrorCode;
 import idu.sba.backend.global.security.CookieUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -10,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -84,4 +87,15 @@ public class AuthController {
                 cookieUtil.deleteAccessTokenCookie().toString());
         return ApiResponse.ok("로그아웃 되었습니다.");
     }
+
+    @PostMapping("/refresh")
+    public ApiResponse<Void> refresh(@AuthenticationPrincipal Long userId, HttpServletResponse response) {
+        if (userId == null) throw new BusinessException(ErrorCode.LOGIN_FAILED);   // 만료/미인증 → 재로그인
+        String token = authService.refreshToken(userId);
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                cookieUtil.createAccessTokenCookie(token).toString());
+        return ApiResponse.ok("세션이 연장되었습니다.");
+    }
+
+
 }

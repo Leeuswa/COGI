@@ -44,6 +44,12 @@ async function http(method: string, path: string, body?: unknown): Promise<any> 
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    // 세션 만료: 로그인 상태에서 401이 오면 자동 로그아웃(로그인 실패=미로그인 401은 제외)
+    if (res.status === 401 && localStorage.getItem('cogi-user')) {
+      localStorage.removeItem('cogi-user');
+      localStorage.removeItem('cogi-expires');
+      window.location.href = '/login?expired=1';
+    }
     // 백엔드 {success,message,data}의 message를 꺼내 화면에 그대로 보여줄 수 있게 실어 던진다
     let message = '';
     try { message = (await res.json())?.message ?? ''; } catch { /* 본문 없음/파싱 실패 */ }
@@ -132,14 +138,18 @@ export const login = (loginId, password) => {
 export const logout = () =>
   USE_MOCK ? mock({ ok: true }) : http('POST', '/api/auth/logout');
 
+// POST /api/auth/refresh — 세션(JWT) 연장. 현재 쿠키가 유효할 때 새 토큰 쿠키를 재발급받는다.
+export const extendSession = () =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/auth/refresh');
+
 // [설계 추론] 로그인 상태 비밀번호 변경 — 비밀번호 찾기(API-008)와 별개로,
 // 마이페이지에서 현재 비밀번호 확인 후 즉시 교체. 백엔드 협의 필요
-export const changePassword = (currentPassword, newPassword) =>
+export const changePassword = (currentPassword, newPassword, newPasswordConfirm) =>
   USE_MOCK
     ? (currentPassword === '1234' // 목: 테스트 계정 비번과 대조
         ? mock({ changed: true })
         : new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('401'), { status: 401 })), 300)))
-    : http('PATCH', '/api/users/me/password', { currentPassword, newPassword });
+    : http('PATCH', '/api/users/me/password', { currentPassword, newPassword, newPasswordConfirm });
 
 // API-006-1 POST /api/auth/totp/setup — OTP 최초 설정(QR)
 export const totpSetup = () =>
