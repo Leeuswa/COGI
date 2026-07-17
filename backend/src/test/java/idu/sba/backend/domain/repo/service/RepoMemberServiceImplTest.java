@@ -2,6 +2,7 @@ package idu.sba.backend.domain.repo.service;
 
 import idu.sba.backend.domain.repo.dto.RepoInvitationResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInviteRequestDTO;
+import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.entity.RepoInvitation;
 import idu.sba.backend.domain.repo.entity.RepoInvitationStatus;
 import idu.sba.backend.domain.repo.entity.RepoMember;
@@ -105,6 +106,19 @@ class RepoMemberServiceImplTest {
         assertThatThrownBy(() -> service.inviteMember(MEMBER_ID, REPO_ID, inviteRequest("target-gh", null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INSUFFICIENT_REPO_PERMISSION);
+    }
+
+    @Test
+    void 같은_사람한테_이미_PENDING_초대가_있으면_INVITATION_ALREADY_SENT() {
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner()));
+        when(repoInvitationRepository.existsByRepoIdAndInvitedGithubUsernameIgnoreCaseAndStatus(
+                REPO_ID, "target-gh", RepoInvitationStatus.PENDING)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.inviteMember(OWNER_ID, REPO_ID, inviteRequest("target-gh", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVITATION_ALREADY_SENT);
+
+        verify(repoInvitationRepository, never()).save(any());
     }
 
     @Test
@@ -298,6 +312,49 @@ class RepoMemberServiceImplTest {
         service.registerOwner(REPO_ID, OWNER_ID);
 
         verify(repoMemberRepository).save(any(RepoMember.class));
+    }
+
+    // ---------- listMembers ----------
+
+    @Test
+    void listMembers_레포_멤버가_아니면_NOT_REPO_MEMBER() {
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.listMembers(MEMBER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void listMembers_멤버면_OWNER도_MEMBER도_전부_조회된다() {
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.of(RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER)));
+        when(repoMemberRepository.findByRepoId(REPO_ID)).thenReturn(List.of(owner(), RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER)));
+        when(userRepository.findById(OWNER_ID)).thenReturn(Optional.of(userWithGithub(OWNER_ID, "owner-gh", "owner@test.com")));
+        when(userRepository.findById(MEMBER_ID)).thenReturn(Optional.of(userWithGithub(MEMBER_ID, "member-gh", "member@test.com")));
+
+        var result = service.listMembers(MEMBER_ID, REPO_ID);
+
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting("githubUsername").containsExactlyInAnyOrder("owner-gh", "member-gh");
+        assertThat(result).extracting("role").containsExactlyInAnyOrder("OWNER", "MEMBER");
+    }
+
+    // ---------- listMyRepos ----------
+
+    @Test
+    void listMyRepos_OWNER든_MEMBER든_소속된_레포를_전부_반환한다() {
+        RepoMember asOwner = RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.OWNER);
+        RepoMember asMember = RepoMember.of(2L, MEMBER_ID, RepoRole.MEMBER);
+        when(repoMemberRepository.findByUserId(MEMBER_ID)).thenReturn(List.of(asOwner, asMember));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(
+                GithubRepository.link(MEMBER_ID, "gh-1", "repo-one", false)));
+        when(githubRepositoryRepository.findById(2L)).thenReturn(Optional.of(
+                GithubRepository.link(OWNER_ID, "gh-2", "repo-two", false)));
+
+        var result = service.listMyRepos(MEMBER_ID);
+
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting("repoName").containsExactlyInAnyOrder("repo-one", "repo-two");
     }
 
 }

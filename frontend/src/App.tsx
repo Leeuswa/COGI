@@ -39,7 +39,6 @@ import Skills from './pages/learn/Skills';
 import Growth from './pages/growth/Growth';
 import WeeklyReports from './pages/growth/WeeklyReports';
 import TeamPage from './pages/team/TeamPage';
-import InviteLanding from './pages/team/InviteLanding';
 import Plan from './pages/plan/Plan';
 import BillingSuccess from './pages/plan/BillingSuccess';
 import BillingFail from './pages/plan/BillingFail';
@@ -81,7 +80,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/guest" element={<GuestReview />} />
-        <Route path="/invite/:code" element={<InviteLanding />} /> {/* 팀 초대 링크 착지 */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/find-password" element={<FindPassword />} />

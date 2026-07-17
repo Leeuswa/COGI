@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.repo.service;
 
+import idu.sba.backend.domain.repo.dto.MyLinkedRepoResponseDTO;
 import idu.sba.backend.domain.repo.dto.MyRepoInvitationResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInvitationResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInviteRequestDTO;
@@ -53,6 +54,11 @@ public class RepoMemberServiceImpl implements RepoMemberService {
         requireOwner(repoId, currentUserId);
 
         String githubUsername = request.getGithubUsername();
+        if (repoInvitationRepository.existsByRepoIdAndInvitedGithubUsernameIgnoreCaseAndStatus(
+                repoId, githubUsername, RepoInvitationStatus.PENDING)) {
+            throw new BusinessException(ErrorCode.INVITATION_ALREADY_SENT);
+        }
+
         Optional<User> matchedUser = userRepository.findByGithubUsername(githubUsername);
 
         //케이스① 가입 + GitHub 연동된 사용자를 즉시 찾은 경우 — invited_user_id를 초대 생성 즉시 매핑
@@ -149,16 +155,39 @@ public class RepoMemberServiceImpl implements RepoMemberService {
         }
     }
 
+    @Override
+    public List<RepoMemberResponseDTO> listMembers(Long currentUserId, Long repoId) {
+        requireMember(repoId, currentUserId);
+        return repoMemberRepository.findByRepoId(repoId).stream()
+                .map(member -> RepoMemberResponseDTO.of(member, userRepository.findById(member.getUserId()).orElseThrow()))
+                .toList();
+    }
+
+    @Override
+    public List<MyLinkedRepoResponseDTO> listMyRepos(Long currentUserId) {
+        return repoMemberRepository.findByUserId(currentUserId).stream()
+                .map(member -> githubRepositoryRepository.findById(member.getRepoId()))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(MyLinkedRepoResponseDTO::of)
+                .toList();
+    }
+
     private String repoNameOf(Long repoId) {
         return githubRepositoryRepository.findById(repoId).map(GithubRepository::getRepoName).orElse(null);
     }
 
     private void requireOwner(Long repoId, Long userId) {
-        RepoMember member = repoMemberRepository.findByRepoIdAndUserId(repoId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REPO_MEMBER));
+        RepoMember member = requireMember(repoId, userId);
         if (member.getRole() != RepoRole.OWNER) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_REPO_PERMISSION);
         }
+    }
+
+    //역할 무관 — 이 레포의 멤버이기만 하면 통과(조회용)
+    private RepoMember requireMember(Long repoId, Long userId) {
+        return repoMemberRepository.findByRepoIdAndUserId(repoId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REPO_MEMBER));
     }
 
     private RepoInvitation getPendingInvitationOrThrow(Long repoId, Long inviteId) {
