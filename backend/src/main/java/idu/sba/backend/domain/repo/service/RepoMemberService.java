@@ -35,4 +35,13 @@ public interface RepoMemberService {
     //내가 속한 레포(팀) 목록 — OWNER든 MEMBER든 역할 무관, 소속된 레포 전부
     List<MyLinkedRepoResponseDTO> listMyRepos(Long currentUserId);
 
+    //팀원이 스스로 팀 나가기 — 팀장은 위임 먼저 해야 함(OWNER_CANNOT_LEAVE)
+    void leaveRepo(Long currentUserId, Long repoId);
+
+    //팀장이 팀원 내보내기 — 자기 자신은 대상이 될 수 없음
+    void removeMember(Long currentUserId, Long repoId, Long targetUserId);
+
+    //팀장 위임 — 기존 팀장은 MEMBER로 강등, 대상은 OWNER로 승격
+    RepoMemberResponseDTO transferOwnership(Long currentUserId, Long repoId, Long targetUserId);
+
 }

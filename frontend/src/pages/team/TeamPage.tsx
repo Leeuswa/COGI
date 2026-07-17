@@ -7,10 +7,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
 import { PageHead } from '../../components/ui';
 
 export default function TeamPage() {
+  const { user } = useAuth();
   const { notify } = useGame();
   const [repos, setRepos] = useState(null); // null = 로딩 중
   const [members, setMembers] = useState({}); // { [repoId]: RepoMemberResponseDTO[] }
@@ -67,6 +69,42 @@ export default function TeamPage() {
     } finally { setBusy(false); }
   };
 
+  // 팀원이 스스로 나가기 — 팀장이면 백엔드가 OWNER_CANNOT_LEAVE로 막아줌(먼저 위임하라고 안내)
+  const leave = async (repoId) => {
+    if (!window.confirm('정말 이 팀에서 나갈까요?')) return;
+    try {
+      await api.leaveRepo(repoId);
+      notify('팀에서 나갔어요');
+      setRepos((prev) => prev.filter((r) => r.repoId !== repoId));
+    } catch (e) { notify(e.message || '나가기에 실패했어요'); }
+  };
+
+  // 팀장이 팀원 내보내기
+  const kick = async (repoId, m) => {
+    if (!window.confirm(`@${m.githubUsername} 님을 팀에서 내보낼까요?`)) return;
+    try {
+      await api.removeTeamMember(repoId, m.userId);
+      setMembers((prev) => ({ ...prev, [repoId]: prev[repoId].filter((x) => x.userId !== m.userId) }));
+      notify(`@${m.githubUsername} 님을 내보냈어요`);
+    } catch (e) { notify(e.message || '내보내기에 실패했어요'); }
+  };
+
+  // 팀장 위임 — 위임하면 내 역할도 MEMBER로 바뀐다
+  const transfer = async (repoId, m) => {
+    if (!window.confirm(`@${m.githubUsername} 님에게 팀장을 위임할까요?\n위임하면 회원님은 팀원이 돼요.`)) return;
+    try {
+      await api.transferOwnership(repoId, m.userId);
+      setMembers((prev) => ({
+        ...prev,
+        [repoId]: prev[repoId].map((x) => ({
+          ...x,
+          role: x.userId === m.userId ? 'OWNER' : x.githubUsername === user.githubUsername ? 'MEMBER' : x.role,
+        })),
+      }));
+      notify(`@${m.githubUsername} 님에게 팀장을 위임했어요`);
+    } catch (e) { notify(e.message || '위임에 실패했어요'); }
+  };
+
   if (!repos) {
     return <main className="app-main"><div className="panel"><p className="note">불러오는 중…</p></div></main>;
   }
@@ -99,19 +137,35 @@ export default function TeamPage() {
           </Link>
         </div>
       ) : (
-        repos.map((r) => (
+        repos.map((r) => {
+          const myRole = (members[r.repoId] || []).find((m) => m.githubUsername === user.githubUsername)?.role;
+          return (
           <div key={r.repoId} className="panel" style={{ marginBottom: 18 }}>
             <h3>{r.repoName}</h3>
             <table className="tbl">
-              <thead><tr><th>GitHub 아이디</th><th>역할</th><th>합류일</th></tr></thead>
+              <thead><tr><th>GitHub 아이디</th><th>역할</th><th>합류일</th><th></th></tr></thead>
               <tbody>
-                {(members[r.repoId] || []).map((m) => (
-                  <tr key={m.userId}>
-                    <td><b>@{m.githubUsername}</b></td>
-                    <td><span className={`chip ${m.role === 'OWNER' ? 'co' : 'navy'}`}>{m.role === 'OWNER' ? '팀장' : '팀원'}</span></td>
-                    <td className="mono xs">{m.joinedAt}</td>
-                  </tr>
-                ))}
+                {(members[r.repoId] || []).map((m) => {
+                  const isMe = m.githubUsername === user.githubUsername;
+                  return (
+                    <tr key={m.userId}>
+                      <td><b>@{m.githubUsername}</b></td>
+                      <td><span className={`chip ${m.role === 'OWNER' ? 'co' : 'navy'}`}>{m.role === 'OWNER' ? '팀장' : '팀원'}</span></td>
+                      <td className="mono xs">{m.joinedAt}</td>
+                      <td style={{ display: 'flex', gap: 6 }}>
+                        {isMe && m.role === 'MEMBER' && (
+                          <button className="btn wh sm" onClick={() => leave(r.repoId)}>나가기</button>
+                        )}
+                        {!isMe && myRole === 'OWNER' && m.role === 'MEMBER' && (
+                          <>
+                            <button className="btn wh sm" onClick={() => transfer(r.repoId, m)}>위임</button>
+                            <button className="btn wh sm" onClick={() => kick(r.repoId, m)}>내보내기</button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <div className="filter-bar" style={{ marginTop: 14, marginBottom: 0 }}>
@@ -151,7 +205,8 @@ export default function TeamPage() {
               <p className="note sm" style={{ marginTop: 6, color: 'var(--coral)' }}>{inviteError[r.repoId]}</p>
             )}
           </div>
-        ))
+          );
+        })
       )}
     </main>
   );

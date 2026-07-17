@@ -58,4 +58,32 @@ public class RepoMemberController {
         return ApiResponse.ok(repoMemberService.listMembers(userId, repoId));
     }
 
+    //팀원이 스스로 팀 나가기 — 팀장은 위임 먼저 해야 함
+    @PostMapping("/leave")
+    public ApiResponse<Void> leave(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId) {
+        repoMemberService.leaveRepo(userId, repoId);
+        return ApiResponse.ok("팀에서 나갔습니다.");
+    }
+
+    //팀장이 팀원 내보내기
+    @DeleteMapping("/{targetUserId}")
+    public ApiResponse<Void> removeMember(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId,
+            @PathVariable Long targetUserId) {
+        repoMemberService.removeMember(userId, repoId, targetUserId);
+        return ApiResponse.ok("팀원을 내보냈습니다.");
+    }
+
+    //팀장 위임
+    @PostMapping("/{targetUserId}/transfer-owner")
+    public ApiResponse<RepoMemberResponseDTO> transferOwner(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId,
+            @PathVariable Long targetUserId) {
+        return ApiResponse.ok("팀장을 위임했습니다.", repoMemberService.transferOwnership(userId, repoId, targetUserId));
+    }
+
 }

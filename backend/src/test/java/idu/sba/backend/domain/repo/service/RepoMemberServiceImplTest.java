@@ -357,4 +357,106 @@ class RepoMemberServiceImplTest {
         assertThat(result).extracting("repoName").containsExactlyInAnyOrder("repo-one", "repo-two");
     }
 
+    // ---------- leaveRepo ----------
+
+    @Test
+    void leaveRepo_OWNER는_바로_나갈_수_없다() {
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner()));
+
+        assertThatThrownBy(() -> service.leaveRepo(OWNER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.OWNER_CANNOT_LEAVE);
+
+        verify(repoMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void leaveRepo_MEMBER는_정상적으로_나간다() {
+        RepoMember member = RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.of(member));
+
+        service.leaveRepo(MEMBER_ID, REPO_ID);
+
+        verify(repoMemberRepository).delete(member);
+    }
+
+    // ---------- removeMember ----------
+
+    @Test
+    void removeMember_팀장이_아니면_INSUFFICIENT_REPO_PERMISSION() {
+        RepoMember member = RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> service.removeMember(MEMBER_ID, REPO_ID, 99L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INSUFFICIENT_REPO_PERMISSION);
+    }
+
+    @Test
+    void removeMember_자기_자신이_대상이면_CANNOT_ACT_ON_SELF() {
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner()));
+
+        assertThatThrownBy(() -> service.removeMember(OWNER_ID, REPO_ID, OWNER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CANNOT_ACT_ON_SELF);
+    }
+
+    @Test
+    void removeMember_정상_케이스면_대상_멤버가_삭제된다() {
+        RepoMember target = RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.of(target));
+
+        service.removeMember(OWNER_ID, REPO_ID, MEMBER_ID);
+
+        verify(repoMemberRepository).delete(target);
+    }
+
+    // ---------- transferOwnership ----------
+
+    @Test
+    void transferOwnership_팀장이_아니면_INSUFFICIENT_REPO_PERMISSION() {
+        RepoMember member = RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> service.transferOwnership(MEMBER_ID, REPO_ID, 99L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INSUFFICIENT_REPO_PERMISSION);
+    }
+
+    @Test
+    void transferOwnership_자기_자신이_대상이면_CANNOT_ACT_ON_SELF() {
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner()));
+
+        assertThatThrownBy(() -> service.transferOwnership(OWNER_ID, REPO_ID, OWNER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CANNOT_ACT_ON_SELF);
+    }
+
+    @Test
+    void transferOwnership_대상이_멤버가_아니면_NOT_REPO_MEMBER() {
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.transferOwnership(OWNER_ID, REPO_ID, MEMBER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void transferOwnership_정상_케이스면_역할이_서로_바뀐다() {
+        RepoMember owner = owner();
+        RepoMember target = RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.of(target));
+        when(userRepository.findById(MEMBER_ID)).thenReturn(Optional.of(userWithGithub(MEMBER_ID, "target-gh", "target@test.com")));
+
+        var result = service.transferOwnership(OWNER_ID, REPO_ID, MEMBER_ID);
+
+        assertThat(owner.getRole()).isEqualTo(RepoRole.MEMBER);
+        assertThat(target.getRole()).isEqualTo(RepoRole.OWNER);
+        assertThat(result.getRole()).isEqualTo("OWNER");
+        assertThat(result.getGithubUsername()).isEqualTo("target-gh");
+    }
+
 }
