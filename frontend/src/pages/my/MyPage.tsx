@@ -3,7 +3,7 @@
  * 상태와 저장/연동/OTP 핸들러는 여기, 화면은 tabs/ 아래 파일 하나씩.
  */
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
@@ -14,7 +14,6 @@ import SecurityTab from './tabs/SecurityTab';
 import TermsTab from './tabs/TermsTab';
 
 export default function MyPage() {
-  const nav = useNavigate();
   const { user, patchUser } = useAuth();
   const { notify } = useGame();
 
