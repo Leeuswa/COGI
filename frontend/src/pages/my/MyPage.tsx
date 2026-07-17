@@ -60,10 +60,12 @@ export default function MyPage() {
     if (interests.length === 0) return notify('관심기술은 1개 이상 골라주세요');
     setBusy(true);
     try {
-      // 소셜 가입자는 이름을 안 보낸다 — 서버도 어차피 거절하지만 요청 자체를 안 만드는 게 맞다
-      await api.updateProfile(isSocial ? undefined : name.trim(), level, interests);
-      patchUser({ ...(isSocial ? {} : { name: name.trim() }), level, interests });
-      notify('저장 완료. 다음 리뷰부터 바로 반영돼요');
+      // 소셜 유저는 닉네임이 잠겨있어 값이 안 바뀌지만, 백엔드가 nickname 필수라 기존 값 그대로 보낸다
+      await api.updateProfile(name.trim(), level, interests);
+      patchUser({ name: name.trim(), level, interests });
+      notify('프로필이 저장됐어요. 다음 리뷰부터 바로 반영돼요');
+    } catch (ex) {
+      notify(ex.message || '저장에 실패했어요. 잠시 후 다시 시도해주세요');
     } finally { setBusy(false); }
   };
 
