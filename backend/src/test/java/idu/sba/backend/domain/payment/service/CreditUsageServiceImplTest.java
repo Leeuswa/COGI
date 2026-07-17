@@ -117,6 +117,25 @@ class CreditUsageServiceImplTest {
     }
 
     @Test
+    void refund은_소모했던_가중치만큼_되돌린다() {
+        stubPlans();
+        CreditUsage usage = usageStartingAt(2); // FREE 모델 2회 소모(가중치 1씩) 후 analyzable=false로 그중 1회 환불
+        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+
+        service.refund(USER_ID, "claude-haiku-4-5");
+
+        assertThat(usage.getUsedCredits()).isEqualTo(1);
+    }
+
+    @Test
+    void refund시_오늘자_사용_이력이_없으면_조용히_무시한다() {
+        stubPlans();
+        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.empty());
+
+        service.refund(USER_ID, "claude-haiku-4-5"); // 예외 없이 통과해야 함
+    }
+
+    @Test
     void 오늘_사용_이력이_있으면_그대로_조회된다() {
         CreditUsage usage = usageStartingAt(5);
         setField(usage, "dailyLimit", 20);

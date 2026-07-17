@@ -330,17 +330,18 @@ export const claimGuestReview = (reviewId, guestToken) =>
   USE_MOCK ? mock({ claimed: true }) : http('POST', `/api/guest/local-review/${reviewId}/claim`, { guestToken });
 
 // API-040 POST /api/reviews/paste — 로그인 후 붙여넣기 리뷰 (LRN-001 통계 반영 대상)
-export const pasteReview = (code, language, modelName) =>
+// language는 스튜디오 UI에서 뺐다 — 코드만 붙여넣으면 AI가 알아서 언어를 판단함(_common_rules.txt 1번 규칙),
+// 백엔드 DTO의 language 필드는 nullable이라 그대로 생략해서 보낸다.
+export const pasteReview = (code, modelName) =>
   USE_MOCK
     ? mock({ reviewId: 2, issues: [{ ...M.mockIssue, id: 2, filePath: '(붙여넣은 코드)' }] }, 900)
-    : http('POST', '/api/reviews/paste', { code, language, modelName });
+    : http('POST', '/api/reviews/paste', { code, modelName });
 
 // API-041 POST /api/reviews/upload — 파일 업로드 리뷰
-export const uploadReview = (file, language?: string, modelName?: string) => {
+export const uploadReview = (file, modelName?: string) => {
   if (USE_MOCK) return mock({ reviewId: 3, issues: [{ ...M.mockIssue, id: 3, filePath: file.name }] }, 900);
   const fd = new FormData();
   fd.append('file', file);
-  if (language) fd.append('language', language);
   if (modelName) fd.append('modelName', modelName);
   return httpMultipart('/api/reviews/upload', fd);
 };
