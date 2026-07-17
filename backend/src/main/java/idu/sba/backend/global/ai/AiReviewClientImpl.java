@@ -11,6 +11,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -85,14 +86,17 @@ public class AiReviewClientImpl implements AiReviewClient {
 
     // OpenAI 호환 (Gemini/Groq/OpenAI)
     private VendorCallResult callOpenAiCompatible(AiProvider p, String modelId, String systemPrompt, String userContent) {
-        Map<String, Object> body = Map.of(
+        // OpenAI는 신형 모델부터 max_tokens를 거부하고 max_completion_tokens를 요구함(400
+        // unsupported_parameter로 확인됨). Gemini/Groq는 아직 이 문제가 없어 기존 max_tokens 유지.
+        Map<String, Object> body = new HashMap<>(Map.of(
                 "model", modelId,
-                "max_tokens", 8192, // Claude 쪽과 동일한 이유로 명시 — 벤더 기본값에 맡기면 이슈 많은 리뷰에서 잘릴 수 있음
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user", "content", userContent)),
                 "response_format", Map.of("type", "json_object")
-        );
+        ));
+        body.put(p == AiProvider.OPENAI ? "max_completion_tokens" : "max_tokens", 8192);
+
         JsonNode res = clients.get(p).post()
                 .uri("/chat/completions")
                 .header("Authorization", "Bearer " + apiKeys.get(p))
