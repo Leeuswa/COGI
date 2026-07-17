@@ -17,6 +17,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
 import { TermsDialog } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import { useCountdown } from '../../hooks/useCountdown';
+
+// 초 → "m:ss"
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export default function Signup() {
   const { signIn } = useAuth();
@@ -38,6 +42,8 @@ export default function Signup() {
   const [code, setCode] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cooldown, startCooldown] = useCountdown(); // 재발송 쿨타임(초)
+  const [expiry, startExpiry] = useCountdown();     // 코드 유효시간(초)
 
   // 결제/구독 약관(PAYMENT)은 가입이 아니라 "결제 진행 시" 동의받는다 (AUTH-009 비고) → 여기선 제외
   useEffect(() => { api.getTerms().then((all) => setTerms(all.filter((t) => t.type !== 'PAYMENT'))); }, []);
@@ -87,6 +93,8 @@ export default function Signup() {
     setBusy(true);
     try {
       await api.sendEmailCode(email, 'SIGNUP');
+      startCooldown(60);   // 60초 뒤 재발송 가능
+      startExpiry(300);    // 코드 5분 유효
       setStep(2);
     } catch (ex) {
       setErr(ex.status === 409
@@ -99,14 +107,30 @@ export default function Signup() {
   const step2 = async (e) => {
     e.preventDefault();
     setErr('');
+    if (expiry === 0) return setErr('코드가 만료됐어요. 다시 받아주세요.');
     setBusy(true);
     try {
       await api.verifyEmailCode(email, code);              // 5분 만료 검증
       await api.signup(email, pw, pw2, agreed, nickname);  // 가입만 (약관 동의는 백엔드가 함께 저장, nickname 선택)
       // 가입은 여기까지. 로그인 화면으로 보내고, 로그인 시 온보딩 미완료면 온보딩으로 이동한다.
       nav('/login', { state: { signupDone: true, from: backTo } });
-    } catch {
-      setErr('인증코드가 맞지 않아요.');
+    } catch (ex) {
+      setErr(ex.message || '인증코드가 맞지 않아요.');
+    } finally { setBusy(false); }
+  };
+
+  // 코드 재발송 (60초 쿨타임 끝난 뒤에만) + 타이머 리셋
+  const resend = async () => {
+    if (cooldown > 0) return;
+    setCode('');
+    setErr('');
+    setBusy(true);
+    try {
+      await api.sendEmailCode(email, 'SIGNUP');
+      startCooldown(60);
+      startExpiry(300);
+    } catch (ex) {
+      setErr(ex.status === 409 ? '이미 가입된 이메일이에요.' : '재발송에 실패했어요.');
     } finally { setBusy(false); }
   };
 
@@ -237,12 +261,19 @@ export default function Signup() {
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                   style={{ fontFamily: 'Silkscreen, monospace', letterSpacing: 6, textAlign: 'center' }} required />
               </div>
+              {/* 코드 유효시간(5분) 실시간 */}
+              <p className="note sm" style={{ marginTop: 4 }}>
+                {expiry > 0
+                  ? <>남은 시간 <b style={{ fontFamily: 'Silkscreen, monospace' }}>{fmt(expiry)}</b></>
+                  : <span style={{ color: 'crimson' }}>코드가 만료됐어요. 다시 받아주세요.</span>}
+              </p>
               {err && <p className="err">{err}</p>}
-              <button className="btn co" type="submit" disabled={busy || code.length !== 6}>
+              <button className="btn co" type="submit" disabled={busy || code.length !== 6 || expiry === 0}>
                 {busy ? '검증 중…' : '가입 완료'}
               </button>
-              <button className="btn wh sm" type="button" onClick={() => api.sendEmailCode(email, 'SIGNUP')}>
-                코드 재발송
+              {/* 재발송(60초 쿨타임) 실시간 */}
+              <button className="btn wh sm" type="button" onClick={resend} disabled={busy || cooldown > 0}>
+                {cooldown > 0 ? `재발송 (${cooldown}초)` : '코드 재발송'}
               </button>
             </form>
           </>
