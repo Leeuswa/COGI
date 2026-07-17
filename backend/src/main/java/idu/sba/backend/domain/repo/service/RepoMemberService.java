@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.repo.service;
 
+import idu.sba.backend.domain.repo.dto.MyLinkedRepoResponseDTO;
 import idu.sba.backend.domain.repo.dto.MyRepoInvitationResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInvitationResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInviteRequestDTO;
@@ -27,5 +28,11 @@ public interface RepoMemberService {
 
     //레포 연동(API-023) 완료 시 등록자를 OWNER로 등록 — 레포 연동 API 담당자가 호출할 훅
     void registerOwner(Long repoId, Long ownerUserId);
+
+    //레포(팀) 멤버 목록 — OWNER뿐 아니라 멤버면 누구나 조회 가능(API-031)
+    List<RepoMemberResponseDTO> listMembers(Long currentUserId, Long repoId);
+
+    //내가 속한 레포(팀) 목록 — OWNER든 MEMBER든 역할 무관, 소속된 레포 전부
+    List<MyLinkedRepoResponseDTO> listMyRepos(Long currentUserId);
 
 }

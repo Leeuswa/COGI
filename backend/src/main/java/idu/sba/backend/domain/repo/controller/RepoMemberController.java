@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/repos/{repoId}/members")
 @RequiredArgsConstructor
@@ -46,6 +48,14 @@ public class RepoMemberController {
             @PathVariable Long inviteId) {
         repoMemberService.rejectInvite(userId, repoId, inviteId);
         return ApiResponse.ok("초대를 거절했습니다.");
+    }
+
+    //API-031: 레포(팀) 멤버 목록 조회 — 멤버면 누구나 조회 가능
+    @GetMapping
+    public ApiResponse<List<RepoMemberResponseDTO>> listMembers(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId) {
+        return ApiResponse.ok(repoMemberService.listMembers(userId, repoId));
     }
 
 }

@@ -242,8 +242,9 @@ export const getPrReview = (prId) =>
 
 
 // API-029 POST /api/repos/{repoId}/members/invite — GitHub 아이디로 팀원 초대 (FR-36)
-export const inviteMember = (repoId, githubUsername) =>
-  USE_MOCK ? mock({ inviteId: 1, status: 'PENDING' }) : http('POST', `/api/repos/${repoId}/members/invite`, { githubUsername });
+// githubUsername으로 못 찾으면(GITHUB_USER_NOT_FOUND) email을 채워 재요청 — 그때만 이메일 초대장이 발송된다
+export const inviteMember = (repoId, githubUsername, email?: string) =>
+  USE_MOCK ? mock({ inviteId: 1, status: 'PENDING' }) : http('POST', `/api/repos/${repoId}/members/invite`, { githubUsername, email });
 
 // API-031 GET /api/repos/{repoId}/members — 팀 구성원 목록 (성장추이 팀원 필터에서도 씀)
 export const getTeamMembers = (repoId) =>
@@ -254,9 +255,9 @@ export const respondInvite = (repoId, inviteId, accept) =>
   USE_MOCK ? mock({ status: accept ? 'ACCEPTED' : 'REJECTED' })
     : http('POST', `/api/repos/${repoId}/members/invitations/${inviteId}/${accept ? 'accept' : 'reject'}`);
 
-// (조회) 내가 받은 대기 중 초대 — 명세에 목록 API가 없어 최소 형태로 추론. 백엔드 확정 시 경로만 맞추면 됨
+// 내가 받은 대기 중 초대 목록(인앱 알림)
 export const getMyInvitations = () =>
-  USE_MOCK ? mock(M.mockInvitations) : http('GET', '/api/users/me/invitations');
+  USE_MOCK ? mock(M.mockInvitations) : http('GET', '/api/me/repo-invitations');
 
 /* ══════════ 리뷰 대시보드 (RDB) ══════════ */
 
@@ -456,59 +457,15 @@ export const getWeeklyReports = () =>
 export const sendWeeklyReportMail = (reportId) =>
   USE_MOCK ? mock({ sent: true }) : http('POST', `/api/users/me/weekly-reports/${reportId}/send-mail`);
 
-/* ── 팀 (초대 링크 합류 + 팀장/팀원 관리) — [설계 추론] API-034 팀원 초대의 링크 방식 확장.
-   기존 이메일 초대(API-034)와 별개로, 링크 코드를 아는 사람이 신청하고 팀장이 승인하는 흐름 ── */
-export const getMyTeam = (loginId) =>
-  USE_MOCK
-    /* 목 시나리오 (README 참고):
-       team   → 팀장 뷰 / admin → 팀원 뷰
-       member → 팀 없음 + GitHub 초대 도착 (수락하면 바로 합류)
-       user   → 팀 없음 + 이메일 초대 도착 (GitHub 연동 후 합류) */
-    ? mock(
-        loginId === 'team' ? { ...M.mockTeam, myRole: 'OWNER' }
-        : loginId === 'admin' ? { ...M.mockTeam, myRole: 'MEMBER' }
-        : loginId === 'member' ? { none: true, invite: { teamName: 'Team Fable', via: 'GITHUB' } }
-        : { none: true, invite: { teamName: 'Team Fable', via: 'EMAIL' } })
-    : http('GET', '/api/teams/me');
+// 내가 이미 연동해둔 레포 목록 — 팀 화면(TeamPage)이 "내 팀 = 내가 연동한 레포"를 보여줄 때 씀
+export const getMyLinkedRepos = () =>
+  USE_MOCK ? mock([{ repoId: 1, repoName: M.mockRepo.repoName }]) : http('GET', '/api/repos/me');
 
 // [설계 추론] 알림 — GitHub/이메일 초대가 오면 종 아이콘에 쌓인다 (삭제는 프론트 로컬)
 export const getNotifications = (loginId) =>
   USE_MOCK ? mock(M.mockNotifications[loginId] ?? []) : http('GET', '/api/notifications');
 export const dismissNotification = (id) =>
   USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/notifications/${id}`);
-
-// [설계 추론] GitHub 아이디 초대 수락 — 팀장 재수락 없이 즉시 정식 멤버 (요구 #10)
-export const acceptTeamInvite = () =>
-  USE_MOCK
-    ? mock({ team: { ...M.mockTeam, myRole: 'MEMBER',
-        members: [...M.mockTeam.members, { id: 4, name: '나', email: 'me@fable.dev', role: 'MEMBER', joinedAt: '오늘' }] } })
-    : http('POST', '/api/teams/invites/accept');
-
-// [설계 추론] 팀 없이 레포만 연동한 사람이 스스로 팀장이 되는 길 (요구 #12)
-export const createTeam = (name) =>
-  USE_MOCK
-    ? mock({ team: { id: 2, name, inviteCode: 'NEW-TEAM', myRole: 'OWNER',
-        members: [{ id: 1, name: '나', email: 'me@fable.dev', role: 'OWNER', joinedAt: '오늘' }], pending: [] } })
-    : http('POST', '/api/teams', { name });
-export const getInviteInfo = (code) =>
-  USE_MOCK ? mock({ teamName: M.mockTeam.name, memberCount: M.mockTeam.members.length, valid: code === M.mockTeam.inviteCode })
-    : http('GET', `/api/teams/invite/${code}`);
-export const requestJoinTeam = (code) =>
-  USE_MOCK ? mock({ status: 'PENDING' }) : http('POST', `/api/teams/invite/${code}/join`);
-// [설계 추론] 팀장 직접 초대 — 이미 가입한 사람은 GitHub 아이디로, 비회원은 이메일로 초대장 발송
-export const inviteToTeam = ({ githubUsername, email }: { githubUsername?: string; email?: string }) =>
-  USE_MOCK
-    ? mock(githubUsername
-        ? { invited: true, via: 'GITHUB', target: githubUsername }
-        : { invited: true, via: 'EMAIL', target: email })
-    : http('POST', '/api/teams/me/invites', { githubUsername, email });
-
-export const decideJoin = (memberId, approve) =>
-  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/teams/me/pending/${memberId}`, { approve });
-export const removeMember = (memberId) =>
-  USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/teams/me/members/${memberId}`);
-export const leaveTeam = () =>
-  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/teams/me/leave');
 
 // API-054 GET /api/admin/system/review-latency — 리뷰 응답시간 지표 (FR-77, 목표 수치는 문서상 미확정)
 export const getReviewLatency = (from, to) =>
