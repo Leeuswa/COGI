@@ -82,6 +82,12 @@ export function GameProvider({ children }) {
     return ok;
   }, [creditLimit, update, notify]);
 
+  // spendCredit의 반대 — AI 호출이 실패하면 서버는 @Transactional 롤백으로 크레딧을 안 쓰므로
+  // 미리 차감했던 로컬 값도 되돌린다 (요청 자체가 안 갔거나 서버 에러로 끝난 경우 전부 해당)
+  const refundCredit = useCallback((n = 1) => {
+    update((prev) => ({ ...prev, creditUsed: Math.max(0, prev.creditUsed - n) }));
+  }, [update]);
+
   // 퀴즈 제출 → streak 갱신. 정답 여부와 무관하게 "제출"이 기준 (FR-74)
   const recordSubmit = useCallback(() => {
     update((prev) => {
@@ -106,12 +112,12 @@ export function GameProvider({ children }) {
 
   const value = {
     S, update, notify, toast,
-    creditLimit, spendCredit, recordSubmit, checkIn,
+    creditLimit, spendCredit, refundCredit, recordSubmit, checkIn,
     earnCoins: (n) => update((p) => ({ ...p, coins: p.coins + n })),
     // 서버 집계값으로 크레딧/스트릭 보정 (API-055/051) — 서버가 항상 이긴다
     syncServer: (credit, retention) => update((p) => ({
       ...p,
-      creditUsed: credit?.used ?? p.creditUsed,
+      creditUsed: credit?.usedCredits ?? p.creditUsed,
       streak: retention?.streak ?? p.streak,
     })),
   };

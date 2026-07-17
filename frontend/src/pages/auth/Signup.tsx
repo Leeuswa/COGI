@@ -18,6 +18,7 @@ import * as api from '../../api/client';
 import { TermsDialog } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useCountdown } from '../../hooks/useCountdown';
+import { isValidPassword, PW_HINT } from '../../utils/password';
 
 // 초 → "m:ss"
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -86,7 +87,7 @@ export default function Signup() {
   const step1 = async (e) => {
     e.preventDefault();
     setErr('');
-    if (pw.length < 8) return setErr('비밀번호는 8자 이상이어야 해요.');
+    if (!isValidPassword(pw)) return setErr(PW_HINT);
     if (pw !== pw2) return setErr('비밀번호 확인이 일치하지 않아요.');
     if (!requiredOk()) return setErr('필수 약관에 동의해주세요.');
 
@@ -228,7 +229,7 @@ export default function Signup() {
                 <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={20} autoComplete="nickname" />
               </div>
               <div>
-                <label>비밀번호 (8자 이상)</label>
+                <label>비밀번호 (영어·숫자·특수문자 포함 8자 이상)</label>
                 <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" />
               </div>
               <div>

@@ -21,6 +21,12 @@ public class UserController {
         return ApiResponse.ok(userService.getProfile(userId));
     }
 
+    // 내가 동의한 약관 id 목록 (마이페이지 동의 현황)
+    @GetMapping("/agreements")
+    public ApiResponse<java.util.List<Long>> getAgreedTermIds(@AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(userService.getAgreedTermIds(userId));
+    }
+
     // 프로필 수정
     @PatchMapping("/profile")
     public ApiResponse<Void> updateProfile(@AuthenticationPrincipal Long userId,
@@ -41,5 +47,13 @@ public class UserController {
                                               @Valid @RequestBody OnboardingRequestDTO request) {
         userService.submitOnboarding(userId, request);
         return ApiResponse.ok("온보딩이 완료되었습니다.");
+    }
+
+    //로그인 시 비밀번호 변경하는 API
+    @PatchMapping("/password")
+    public ApiResponse<Void> changePassword(@AuthenticationPrincipal Long userId,
+                                            @Valid @RequestBody PasswordChangeDTO request){
+        userService.changePassword(userId,request);
+        return ApiResponse.ok("비밀번호가 변경되었습니다.");
     }
 }

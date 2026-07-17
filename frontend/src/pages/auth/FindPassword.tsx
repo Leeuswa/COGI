@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useCountdown } from '../../hooks/useCountdown';
+import { isValidPassword, PW_HINT } from '../../utils/password';
 
 // 초 → "m:ss" (예: 125 → "2:05")
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -66,7 +67,7 @@ export default function FindPassword() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (pw.length < 8) return setErr('비밀번호는 8자 이상이어야 해요.');
+    if (!isValidPassword(pw)) return setErr(PW_HINT);
     if (pw !== pw2) return setErr('비밀번호 확인이 일치하지 않아요.');
     setBusy(true);
     try {
@@ -122,7 +123,7 @@ export default function FindPassword() {
         {step === 3 && (
           <form className="form" onSubmit={save}>
             <div>
-              <label>새 비밀번호 (8자 이상)</label>
+              <label>새 비밀번호 (영어·숫자·특수문자 포함 8자 이상)</label>
               <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required />
             </div>
             <div>

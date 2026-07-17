@@ -10,6 +10,7 @@
  * 실제 네트워크처럼 느껴지게 250ms 정도만.
  */
 import * as M from '../data/mock';
+import { MODEL_TIERS } from '../data/constants';
 
 const USE_MOCK = false; // 목 데이터 → 실제 백엔드
 const BASE = ''; // 프록시 쓰면 '' 그대로, 직접 붙이면 'http://localhost:8080'
@@ -43,6 +44,12 @@ async function http(method: string, path: string, body?: unknown): Promise<any> 
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    // 세션 만료: 로그인 상태에서 401이 오면 자동 로그아웃(로그인 실패=미로그인 401은 제외)
+    if (res.status === 401 && localStorage.getItem('cogi-user')) {
+      localStorage.removeItem('cogi-user');
+      localStorage.removeItem('cogi-expires');
+      window.location.href = '/login?expired=1';
+    }
     // 백엔드 {success,message,data}의 message를 꺼내 화면에 그대로 보여줄 수 있게 실어 던진다
     let message = '';
     try { message = (await res.json())?.message ?? ''; } catch { /* 본문 없음/파싱 실패 */ }
@@ -52,6 +59,18 @@ async function http(method: string, path: string, body?: unknown): Promise<any> 
   const text = res.status === 204 ? '' : await res.text();
   const json = text ? JSON.parse(text) : null;
   // 백엔드가 {success,message,data}로 감싸므로 data만 꺼내 화면에 전달
+  return json && json.data !== undefined ? json.data : json;
+}
+
+// multipart(form-data) 전용 — Content-Type은 지정하지 않는다(브라우저가 boundary 포함해서 자동 설정)
+async function httpMultipart(path: string, formData: FormData): Promise<any> {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+  const json = res.status === 204 ? null : await res.json();
   return json && json.data !== undefined ? json.data : json;
 }
 
@@ -133,14 +152,18 @@ export const login = (loginId, password) => {
 export const logout = () =>
   USE_MOCK ? mock({ ok: true }) : http('POST', '/api/auth/logout');
 
+// POST /api/auth/refresh — 세션(JWT) 연장. 현재 쿠키가 유효할 때 새 토큰 쿠키를 재발급받는다.
+export const extendSession = () =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/auth/refresh');
+
 // [설계 추론] 로그인 상태 비밀번호 변경 — 비밀번호 찾기(API-008)와 별개로,
 // 마이페이지에서 현재 비밀번호 확인 후 즉시 교체. 백엔드 협의 필요
-export const changePassword = (currentPassword, newPassword) =>
+export const changePassword = (currentPassword, newPassword, newPasswordConfirm) =>
   USE_MOCK
     ? (currentPassword === '1234' // 목: 테스트 계정 비번과 대조
         ? mock({ changed: true })
         : new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('401'), { status: 401 })), 300)))
-    : http('PATCH', '/api/users/me/password', { currentPassword, newPassword });
+    : http('PATCH', '/api/users/me/password', { currentPassword, newPassword, newPasswordConfirm });
 
 // API-006-1 POST /api/auth/totp/setup — OTP 최초 설정(QR)
 export const totpSetup = () =>
@@ -191,6 +214,10 @@ export const linkGithub = () =>
 // API-063 GET /api/terms — 활성 약관 목록
 export const getTerms = () =>
   USE_MOCK ? mock(M.mockTerms) : http('GET', '/api/terms');
+
+// GET /api/users/me/agreements — 내가 동의한 약관 id 목록 (마이페이지 동의 현황)
+export const getMyAgreements = () =>
+  USE_MOCK ? mock([1, 2]) : http('GET', '/api/users/me/agreements');
 
 // API-064 POST /api/users/me/agreements — 약관 동의 제출
 export const submitAgreements = (agreements) =>
@@ -296,16 +323,18 @@ export const pasteReview = (code, language, modelName) =>
     : http('POST', '/api/reviews/paste', { code, language, modelName });
 
 // API-041 POST /api/reviews/upload — 파일 업로드 리뷰
-export const uploadReview = (file) => {
+export const uploadReview = (file, language?: string, modelName?: string) => {
   if (USE_MOCK) return mock({ reviewId: 3, issues: [{ ...M.mockIssue, id: 3, filePath: file.name }] }, 900);
   const fd = new FormData();
   fd.append('file', file);
-  const token = localStorage.getItem('cogi-jwt');
-  return fetch(BASE + '/api/reviews/upload', {
-    method: 'POST', body: fd,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  }).then((r) => r.json());
+  if (language) fd.append('language', language);
+  if (modelName) fd.append('modelName', modelName);
+  return httpMultipart('/api/reviews/upload', fd);
 };
+
+// API-027 GET /api/reviews/model-options — 내 요금제에서 선택 가능한 모델 이름 목록
+export const getModelOptions = () =>
+  USE_MOCK ? mock(MODEL_TIERS.map((m) => m.name)) : http('GET', '/api/reviews/model-options');
 
 /* ══════════ 맞춤 학습 (LRN) ══════════ */
 
@@ -382,7 +411,7 @@ export const getRetentionStatus = () =>
 
 // API-055 GET /api/users/me/credit-usage — 일일 크레딧 사용량 (90%/100% 알림 판단)
 export const getCreditUsage = () =>
-  USE_MOCK ? mock({ used: 0, limit: 20 }) : http('GET', '/api/users/me/credit-usage');
+  USE_MOCK ? mock({ usedCredits: 0, dailyLimit: 20, remaining: 20 }) : http('GET', '/api/users/me/credit-usage');
 
 // API-058 GET /api/users/me/plan — 내 현재 플랜/크레딧 한도 (users.plan_id 캐시 기준)
 export const getMyPlan = () =>

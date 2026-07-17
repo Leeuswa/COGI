@@ -69,8 +69,8 @@ nav.gnb {
   border-bottom: 3px solid var(--navy);
 }
 nav.gnb .logo img { height: 52px; width: auto; display: block; }
-nav.gnb .links { display: flex; gap: 22px; margin-left: auto; font-size: 13.5px; align-items: center; }
-nav.gnb .links a { border-bottom: 3px solid transparent; padding: 4px 1px; }
+nav.gnb .links { display: flex; gap: 13px; margin-left: auto; font-size: 12.5px; align-items: center; }
+nav.gnb .links a { border-bottom: 3px solid transparent; padding: 4px 1px; white-space: nowrap; }
 nav.gnb .links a:hover, nav.gnb .links a.on { border-bottom-color: var(--coral); }
 
 /* 앱 셸: footer 를 항상 화면 바닥에 (콘텐츠가 짧아도 body 배경이 안 비치게) */

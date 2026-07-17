@@ -87,6 +87,7 @@ public class AiReviewClientImpl implements AiReviewClient {
     private VendorCallResult callOpenAiCompatible(AiProvider p, String modelId, String systemPrompt, String userContent) {
         Map<String, Object> body = Map.of(
                 "model", modelId,
+                "max_tokens", 8192, // Claude 쪽과 동일한 이유로 명시 — 벤더 기본값에 맡기면 이슈 많은 리뷰에서 잘릴 수 있음
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user", "content", userContent)),
@@ -108,7 +109,7 @@ public class AiReviewClientImpl implements AiReviewClient {
     private VendorCallResult callAnthropic(AiProvider p, String modelId, String systemPrompt, String userContent) {
         Map<String, Object> body = Map.of(
                 "model", modelId,
-                "max_tokens", 2048,
+                "max_tokens", 8192, // 이슈가 많은 리뷰는 JSON이 길어져서 2048이면 응답이 중간에 잘림(파싱 실패) — 여유 있게 상향
                 "system", systemPrompt,
                 "messages", List.of(Map.of("role", "user", "content", userContent))
         );

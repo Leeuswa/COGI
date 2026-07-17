@@ -178,5 +178,11 @@ public class User {
     }
 
 
+    //로그인하고 마이페이지에서 비밀번호 변경
+    public void changePassword(String encodedPassword){
+        this.password = encodedPassword;
+    }
+
+
 
 }
