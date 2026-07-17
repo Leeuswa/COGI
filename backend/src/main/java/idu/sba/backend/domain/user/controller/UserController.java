@@ -42,4 +42,12 @@ public class UserController {
         userService.submitOnboarding(userId, request);
         return ApiResponse.ok("온보딩이 완료되었습니다.");
     }
+
+    //로그인 시 비밀번호 변경하는 API
+    @PatchMapping("/password")
+    public ApiResponse<Void> changePassword(@AuthenticationPrincipal Long userId,
+                                            @Valid @RequestBody PasswordChangeDTO request){
+        userService.changePassword(userId,request);
+        return ApiResponse.ok("비밀번호가 변경되었습니다.");
+    }
 }

@@ -9,6 +9,9 @@ import { claimGuestReview, logout as apiLogout } from '../api/client';
 
 const AuthCtx = createContext(null);
 
+// 세션(JWT) 수명 — 백엔드 jwt.access-token-expiration(1시간)과 맞춤. 헤더 타이머·자동 로그아웃 기준.
+export const SESSION_MS = 2 * 60 * 60 * 1000;
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cogi-user') || 'null'); }
@@ -18,6 +21,7 @@ export function AuthProvider({ children }) {
   // 로그인 성공(이메일/GitHub/카카오 공통). 토큰은 이미 쿠키에 있으니 user 정보만 캐싱한다.
   const signIn = (userData) => {
     localStorage.setItem('cogi-user', JSON.stringify(userData));
+    localStorage.setItem('cogi-expires', String(Date.now() + SESSION_MS)); // 세션 만료 예정 시각
     setUser(userData);
     // 게스트 체험 리뷰가 있으면 내 계정으로 매핑.
     // 모든 로그인/가입 경로가 여길 지나므로 이 한 곳이면 충분. 실패해도 로그인은 막지 않는다.
@@ -44,6 +48,7 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     try { await apiLogout(); } catch { /* 네트워크 실패해도 클라이언트는 로그아웃 처리 */ }
     localStorage.removeItem('cogi-user');
+    localStorage.removeItem('cogi-expires');
     setUser(null);
   };
 

@@ -3,8 +3,55 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, SESSION_MS } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
+
+/* ── 세션(JWT) 카운트다운 + 연장 — 0이 되면 자동 로그아웃 ── */
+function SessionTimer() {
+  const { signOut } = useAuth();
+  const nav = useNavigate();
+  // 만료 예정 시각(ms). 없으면(기존 세션) 지금+1시간으로 백필해 즉시 로그아웃되는 걸 막는다.
+  const expiresAt = () => {
+    let v = Number(localStorage.getItem('cogi-expires') || 0);
+    if (!v) { v = Date.now() + SESSION_MS; localStorage.setItem('cogi-expires', String(v)); }
+    return v;
+  };
+  const [left, setLeft] = useState(() => expiresAt() - Date.now());
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const r = expiresAt() - Date.now();
+      setLeft(r);
+      if (r <= 0) {                       // 만료 → 자동 로그아웃
+        clearInterval(t);
+        localStorage.removeItem('cogi-expires');
+        signOut();
+        nav('/login?expired=1', { replace: true });
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const extend = async () => {            // 세션 연장 — 새 토큰 재발급받고 타이머 리셋
+    setBusy(true);
+    try {
+      await api.extendSession();
+      localStorage.setItem('cogi-expires', String(Date.now() + SESSION_MS));
+      setLeft(SESSION_MS);
+    } catch { /* 백엔드 refresh 미구현/만료 시 무시 */ }
+    finally { setBusy(false); }
+  };
+
+  const s = Math.max(0, Math.floor(left / 1000));
+  const hms = `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; // 시:분:초
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Silkscreen, monospace', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>
+      ⏱ {hms}
+      <button className="btn sm wh" onClick={extend} disabled={busy}>{busy ? '연장 중…' : '연장'}</button>
+    </span>
+  );
+}
 
 /* ── 상단 GNB. 로그인 전/후 메뉴가 달라진다 ── */
 export function Nav() {
@@ -44,6 +91,7 @@ export function Nav() {
           </span>
           {/* GitHub 미연동 계정에만 노출 — 연동된 계정은 팀 페이지의 '레포 연동 관리'로 통한다 */}
           {!user.githubUsername && <Link className="btn sm wh" to="/app/repos">🐙 GitHub 연동</Link>}
+          <SessionTimer />
           <button className="btn sm wh" onClick={logout}>로그아웃</button>
         </div>
       ) : (
