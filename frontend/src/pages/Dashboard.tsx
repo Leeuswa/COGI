@@ -55,13 +55,13 @@ export default function Dashboard() {
           }
         />
 
-<!--     <main className="app-main">
+{/*     <main className="app-main">
       <PageHead
         badge="DASHBOARD" badgeCls="co"
         title={`안녕하세요, ${user.name || user.email?.split('@')[0] || '코기'}님`}
         lead={"오늘도 코기 밥 주고 가세요.\n퀴즈 한 번 제출이면 연속 학습일이 채워집니다."}
       /> -->
-
+*/}
 
         <div className="panel-grid c2" style={{ alignItems: "start" }}>
           {/* 코기 다마고치 본체 */}

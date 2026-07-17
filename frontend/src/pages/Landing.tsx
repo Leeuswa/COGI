@@ -3,7 +3,7 @@
  * 바뀐 건 CTA뿐: "GitHub으로 시작" → 회원가입/로그인 라우팅 (요구사항 7).
  * 섹션 순서/문구/애니메이션은 원본 그대로 유지.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import CorgiDevice from '../components/CorgiDevice';
 import { Reveal } from '../components/ui';
