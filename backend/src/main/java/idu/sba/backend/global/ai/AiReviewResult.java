@@ -7,5 +7,6 @@ public record AiReviewResult(
         List<AiReviewIssue> issues,
         int inputTokens,
         int outputTokens,
-        double cost                // 이 호출의 실제 비용(달러) — AiModel의 단가로 계산
+        double cost,                // 이 호출의 실제 비용(달러) — AiModel의 단가로 계산
+        boolean analyzable          // false면 입력이 코드가 아니거나 분석 불가 — 로그인 파이프라인은 이 경우 크레딧을 환불한다
 ) {}

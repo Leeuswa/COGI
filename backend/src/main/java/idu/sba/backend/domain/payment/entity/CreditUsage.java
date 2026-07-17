@@ -43,4 +43,9 @@ public class CreditUsage { // 일일 리뷰 요청 크레딧 소진량(플랜별
         this.usedCredits += amount;
     }
 
+    // AI가 analyzable=false로 응답한 경우 등, 이미 소모한 크레딧을 되돌릴 때 사용
+    public void refund(int amount) {
+        this.usedCredits = Math.max(0, this.usedCredits - amount);
+    }
+
 }
