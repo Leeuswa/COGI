@@ -54,6 +54,18 @@ async function http(method: string, path: string, body?: unknown): Promise<any> 
   return json && json.data !== undefined ? json.data : json;
 }
 
+// multipart(form-data) 전용 — Content-Type은 지정하지 않는다(브라우저가 boundary 포함해서 자동 설정)
+async function httpMultipart(path: string, formData: FormData): Promise<any> {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+  const json = res.status === 204 ? null : await res.json();
+  return json && json.data !== undefined ? json.data : json;
+}
+
 /* ══════════ 회원/인증 (AUTH) ══════════ */
 
 // API-001 GET /oauth2/authorization/github — GitHub OAuth 진입점(리다이렉트)
@@ -295,16 +307,18 @@ export const pasteReview = (code, language, modelName) =>
     : http('POST', '/api/reviews/paste', { code, language, modelName });
 
 // API-041 POST /api/reviews/upload — 파일 업로드 리뷰
-export const uploadReview = (file) => {
+export const uploadReview = (file, language?: string, modelName?: string) => {
   if (USE_MOCK) return mock({ reviewId: 3, issues: [{ ...M.mockIssue, id: 3, filePath: file.name }] }, 900);
   const fd = new FormData();
   fd.append('file', file);
-  const token = localStorage.getItem('cogi-jwt');
-  return fetch(BASE + '/api/reviews/upload', {
-    method: 'POST', body: fd,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  }).then((r) => r.json());
+  if (language) fd.append('language', language);
+  if (modelName) fd.append('modelName', modelName);
+  return httpMultipart('/api/reviews/upload', fd);
 };
+
+// API-027 GET /api/reviews/model-options — 내 요금제에서 선택 가능한 모델 이름 목록
+export const getModelOptions = () =>
+  USE_MOCK ? mock(MODEL_TIERS.map((m) => m.name)) : http('GET', '/api/reviews/model-options');
 
 /* ══════════ 맞춤 학습 (LRN) ══════════ */
 
@@ -381,7 +395,7 @@ export const getRetentionStatus = () =>
 
 // API-055 GET /api/users/me/credit-usage — 일일 크레딧 사용량 (90%/100% 알림 판단)
 export const getCreditUsage = () =>
-  USE_MOCK ? mock({ used: 0, limit: 20 }) : http('GET', '/api/users/me/credit-usage');
+  USE_MOCK ? mock({ usedCredits: 0, dailyLimit: 20, remaining: 20 }) : http('GET', '/api/users/me/credit-usage');
 
 // API-058 GET /api/users/me/plan — 내 현재 플랜/크레딧 한도 (users.plan_id 캐시 기준)
 export const getMyPlan = () =>

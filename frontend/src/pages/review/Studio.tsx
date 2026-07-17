@@ -22,18 +22,53 @@ import PreviewDock from "./PreviewDock";
 
 const isFrontend = (f) => /html|css/i.test(f.language) || f.kind === "frontend";
 
+// AI가 description에 섞어 보내는 마크다운 코드 표기(```블록, `인라인`)만 구분해서 렌더링.
+// 마크다운 라이브러리 없이, 정규식으로 코드 부분만 잘라내 코드체로 보여준다.
+const renderDescription = (text: string) => {
+  const parts: React.ReactNode[] = [];
+  const regex = /```[\w-]*\n?([\s\S]*?)```|`([^`\n]+)`/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
+    }
+    if (match[1] !== undefined) {
+      parts.push(
+        <pre key={key++} className="codebox snippet">
+          {match[1].trim()}
+        </pre>,
+      );
+    } else {
+      parts.push(
+        <code key={key++} className="inline-code">
+          {match[2]}
+        </code>,
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    parts.push(<span key={key++}>{text.slice(lastIndex)}</span>);
+  }
+  return parts;
+};
+
 export default function Studio() {
   const { user } = useAuth();
-  const { spendCredit, notify } = useGame();
+  const { spendCredit, refundCredit, notify, S, creditLimit } = useGame();
   const loc = useLocation();
   const fileRef = useRef(null);
   const threadRef = useRef(null); // 채팅 스레드 컨테이너 — 내부 스크롤 전용
   const myTier = PLAN_TIER[user.planName] ?? 1;
+  const modelWeight = (m) => MODEL_TIERS.find((t) => t.name === m)?.tier ?? 1; // 크레딧 차감 가중치 = 모델 tier
+  const remainingCredit = creditLimit - S.creditUsed;
 
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [language, setLanguage] = useState("TypeScript");
-  const [model, setModel] = useState("gemini-3-pro");
+  const [model, setModel] = useState(MODEL_TIERS[0].name);
   const [busy, setBusy] = useState(false);
   const [reviewId, setReviewId] = useState(null); // null = 아직 시작 전 (모델 변경 가능)
   const nav = useNavigate();
@@ -41,6 +76,8 @@ export default function Studio() {
   const [picker, setPicker] = useState(null); // PR 파일 선택 모달 { files, checked:Set }
   const [previewCode, setPreviewCode] = useState(null); // 미리보기 대상 (프론트 파일)
   const [dockOpen, setDockOpen] = useState(false);
+  const actionCost = reviewId === null ? modelWeight(model) : 1; // 리뷰 시작=모델 등급, 후속 질문=1
+  const insufficientCredit = remainingCredit < actionCost;
 
   // 새 말풍선 → 채팅 영역 '안에서만' 아래로. scrollIntoView 는 페이지 전체를 끌고 내려가서 금지
   useEffect(() => {
@@ -98,7 +135,7 @@ export default function Studio() {
 
   /* ── ② 리뷰 시작 — 여기서부터 모델 잠금 ── */
   const runReview = async (codeText: string, files?: any[]) => {
-    if (!spendCredit(1)) return;
+    if (!spendCredit(modelWeight(model))) return;
     const hasFront = files?.some(isFrontend) || /<[a-z][^>]*>/i.test(codeText); // 미리보기 힌트용
     if (files)
       push({
@@ -122,6 +159,7 @@ export default function Studio() {
         },
       ]);
     } catch {
+      refundCredit(modelWeight(model)); // 서버도 @Transactional 롤백으로 안 썼으니 로컬도 원복
       setBusy(false);
     }
   };
@@ -134,6 +172,8 @@ export default function Studio() {
     try {
       const res = await api.askReviewQuestion(reviewId, q);
       push({ who: "cogi", text: res.answer });
+    } catch {
+      refundCredit(1);
     } finally {
       setBusy(false);
     }
@@ -152,17 +192,18 @@ export default function Studio() {
 
   const onFile = async (f) => {
     if (!f || busy || reviewId !== null) return;
-    if (!spendCredit(1)) return;
+    if (!spendCredit(modelWeight(model))) return;
     push({ who: "me", text: `📁 ${f.name}` });
     setBusy(true);
     try {
-      const res = await api.uploadReview(f);
+      const res = await api.uploadReview(f, language, model);
       setReviewId(res.reviewId ?? 1);
       cogiSays([
         { text: `파일 잘 받았어요! 짚을 게 ${res.issues.length}건.` },
         ...res.issues.map((it) => ({ issue: it })),
       ]);
     } catch {
+      refundCredit(modelWeight(model));
       setBusy(false);
     }
   };
@@ -213,29 +254,28 @@ export default function Studio() {
               <p style={{ fontSize: 26 }}>🐕</p>
               <p style={{ marginBottom: 18 }}>
                 어떤 코드를 봐드릴까요? 백엔드든 프론트든 다 환영이에요.
+                <br />
+                GitHub PR을 가져오거나, 아래 입력창에 바로 코드를 붙여넣으세요.
               </p>
+              {insufficientCredit && (
+                <p className="model-hint" style={{ marginBottom: 12 }}>
+                  ⚡ 오늘 크레딧을 다 썼어요 · 자정에 초기화돼요
+                </p>
+              )}
               <div className="row" style={{ justifyContent: "center" }}>
-                <button className="btn co sm" onClick={openPicker}>
-                  🐙 GitHub PR 가져오기
-                </button>
                 <button
-                  className="btn wh sm"
-                  onClick={() =>
-                    document
-                      .querySelector<HTMLTextAreaElement>(
-                        ".chat-input textarea",
-                      )
-                      ?.focus()
-                  }
+                  className="btn co sm"
+                  onClick={openPicker}
+                  disabled={insufficientCredit}
                 >
-                  ✍️ 직접 붙여넣기·작성
+                  🐙 GitHub PR 가져오기
                 </button>
               </div>
             </div>
           )}
           {msgs.map((m, i) =>
             m.issue ? (
-              <div key={i} className="bubble cogi">
+              <div key={i} className="chat-bubble cogi">
                 <div className="row" style={{ gap: 8, marginBottom: 8 }}>
                   <SevChip sev={m.issue.severity} />
                   <span className="chip navy">{catKo(m.issue.category)}</span>
@@ -245,48 +285,21 @@ export default function Studio() {
                     {m.issue.codeSnippet.join("\n")}
                   </pre>
                 )}
-                <p>{m.issue.description}</p>
-                {/* #6 이슈 판정 — 의도한 코드인지 결정 */}
-                <p
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 13.5,
-                    margin: "12px 0 8px",
-                  }}
-                >
-                  이 지적, 의도한 코드인가요?
-                </p>
-                {verdicts[m.issue.id] ? (
+                <div className="issue-desc">{renderDescription(m.issue.description)}</div>
+                {/* #6 이슈 판정은 아래 고정 배너에서만 함 — 채팅창은 기록 보기 전용(읽기 전용) */}
+                {verdicts[m.issue.id] && (
                   <span
                     className={`chip ${verdicts[m.issue.id] === "RESOLVED" ? "low" : "mid"}`}
+                    style={{ marginTop: 10, display: "inline-block" }}
                   >
                     {verdicts[m.issue.id] === "RESOLVED"
                       ? "✔ 고치기로 함 (해결 요청)"
                       : "🙋 의도한 코드 (무시 요청)"}
                   </span>
-                ) : (
-                  <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                    <button
-                      className="btn wh sm"
-                      onClick={() =>
-                        setVerdicts((v) => ({ ...v, [m.issue.id]: "IGNORED" }))
-                      }
-                    >
-                      🙋 네, 의도했어요 → 무시 요청
-                    </button>
-                    <button
-                      className="btn co sm"
-                      onClick={() =>
-                        setVerdicts((v) => ({ ...v, [m.issue.id]: "RESOLVED" }))
-                      }
-                    >
-                      ✔ 아니요, 고쳤어요 → 해결 요청
-                    </button>
-                  </div>
                 )}
               </div>
             ) : (
-              <div key={i} className={`bubble ${m.who}`}>
+              <div key={i} className={`chat-bubble ${m.who}`}>
                 {m.isCode ? (
                   <pre>{m.text}</pre>
                 ) : (
@@ -296,8 +309,9 @@ export default function Studio() {
             ),
           )}
           {busy && (
-            <div className="bubble cogi typing">
-              코기가 생각하는 중<i>.</i>
+            <div className="chat-bubble cogi typing">
+              {reviewId === null ? "🔍 코드 분석 중" : "🤔 답변 작성 중"}
+              <i>.</i>
               <i>.</i>
               <i>.</i>
             </div>
@@ -328,12 +342,7 @@ export default function Studio() {
                       {next.filePath}:{next.lineNumber}
                     </span>
                   </div>
-                  {next.codeSnippet && (
-                    <pre className="codebox snippet">
-                      {next.codeSnippet.join("\n")}
-                    </pre>
-                  )}
-                  <p className="note sm">{next.description}</p>
+                  {/* 설명·코드는 위 채팅 기록에 이미 있음 — 여긴 빠른 결정용이라 슬림하게 유지 */}
                   <div className="row" style={{ gap: 8 }}>
                     <button
                       className="btn wh sm"
@@ -349,7 +358,7 @@ export default function Studio() {
                         setVerdicts((v) => ({ ...v, [next.id]: "RESOLVED" }))
                       }
                     >
-                      👀 무시하고 리뷰
+                      ✔ 고칠게요
                     </button>
                   </div>
                 </div>
@@ -386,8 +395,11 @@ export default function Studio() {
             rows={reviewId === null ? 4 : 2}
             value={input}
             spellCheck={false}
+            disabled={insufficientCredit}
             placeholder={
-              reviewId === null
+              insufficientCredit
+                ? "오늘 크레딧을 다 썼어요 · 자정에 초기화돼요"
+                : reviewId === null
                 ? "리뷰 받을 코드를 붙여넣으세요 (Ctrl+Enter 전송)"
                 : "후속 질문을 입력하세요 (Ctrl+Enter 전송)"
             }
@@ -445,11 +457,17 @@ export default function Studio() {
               )}
             </span>
 
+            {insufficientCredit && (
+              <span className="model-hint">
+                오늘 크레딧 소진 · 자정 초기화
+              </span>
+            )}
             <span className="ml-auto" />
             {reviewId === null ? (
               <button
                 className="btn wh sm"
-                title="파일 업로드"
+                title={insufficientCredit ? "오늘 크레딧을 다 썼어요" : "파일 업로드"}
+                disabled={insufficientCredit}
                 onClick={() => fileRef.current?.click()}
               >
                 📁 파일
@@ -466,9 +484,9 @@ export default function Studio() {
             <button
               className="btn co sm"
               onClick={send}
-              disabled={busy || !input.trim()}
+              disabled={busy || !input.trim() || insufficientCredit}
             >
-              {reviewId === null ? "리뷰 시작 (⚡1)" : "질문 (⚡1)"}
+              {reviewId === null ? `리뷰 시작 (⚡${modelWeight(model)})` : "질문 (⚡1)"}
             </button>
           </div>
         </div>
@@ -539,6 +557,11 @@ export default function Studio() {
                 </span>
               </label>
             ))}
+            {insufficientCredit && (
+              <p className="model-hint" style={{ marginTop: 10 }}>
+                ⚡ 오늘 크레딧을 다 썼어요 · 자정에 초기화돼요
+              </p>
+            )}
             <div className="row" style={{ marginTop: 20 }}>
               <button className="btn wh sm" onClick={() => setPicker(null)}>
                 취소
@@ -546,9 +569,9 @@ export default function Studio() {
               <button
                 className="btn co sm ml-auto"
                 onClick={importFiles}
-                disabled={picker.checked.size === 0}
+                disabled={picker.checked.size === 0 || insufficientCredit}
               >
-                {picker.checked.size}개 가져와서 리뷰 (⚡1)
+                {picker.checked.size}개 가져와서 리뷰 (⚡{modelWeight(model)})
               </button>
             </div>
           </div>

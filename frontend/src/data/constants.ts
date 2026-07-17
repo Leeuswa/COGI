@@ -14,12 +14,15 @@ export const INTEREST_GROUPS = {
 export const INTEREST_OPTIONS = Object.values(INTEREST_GROUPS).flat();
 
 // AI 모델 티어 — 상위 플랜일수록 위·아래 모델을 전부 쓸 수 있다 (plans.allowed_models 확장 규칙)
-// tier: 1=FREE부터, 2=PRO부터, 3=MAX부터
+// tier: 1=FREE부터, 2=PRO부터, 3=MAX부터. 이 tier 값이 그대로 크레딧 차감 가중치이기도 하다(CreditUsageServiceImpl 참고)
 export const MODEL_TIERS = [
-  { name: 'claude-opus-4-8', label: 'Claude Opus 4.8', tier: 3, desc: '가장 깊은 크로스파일 분석' },
-  { name: 'claude-sonnet-5', label: 'Claude Sonnet 5', tier: 2, desc: '속도·깊이 균형' },
-  { name: 'gemini-3-pro',    label: 'Gemini 3 Pro',    tier: 1, desc: '빠른 기본 리뷰' },
-  { name: 'grok-4',          label: 'Grok 4',          tier: 1, desc: '대화형 설명이 강함' },
+  { name: 'claude-haiku-4-5',      label: 'Claude Haiku 4.5',      tier: 1, desc: '빠른 기본 리뷰' },
+  { name: 'gpt-5.6-luna',          label: 'GPT-5.6 Luna',          tier: 1, desc: '가볍고 빠름' },
+  { name: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', tier: 1, desc: '가격 대비 성능' },
+  { name: 'claude-sonnet-5',       label: 'Claude Sonnet 5',       tier: 2, desc: '속도·깊이 균형' },
+  { name: 'gpt-5.6-terra',         label: 'GPT-5.6 Terra',         tier: 2, desc: '보안 취약점 분석 강점' },
+  { name: 'claude-opus-4-8',       label: 'Claude Opus 4.8',       tier: 3, desc: '가장 깊은 크로스파일 분석' },
+  { name: 'gpt-5.6-sol',           label: 'GPT-5.6 Sol',           tier: 3, desc: '최상위 보안 분석' },
 ];
 export const PLAN_TIER = { FREE: 1, PRO: 2, MAX: 3 };
 
