@@ -7,7 +7,7 @@
  * - 5회 실패 잠금(423)은 백엔드 소관. 프론트는 메시지만 보여준다.
  */
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,9 +21,16 @@ export default function Login() {
     st?.notice || (st?.signupDone ? '회원가입이 완료됐어요. 새 계정으로 로그인해주세요.' : '')
   );
 
+  const [params] = useSearchParams();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [err, setErr] = useState('');
+  // 소셜 로그인 실패로 ?error=... 달고 돌아온 경우 안내
+  const [err, setErr] = useState(() => {
+    const e = params.get('error');
+    if (e === 'email_exists') return '이미 존재하는 이메일입니다.';
+    return e ? '소셜 로그인에 실패했어요. 다시 시도해주세요.' : '';
+  });
   const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {

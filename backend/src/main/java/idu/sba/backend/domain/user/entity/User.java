@@ -9,11 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users",
-        //같은 이메일 이어도 provider가 다르면 별개 계정 허용
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_provider_email",
-                columnNames = {"provider", "email"}))
+@Table(name = "users")
 @Getter
 //아무나 빈 객체 만들지 못하게 protected로 막음
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -26,6 +22,7 @@ public class User {
 
     //   LOCAL: 가입 이메일
     //   GITHUB/KAKAO: 소셜 계정 이메일(없으면 null 가능)
+    @Column(unique = true)
     private String email;
 
     private String password;
@@ -146,6 +143,12 @@ public class User {
         this.isLocked = false; //계정 잠금 해제
     }
 
+    // 구독 플랜 변경: 캐시용 plan_id 갱신
+    public void updatePlanId(Long planId) {
+        this.planId = planId;
+    }
+
+
     //GitHub 재로그인 시 토큰 갱신(스코프 재동의로 토큰이 바뀔 수 있음)
     public void updateGithubAccessToken(String githubAccessToken){
         this.githubAccessToken = githubAccessToken;
@@ -166,6 +169,14 @@ public class User {
         this.guideConfirmed = guideConfirmed;
         this.onboardingCompleted = true;   // 온보딩 완료 표시
     }
+
+    // 일반회원,카카오 사용자 계정에 깃허브 연동
+    public void linkGithub(String githubId,String githubUsername,String githubAccessToken){
+        this.githubId = githubId;
+        this.githubUsername = githubUsername;
+        this.githubAccessToken = githubAccessToken;
+    }
+
 
 
 }

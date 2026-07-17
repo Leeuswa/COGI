@@ -43,7 +43,12 @@ async function http(method: string, path: string, body?: unknown): Promise<any> 
     credentials: 'include',   // 쿠키 자동 첨부
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+  if (!res.ok) {
+    // 백엔드 {success,message,data}의 message를 꺼내 화면에 그대로 보여줄 수 있게 실어 던진다
+    let message = '';
+    try { message = (await res.json())?.message ?? ''; } catch { /* 본문 없음/파싱 실패 */ }
+    throw Object.assign(new Error(message || `HTTP ${res.status}`), { status: res.status });
+  }
   const json = res.status === 204 ? null : await res.json();
   // 백엔드가 {success,message,data}로 감싸므로 data만 꺼내 화면에 전달
   return json && json.data !== undefined ? json.data : json;

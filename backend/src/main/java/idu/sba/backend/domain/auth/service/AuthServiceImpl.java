@@ -73,8 +73,8 @@ public class AuthServiceImpl implements AuthService {
         var lastOpt = emailVerificationRepository.findFirstByEmailOrderByCreateAtDesc(req.getEmail());
 
         lastOpt.ifPresent(last -> {
-            if(last.isLocked()) {       //정지중 -> 재발송 거부
-                throw new BusinessException(ErrorCode.CODE_LOCKED);
+            if(last.isLocked()) { //정지중 -> 재발송 거부
+                throw new BusinessException(lockError(last));
             }
             if(last.getCreateAt().isAfter(now.minusSeconds(60))) { // 60초 쿨타임
                     throw new BusinessException(ErrorCode.CODE_SEND_COOLDOWN);
@@ -103,8 +103,8 @@ public class AuthServiceImpl implements AuthService {
                 .findFirstByEmailOrderByCreateAtDesc(req.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CODE_MISMATCH));
 
-        if(ev.isLocked()){  //정지중
-            throw new BusinessException(ErrorCode.CODE_LOCKED);
+        if(ev.isLocked()){ //정지중
+            throw new BusinessException(lockError(ev));
         }
 
         //만료됐으면 410
@@ -116,7 +116,7 @@ public class AuthServiceImpl implements AuthService {
         if(!ev.matches(req.getCode())){ //불일치
             ev.recordFail();
             emailVerificationRepository.save(ev);
-            throw new BusinessException(ev.isLocked() ? ErrorCode.CODE_LOCKED : ErrorCode.CODE_MISMATCH);
+            throw new BusinessException(ev.isLocked() ? lockError(ev) : ErrorCode.CODE_MISMATCH);
         }
 
         //인증완료 처리
@@ -140,8 +140,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED);
         }
 
-        //이메일 중복확인(LOCAL에서 같은 이메일이 있는지)
-        if(userRepository.existsByProviderAndEmail(Provider.LOCAL,req.getEmail())){
+        //이메일 중복확인
+        if (userRepository.existsByEmail(req.getEmail())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
@@ -227,7 +227,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CODE_MISMATCH));
 
         if(ev.isLocked()){
-            throw new BusinessException(ErrorCode.CODE_LOCKED);
+            throw new BusinessException(lockError(ev));
         }
         if (ev.isExpired()){
             throw new BusinessException(ErrorCode.CODE_EXPIRED);
@@ -236,7 +236,7 @@ public class AuthServiceImpl implements AuthService {
         if(!ev.matches(req.getCode())){
             ev.recordFail();
             emailVerificationRepository.save(ev);
-            throw new BusinessException(ev.isLocked() ? ErrorCode.CODE_LOCKED : ErrorCode.CODE_MISMATCH);
+            throw new BusinessException(ev.isLocked() ? lockError(ev) : ErrorCode.CODE_MISMATCH);
         }
 
         //인증 완료
@@ -293,6 +293,11 @@ public class AuthServiceImpl implements AuthService {
         token.markUsed();
 
 
+    }
+
+    // 정지 단계에 따라 문구 선택 (1=30분, 2=24시간)
+    private ErrorCode lockError(EmailVerification ev) {
+        return ev.getLockStage() >= 2 ? ErrorCode.CODE_LOCKED_24H : ErrorCode.CODE_LOCKED_30M;
     }
 }
 

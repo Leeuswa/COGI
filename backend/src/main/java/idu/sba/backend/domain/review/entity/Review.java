@@ -62,6 +62,15 @@ public class Review {
         return new Review(ReviewTargetType.UPLOAD, userId, modelName, language, code, originalFilename);
     }
 
+    // 비로그인 게스트가 회원가입 후 자기 리뷰를 계정으로 가져올 때(claim).
+    // 이미 리뷰가 끝난 결과를 옮기는 것이므로 GUEST 타입 + COMPLETED 로 저장한다.
+    public static Review createFromGuest(Long userId, String code, String language, String modelName, String guestToken){
+        Review review = new Review(ReviewTargetType.GUEST, userId, modelName, language, code, null);
+        review.guestToken = guestToken;
+        review.markCompleted();
+        return review;
+    }
+
     public void markCompleted(){
         this.status = ReviewStatus.COMPLETED;
     }

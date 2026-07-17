@@ -3,6 +3,9 @@ package idu.sba.backend.domain.payment.dto;
 
 // POST /api/payments/methods 요청용
 public record PaymentMethodRequestDTO(
-        String cardInfo // 테스트용 카드 정보. 이 값으로 PG(토스 등)에 빌링키 발급 요청함
-) {
-}
+        String cardNumber,             // 카드번호
+        String cardExpirationYear,     // 유효기간 년(YY)
+        String cardExpirationMonth,    // 유효기간 월(MM)
+        String cardPassword,           // 카드 비밀번호 앞 2자리
+        String customerIdentityNumber  // 생년월일 6자리 또는 사업자번호
+) {}

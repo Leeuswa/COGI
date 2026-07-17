@@ -20,6 +20,9 @@ public enum ErrorCode {
     CODE_LOCKED(HttpStatus.LOCKED,"인증 시도가 일시 정지 되었습니다. 잠시 후 다시 시도해주세요."),// 423
     CODE_SEND_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS,"잠시 후 다시 시도해주세요.(60초)"), // 429
     REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST,"필수 약관에 모두 동의해야 합니다."),
+    CODE_LOCKED_30M(HttpStatus.LOCKED, "인증 3회 실패로 30분간 정지됐어요. 30분 뒤 다시 시도해주세요."),
+    CODE_LOCKED_24H(HttpStatus.LOCKED, "반복 실패로 24시간 정지됐어요. 내일 다시 시도해주세요."),
+
 
     //로그인
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED,"이메일 또는 비밀번호가 일치하지 않습니다."), //401
@@ -32,10 +35,23 @@ public enum ErrorCode {
     RESET_TOKEN_EXPIRED(HttpStatus.GONE, "재설정 토큰이 만료되었습니다."),                  // 410
     RESET_TOKEN_USED(HttpStatus.BAD_REQUEST, "이미 사용된 재설정 토큰입니다."),             // 400
     SAME_AS_OLD_PASSWORD(HttpStatus.BAD_REQUEST, "기존 비밀번호와 다른 비밀번호를 사용해주세요."), // 400
-    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다."),                    // 404
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다."), // 404
+
+    //깃허브 연동
+    GITHUB_LINK_FAILED(HttpStatus.BAD_REQUEST, "GitHub 연동에 실패했습니다."),
+    GITHUB_ALREADY_LINKED(HttpStatus.CONFLICT, "이미 다른 계정에 연결된 GitHub입니다."),
 
     //AST 컨텍스트 추출
     AST_PARSE_ERROR(HttpStatus.BAD_REQUEST,"코드를 파싱할 수 없습니다."),
+
+    //결제/구독
+    SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 구독입니다."),              // 404
+    PLAN_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 플랜입니다."),                     // 404
+    PAYMENT_METHOD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 결제수단입니다."),        // 404
+    ALREADY_SUBSCRIBED(HttpStatus.CONFLICT, "이미 구독 중입니다."),                       // 409
+    SUBSCRIPTION_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 구독만 접근할 수 있습니다."),      // 403
+    PAYMENT_METHOD_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 결제수단만 사용할 수 있습니다."), // 403
+    INVALID_TERMS(HttpStatus.BAD_REQUEST, "유효하지 않은 약관이 포함되어 있습니다."),
 
     //레포 팀원 초대(REV-006)
     REPO_NOT_FOUND(HttpStatus.NOT_FOUND,"레포지토리를 찾을 수 없습니다."),
