@@ -7,7 +7,7 @@ import java.util.Arrays;
 public enum AiModel {
 
     // 비로그인 체험
-    GEMINI_FLASH_LITE("gemini-3.5-flash-lite",     AiProvider.GEMINI, 0.25, 1.50), // 가격은 3.1 기준 이월값 — 재확인 필요
+    GEMINI_FLASH_LITE("gemini-3.5-flash",     AiProvider.GEMINI, 1.50, 9.0), // 2026-07-17: 존재하지 않는 "flash-lite" 가격(0.25/1.50)이 실수로 들어가 있었음 — 실제 gemini-3.5-flash 가격으로 수정
     GROQ_LLAMA_70B    ("llama-3.3-70b-versatile",  AiProvider.GROQ,   0.0,  0.0),  // 가격 미확인 — 확인 후 갱신 필요
 
     // FREE

@@ -18,7 +18,7 @@ export const INTEREST_OPTIONS = Object.values(INTEREST_GROUPS).flat();
 export const MODEL_TIERS = [
   { name: 'claude-haiku-4-5',      label: 'Claude Haiku 4.5',      tier: 1, desc: '빠른 기본 리뷰' },
   { name: 'gpt-5.6-luna',          label: 'GPT-5.6 Luna',          tier: 1, desc: '가볍고 빠름' },
-  { name: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', tier: 1, desc: '가격 대비 성능' },
+  { name: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', tier: 1, desc: '가격 대비 성능' },
   { name: 'claude-sonnet-5',       label: 'Claude Sonnet 5',       tier: 2, desc: '속도·깊이 균형' },
   { name: 'gpt-5.6-terra',         label: 'GPT-5.6 Terra',         tier: 2, desc: '보안 취약점 분석 강점' },
   { name: 'claude-opus-4-8',       label: 'Claude Opus 4.8',       tier: 3, desc: '가장 깊은 크로스파일 분석' },
