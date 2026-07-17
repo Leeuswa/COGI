@@ -67,7 +67,6 @@ export default function Studio() {
 
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
-  const [language, setLanguage] = useState("TypeScript");
   const [model, setModel] = useState(MODEL_TIERS[0].name);
   const [busy, setBusy] = useState(false);
   const [reviewId, setReviewId] = useState(null); // null = 아직 시작 전 (모델 변경 가능)
@@ -145,19 +144,27 @@ export default function Studio() {
     else push({ who: "me", text: codeText, isCode: true });
     setBusy(true);
     try {
-      const res = await api.pasteReview(codeText, language, model);
+      const res = await api.pasteReview(codeText, model);
       setReviewId(res.reviewId ?? 1);
-      cogiSays([
-        {
-          text: `${MODEL_TIERS.find((m) => m.name === model)?.label}(으)로 봤어요. 짚을 게 ${res.issues.length}건!`,
-        },
-        ...res.issues.map((it) => ({ issue: it })),
-        {
-          text: hasFront
-            ? "프론트 코드가 있네요 — 위의 [▶ 미리보기]를 열면 화면을 직접 만지면서 고칠 수 있어요."
-            : "더 궁금한 건 그대로 물어보세요. 같은 유형 3회면 약점 통계로 승격돼요.",
-        },
-      ]);
+      if (res.analyzable === false) {
+        // 코드가 아니거나 분석 불가한 입력 — 서버가 크레딧을 이미 환불했으니 로컬 표시도 맞춘다
+        refundCredit(modelWeight(model));
+        cogiSays([
+          { text: res.summary || "코드가 아니라서 분석할 수 없었어요. 크레딧은 안 깎였어요." },
+        ]);
+      } else {
+        cogiSays([
+          {
+            text: `${MODEL_TIERS.find((m) => m.name === model)?.label}(으)로 봤어요. 짚을 게 ${res.issues.length}건!`,
+          },
+          ...res.issues.map((it) => ({ issue: it })),
+          {
+            text: hasFront
+              ? "프론트 코드가 있네요 — 위의 [▶ 미리보기]를 열면 화면을 직접 만지면서 고칠 수 있어요."
+              : "더 궁금한 건 그대로 물어보세요. 같은 유형 3회면 약점 통계로 승격돼요.",
+          },
+        ]);
+      }
     } catch {
       refundCredit(modelWeight(model)); // 서버도 @Transactional 롤백으로 안 썼으니 로컬도 원복
       push({ who: "cogi", text: "리뷰 처리 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 시도해주세요." });
@@ -198,12 +205,19 @@ export default function Studio() {
     push({ who: "me", text: `📁 ${f.name}` });
     setBusy(true);
     try {
-      const res = await api.uploadReview(f, language, model);
+      const res = await api.uploadReview(f, model);
       setReviewId(res.reviewId ?? 1);
-      cogiSays([
-        { text: `파일 잘 받았어요! 짚을 게 ${res.issues.length}건.` },
-        ...res.issues.map((it) => ({ issue: it })),
-      ]);
+      if (res.analyzable === false) {
+        refundCredit(modelWeight(model));
+        cogiSays([
+          { text: res.summary || "코드가 아니라서 분석할 수 없었어요. 크레딧은 안 깎였어요." },
+        ]);
+      } else {
+        cogiSays([
+          { text: `파일 잘 받았어요! 짚을 게 ${res.issues.length}건.` },
+          ...res.issues.map((it) => ({ issue: it })),
+        ]);
+      }
     } catch {
       refundCredit(modelWeight(model));
       push({ who: "cogi", text: "리뷰 처리 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 시도해주세요." });
@@ -413,25 +427,6 @@ export default function Studio() {
           />
 
           <div className="chat-tools">
-            {reviewId === null && (
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                aria-label="언어"
-              >
-                {[
-                  "TypeScript",
-                  "JavaScript",
-                  "Java",
-                  "Python",
-                  "Kotlin",
-                  "Go",
-                  "HTML",
-                ].map((l) => (
-                  <option key={l}>{l}</option>
-                ))}
-              </select>
-            )}
             {/* 모델: 시작 전 자유 선택(상위 티어는 잠금 표시) / 시작 후 통째 잠금 + 안내 */}
             <span className="model-wrap">
               <select
