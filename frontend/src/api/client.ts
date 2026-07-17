@@ -259,6 +259,18 @@ export const respondInvite = (repoId, inviteId, accept) =>
 export const getMyInvitations = () =>
   USE_MOCK ? mock(M.mockInvitations) : http('GET', '/api/me/repo-invitations');
 
+// 팀원이 스스로 팀 나가기 — 팀장은 먼저 위임해야 함(OWNER_CANNOT_LEAVE)
+export const leaveRepo = (repoId) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/repos/${repoId}/members/leave`);
+
+// 팀장이 팀원 내보내기
+export const removeTeamMember = (repoId, targetUserId) =>
+  USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/repos/${repoId}/members/${targetUserId}`);
+
+// 팀장 위임 — 기존 팀장은 MEMBER로 강등, 대상은 OWNER로 승격
+export const transferOwnership = (repoId, targetUserId) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/repos/${repoId}/members/${targetUserId}/transfer-owner`);
+
 /* ══════════ 리뷰 대시보드 (RDB) ══════════ */
 
 // API-032 GET /api/teams/{teamId}/prs — 팀 PR 목록 + 필터 (FR-41~42)

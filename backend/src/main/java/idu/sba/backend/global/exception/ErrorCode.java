@@ -62,6 +62,8 @@ public enum ErrorCode {
     INVITATION_ALREADY_RESPONDED(HttpStatus.CONFLICT,"이미 응답한 초대입니다."),
     ALREADY_REPO_MEMBER(HttpStatus.CONFLICT,"이미 레포에 소속된 사용자입니다."),
     INVITATION_ALREADY_SENT(HttpStatus.CONFLICT,"이미 초대를 보냈어요. 수락을 기다려주세요."),
+    OWNER_CANNOT_LEAVE(HttpStatus.CONFLICT, "팀장은 바로 나갈 수 없어요. 먼저 다른 팀원에게 팀장을 위임해주세요."),
+    CANNOT_ACT_ON_SELF(HttpStatus.BAD_REQUEST, "본인에게는 사용할 수 없는 기능이에요."),
     INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다."),
     GITHUB_USER_NOT_FOUND(HttpStatus.BAD_REQUEST,"GitHub를 연동하지 않았거나 사이트에 가입하지 않은 사용자입니다."),
 

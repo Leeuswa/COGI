@@ -173,15 +173,53 @@ public class RepoMemberServiceImpl implements RepoMemberService {
                 .toList();
     }
 
+    @Override
+    @Transactional
+    public void leaveRepo(Long currentUserId, Long repoId) {
+        RepoMember member = requireMember(repoId, currentUserId);
+        if (member.getRole() == RepoRole.OWNER) {
+            throw new BusinessException(ErrorCode.OWNER_CANNOT_LEAVE);
+        }
+        repoMemberRepository.delete(member);
+    }
+
+    @Override
+    @Transactional
+    public void removeMember(Long currentUserId, Long repoId, Long targetUserId) {
+        requireOwner(repoId, currentUserId);
+        if (targetUserId.equals(currentUserId)) {
+            throw new BusinessException(ErrorCode.CANNOT_ACT_ON_SELF);
+        }
+        RepoMember target = requireMember(repoId, targetUserId);
+        repoMemberRepository.delete(target);
+    }
+
+    @Override
+    @Transactional
+    public RepoMemberResponseDTO transferOwnership(Long currentUserId, Long repoId, Long targetUserId) {
+        RepoMember owner = requireOwner(repoId, currentUserId);
+        if (targetUserId.equals(currentUserId)) {
+            throw new BusinessException(ErrorCode.CANNOT_ACT_ON_SELF);
+        }
+        RepoMember target = requireMember(repoId, targetUserId);
+
+        owner.changeRole(RepoRole.MEMBER);
+        target.changeRole(RepoRole.OWNER);
+
+        User targetUser = userRepository.findById(targetUserId).orElseThrow();
+        return RepoMemberResponseDTO.of(target, targetUser);
+    }
+
     private String repoNameOf(Long repoId) {
         return githubRepositoryRepository.findById(repoId).map(GithubRepository::getRepoName).orElse(null);
     }
 
-    private void requireOwner(Long repoId, Long userId) {
+    private RepoMember requireOwner(Long repoId, Long userId) {
         RepoMember member = requireMember(repoId, userId);
         if (member.getRole() != RepoRole.OWNER) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_REPO_PERMISSION);
         }
+        return member;
     }
 
     //역할 무관 — 이 레포의 멤버이기만 하면 통과(조회용)
