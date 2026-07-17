@@ -51,6 +51,7 @@ public enum ErrorCode {
     ALREADY_SUBSCRIBED(HttpStatus.CONFLICT, "이미 구독 중입니다."),                       // 409
     SUBSCRIPTION_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 구독만 접근할 수 있습니다."),      // 403
     PAYMENT_METHOD_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 결제수단만 사용할 수 있습니다."), // 403
+    DOWNGRADE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "다운그레이드는 지원하지 않습니다. 해지 후 다시 구독해주세요."), // 400
     INVALID_TERMS(HttpStatus.BAD_REQUEST, "유효하지 않은 약관이 포함되어 있습니다."),
 
     //레포 팀원 초대(REV-006)

@@ -65,6 +65,9 @@ public class Subscription { // 구독 현재 상태 엔티티
     // 해지 예약 (기존 cancel 대체 — status는 ACTIVE 유지)
     public void reserveCancel() { this.cancelledAt = LocalDateTime.now(); }
 
+    // 해지 예약 취소 — cancelledAt만 초기화, 구독은 계속 ACTIVE로 유지
+    public void undoCancel() { this.cancelledAt = null; }
+
 
     @PrePersist
     void prePersist() {

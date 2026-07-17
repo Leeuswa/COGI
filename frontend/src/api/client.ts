@@ -10,7 +10,6 @@
  * 실제 네트워크처럼 느껴지게 250ms 정도만.
  */
 import * as M from '../data/mock';
-import { MODEL_TIERS, PLAN_TIER } from '../data/constants';
 
 const USE_MOCK = false; // 목 데이터 → 실제 백엔드
 const BASE = ''; // 프록시 쓰면 '' 그대로, 직접 붙이면 'http://localhost:8080'
@@ -49,7 +48,9 @@ async function http(method: string, path: string, body?: unknown): Promise<any> 
     try { message = (await res.json())?.message ?? ''; } catch { /* 본문 없음/파싱 실패 */ }
     throw Object.assign(new Error(message || `HTTP ${res.status}`), { status: res.status });
   }
-  const json = res.status === 204 ? null : await res.json();
+  // 본문이 비어 있을 수 있음(204 또는 200 empty, 예: DELETE 해지) → res.json() 대신 text로 받아 방어
+  const text = res.status === 204 ? '' : await res.text();
+  const json = text ? JSON.parse(text) : null;
   // 백엔드가 {success,message,data}로 감싸므로 data만 꺼내 화면에 전달
   return json && json.data !== undefined ? json.data : json;
 }
@@ -391,9 +392,11 @@ export const getMyPlan = () =>
 export const getPlans = () =>
   USE_MOCK ? mock(M.mockPlans) : http('GET', '/api/plans');
 
-// API-059 POST /api/payments/methods — 결제수단 등록(테스트 모드 한정, FR-86)
-export const registerPaymentMethod = (cardInfo) =>
-  USE_MOCK ? mock({ paymentMethodId: 1 }) : http('POST', '/api/payments/methods', { cardInfo });
+// API-059 POST /api/payments/methods — 결제수단 등록(토스 SDK 결제창 방식)
+// arg = { authKey, customerKey } — 토스 결제창 성공 콜백에서 받은 값. 백엔드가 authKey로 빌링키를 발급·저장.
+// 응답은 paymentMethodId(숫자)만 돌려준다.
+export const registerPaymentMethod = (arg) =>
+  USE_MOCK ? mock(1) : http('POST', '/api/payments/methods', arg);
 
 // API-060 POST /api/subscriptions — 구독 시작
 export const startSubscription = (planId, paymentMethodId, agreeTermIds) =>
@@ -403,9 +406,13 @@ export const startSubscription = (planId, paymentMethodId, agreeTermIds) =>
 export const changePlan = (subId, newPlanId) =>
   USE_MOCK ? mock({ ok: true, proratedAmount: 3300 }) : http('PATCH', `/api/subscriptions/${subId}`, { newPlanId });
 
-// API-062 DELETE /api/subscriptions/{subId} — 해지
+// API-062 DELETE /api/subscriptions/{subId} — 해지(예약)
 export const cancelSubscription = (subId) =>
   USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/subscriptions/${subId}`);
+
+// 해지 예약 취소 — cancelledAt 초기화, 구독 유지
+export const resumeSubscription = (subId) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/subscriptions/${subId}/resume`);
 
 // (조회) 구독 변경 이력 — subscription_history
 export const getSubHistory = () =>
