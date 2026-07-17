@@ -152,16 +152,18 @@ export default function TeamPage() {
                       <td><b>@{m.githubUsername}</b></td>
                       <td><span className={`chip ${m.role === 'OWNER' ? 'co' : 'navy'}`}>{m.role === 'OWNER' ? '팀장' : '팀원'}</span></td>
                       <td className="mono xs">{m.joinedAt}</td>
-                      <td style={{ display: 'flex', gap: 6 }}>
-                        {isMe && m.role === 'MEMBER' && (
-                          <button className="btn wh sm" onClick={() => leave(r.repoId)}>나가기</button>
-                        )}
-                        {!isMe && myRole === 'OWNER' && m.role === 'MEMBER' && (
-                          <>
-                            <button className="btn wh sm" onClick={() => transfer(r.repoId, m)}>위임</button>
-                            <button className="btn wh sm" onClick={() => kick(r.repoId, m)}>내보내기</button>
-                          </>
-                        )}
+                      <td>
+                        <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                          {isMe && m.role === 'MEMBER' && (
+                            <button className="btn wh sm" onClick={() => leave(r.repoId)}>나가기</button>
+                          )}
+                          {!isMe && myRole === 'OWNER' && m.role === 'MEMBER' && (
+                            <>
+                              <button className="btn wh sm" onClick={() => transfer(r.repoId, m)}>위임</button>
+                              <button className="btn wh sm" onClick={() => kick(r.repoId, m)}>내보내기</button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
