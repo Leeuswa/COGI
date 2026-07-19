@@ -21,6 +21,12 @@ public class UserController {
         return ApiResponse.ok(userService.getProfile(userId));
     }
 
+    // 내가 동의한 약관 id 목록 (마이페이지 동의 현황)
+    @GetMapping("/agreements")
+    public ApiResponse<java.util.List<Long>> getAgreedTermIds(@AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(userService.getAgreedTermIds(userId));
+    }
+
     // 프로필 수정
     @PatchMapping("/profile")
     public ApiResponse<Void> updateProfile(@AuthenticationPrincipal Long userId,

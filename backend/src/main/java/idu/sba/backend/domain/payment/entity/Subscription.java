@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -37,7 +36,7 @@ public class Subscription { // 구독 현재 상태 엔티티
     private LocalDateTime cancelledAt; // 해지 일시 (해지 전 NULL) 빌링키를 넣기 때문에 필요
 
     @Column(name = "expires_at")
-    private LocalDate expiresAt; // 다음 결제일 (이 날 되면 청구 or 강등)
+    private LocalDateTime expiresAt; // 다음 결제일시 (이 시각 지나면 청구 or 강등)
 
 
     // 상태 변경은 setter 대신 의미 있는 메서드로
@@ -52,7 +51,7 @@ public class Subscription { // 구독 현재 상태 엔티티
         this.paymentMethodId = paymentMethodId;
         this.status = SubscriptionStatus.ACTIVE;
         this.startedAt = LocalDateTime.now();
-        this.expiresAt = LocalDate.now().plusMonths(1);
+        this.expiresAt = LocalDateTime.now().plusMonths(1);
     }
 
 
@@ -64,6 +63,9 @@ public class Subscription { // 구독 현재 상태 엔티티
 
     // 해지 예약 (기존 cancel 대체 — status는 ACTIVE 유지)
     public void reserveCancel() { this.cancelledAt = LocalDateTime.now(); }
+
+    // 해지 예약 취소 — cancelledAt만 초기화, 구독은 계속 ACTIVE로 유지
+    public void undoCancel() { this.cancelledAt = null; }
 
 
     @PrePersist

@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Component
 @RequiredArgsConstructor
@@ -22,7 +22,7 @@ public class BillingScheduler {
     public void runBilling() {
         Long freeId = planRepository.findByName("FREE").orElseThrow().getId();
         var due = subscriptionRepository.findByStatusAndExpiresAtLessThanEqual(
-                SubscriptionStatus.ACTIVE, LocalDate.now());
+                SubscriptionStatus.ACTIVE, LocalDateTime.now());
 
         for (Subscription sub : due) {
             try {

@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -43,16 +44,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
 
 
-    //결제수단 등록
+    //결제수단 등록 (SDK 결제창 방식)
     @Override
     public Long registerPaymentMethod(Long userId, PaymentMethodRequestDTO dto) {
-        // customerKey 새로 생성 (UUID 형태) 구매자를 식별하기 위함
-        String customerKey = UUID.randomUUID().toString();
-
-        var response = tossPaymentClient.issueBillingKey(customerKey, dto); // 실제 토스 호출
+        // customerKey는 프론트가 결제창에 넘긴 값 그대로 사용(서버 재생성 금지 — 발급 요청과 불일치하면 실패)
+        var response = tossPaymentClient.issueBillingKey(dto); // authKey → 빌링키 발급
 
         PaymentMethod pm = new PaymentMethod(
-                userId, customerKey, response.billingKey(), response.card().number());
+                userId, dto.customerKey(), response.billingKey(), response.card().number());
         return paymentMethodRepository.save(pm).getId();
     }
 
@@ -67,15 +66,21 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .toList();
     }
 
-    //내 플랜 확인 (구독시에만)
+    //내 플랜 확인 — ACTIVE 구독 없으면 FREE로 간주(users.plan_id "null=FREE" 규칙과 동일). 500 대신 정상 응답.
     @Override
     public MyPlanResponseDTO getMyPlan(Long userId) {
-        Subscription sub = subscriptionRepository
-                .findByUserIdAndStatus(userId , SubscriptionStatus.ACTIVE)
-                .orElseThrow(() -> new IllegalStateException("구독중인 플랜이 없습니다."));
-        Plan plan = planRepository.findById(sub.getPlanId())
-                .orElseThrow(() -> new IllegalStateException("구독중인 플랜을 찾을 수 없습니다."));
-        return new MyPlanResponseDTO(plan.getId(), plan.getName() , sub.getStartedAt());
+        return subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
+                .map(sub -> {
+                    Plan plan = planRepository.findById(sub.getPlanId())
+                            .orElseThrow(() -> new IllegalStateException("구독중인 플랜을 찾을 수 없습니다."));
+                    return new MyPlanResponseDTO(sub.getId(), plan.getId(), plan.getName(),
+                            sub.getStartedAt(), sub.getExpiresAt(), sub.getCancelledAt());
+                })
+                .orElseGet(() -> {
+                    Plan free = planRepository.findByName(FREE_PLAN_NAME)
+                            .orElseThrow(() -> new IllegalStateException("FREE 플랜 시드 데이터가 없습니다."));
+                    return new MyPlanResponseDTO(null, free.getId(), free.getName(), null, null, null); // FREE: 구독 행 없음
+                });
     }
 
     //현재 적용 중인 플랜 엔티티(ACTIVE 구독 없으면 FREE로 간주 — users.plan_id의 "null=FREE" 규칙과 동일)
@@ -174,9 +179,22 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Plan newPlan = planRepository.findById(dto.newPlanId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
 
-        //일할계산 (남은일수 기준 차액)
+        // 업그레이드만 지원 — 다운그레이드/동일가 전환은 막는다(정책: 다운그레이드 없음, 해지만).
+        if (newPlan.getPrice() <= oldPlan.getPrice()) {
+            throw new BusinessException(ErrorCode.DOWNGRADE_NOT_ALLOWED);
+        }
+
+        //일할계산 (남은일수 기준 차액) — 업그레이드라 항상 양수
         int prorated = calculateProratedAmount(
                 oldPlan.getPrice(), newPlan.getPrice(), LocalDate.now());
+
+        // 일할 차액을 빌링키로 즉시 청구. @Transactional 안이라 청구 실패 시 plan 전환·history까지 전부 롤백.
+        PaymentMethod pm = paymentMethodRepository.findById(sub.getPaymentMethodId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_METHOD_NOT_FOUND));
+        String orderId = "SUB-CHG-" + subId + "-" + UUID.randomUUID();
+        tossPaymentClient.confirmBilling(
+                pm.getBillingKey(), pm.getCustomerKey(), prorated,
+                orderId, newPlan.getName() + " 전환 차액 결제");
 
         // 기존 구독 행 유지 + plan_id만 전환
         sub.changePlan(newPlan.getId());
@@ -210,6 +228,39 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         // 해지 예약 — cancelledAt만 기록, status는 ACTIVE 유지. 만료일에 스케줄러가 FREE 강등
         sub.reserveCancel();
+    }
+
+    //해지 예약 취소 — cancelledAt 초기화. 구독은 계속 유지된다.
+    @Override
+    @Transactional
+    public void resumeSubscription(Long userId, Long subId) {
+        Subscription sub = subscriptionRepository.findById(subId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
+        if (!sub.getUserId().equals(userId))
+            throw new BusinessException(ErrorCode.SUBSCRIPTION_FORBIDDEN);
+        sub.undoCancel();
+    }
+
+    //내 구독 변경 이력 — 사용자의 모든 구독 건의 이력을 최신순으로, planId는 이름으로 변환해 반환
+    @Override
+    public List<SubHistoryItemDTO> getSubHistory(Long userId) {
+        List<Long> subIds = subscriptionRepository.findByUserId(userId).stream()
+                .map(Subscription::getId)
+                .toList();
+        if (subIds.isEmpty()) return List.of();
+
+        Map<Long, String> planNames = planRepository.findAll().stream()
+                .collect(Collectors.toMap(Plan::getId, Plan::getName));
+
+        return subscriptionHistoryRepository.findBySubscriptionIdInOrderByChangedAtDesc(subIds).stream()
+                .map(h -> new SubHistoryItemDTO(
+                        h.getId(),
+                        h.getPreviousPlanId() == null ? FREE_PLAN_NAME : planNames.getOrDefault(h.getPreviousPlanId(), "?"),
+                        planNames.getOrDefault(h.getNewPlanId(), "?"),
+                        h.getChangeType().name(),
+                        h.getProratedAmount(),
+                        h.getChangedAt()))
+                .toList();
     }
 
     // 일할계산: (새가격 - 기존가격) × 남은일수 ÷ 그 달 총일수

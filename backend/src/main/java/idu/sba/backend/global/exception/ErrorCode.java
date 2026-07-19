@@ -57,6 +57,7 @@ public enum ErrorCode {
     ALREADY_SUBSCRIBED(HttpStatus.CONFLICT, "이미 구독 중입니다."),                       // 409
     SUBSCRIPTION_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 구독만 접근할 수 있습니다."),      // 403
     PAYMENT_METHOD_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 결제수단만 사용할 수 있습니다."), // 403
+    DOWNGRADE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "다운그레이드는 지원하지 않습니다. 해지 후 다시 구독해주세요."), // 400
     INVALID_TERMS(HttpStatus.BAD_REQUEST, "유효하지 않은 약관이 포함되어 있습니다."),
 
     //레포 팀원 초대(REV-006)
@@ -66,6 +67,9 @@ public enum ErrorCode {
     INVITATION_NOT_FOUND(HttpStatus.NOT_FOUND,"초대를 찾을 수 없습니다."),
     INVITATION_ALREADY_RESPONDED(HttpStatus.CONFLICT,"이미 응답한 초대입니다."),
     ALREADY_REPO_MEMBER(HttpStatus.CONFLICT,"이미 레포에 소속된 사용자입니다."),
+    INVITATION_ALREADY_SENT(HttpStatus.CONFLICT,"이미 초대를 보냈어요. 수락을 기다려주세요."),
+    OWNER_CANNOT_LEAVE(HttpStatus.CONFLICT, "팀장은 바로 나갈 수 없어요. 먼저 다른 팀원에게 팀장을 위임해주세요."),
+    CANNOT_ACT_ON_SELF(HttpStatus.BAD_REQUEST, "본인에게는 사용할 수 없는 기능이에요."),
     INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다."),
     GITHUB_USER_NOT_FOUND(HttpStatus.BAD_REQUEST,"GitHub를 연동하지 않았거나 사이트에 가입하지 않은 사용자입니다."),
 

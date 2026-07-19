@@ -1,5 +1,7 @@
 package idu.sba.backend.domain.user.service;
 
+import idu.sba.backend.domain.terms.entity.UserAgreement;
+import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
 import idu.sba.backend.domain.user.dto.*;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -19,10 +21,20 @@ import java.util.List;
 public class UserServiceImpl implements UserService{
 
     private final UserRepository userRepository;
+    private final UserAgreementRepository userAgreementRepository;
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final HtmlMailSender htmlMailSender;
 
+
+    //내가 동의한 약관 id 목록 (마이페이지 동의 현황)
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> getAgreedTermIds(Long userId) {
+        return userAgreementRepository.findByUserIdAndAgreedTrue(userId).stream()
+                .map(UserAgreement::getTermId)
+                .toList();
+    }
 
     //프로필 조회
     @Override

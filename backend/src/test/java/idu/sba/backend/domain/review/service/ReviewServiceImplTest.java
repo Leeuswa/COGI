@@ -116,7 +116,7 @@ class ReviewServiceImplTest {
         when(promptBuilder.build(any(), eq("FREE"))).thenReturn("system-prompt");
         when(aiReviewClient.review(any(), any(), any(), any())).thenReturn(new AiReviewResult(
                 "요약", List.of(new AiReviewIssue("BUG", "CRITICAL", "Foo.java", 10, "null 체크 누락")),
-                100, 50, 0.01));
+                100, 50, 0.01, true));
         when(reviewRepository.save(any())).thenAnswer(inv -> {
             var review = inv.getArgument(0, idu.sba.backend.domain.review.entity.Review.class);
             setField(review, "id", 999L);
@@ -137,13 +137,39 @@ class ReviewServiceImplTest {
     }
 
     @Test
+    void AI가_analyzable_false로_응답하면_이슈없이_완료되고_크레딧이_환불된다() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
+        when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan());
+        when(promptBuilder.build(any(), eq("FREE"))).thenReturn("system-prompt");
+        when(aiReviewClient.review(any(), any(), any(), any())).thenReturn(new AiReviewResult(
+                "코드가 아니라 분석할 수 없습니다", List.of(), 20, 10, 0.001, false));
+        when(reviewRepository.save(any())).thenAnswer(inv -> {
+            var review = inv.getArgument(0, idu.sba.backend.domain.review.entity.Review.class);
+            setField(review, "id", 1000L);
+            return review;
+        });
+
+        var result = service.createFromPaste(USER_ID, pasteRequest("안녕하세요", "java", null));
+
+        assertThat(result.isAnalyzable()).isFalse();
+        assertThat(result.getSummary()).isEqualTo("코드가 아니라 분석할 수 없습니다");
+        assertThat(result.getIssues()).isEmpty();
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+
+        verify(creditUsageService).checkAndConsume(USER_ID, "claude-haiku-4-5");
+        verify(creditUsageService).refund(USER_ID, "claude-haiku-4-5");
+        verify(reviewIssueRepository, never()).saveAll(anyList());
+        verify(aiUsageLogRepository).save(any()); // 벤더 호출 비용은 analyzable 여부와 무관하게 기록
+    }
+
+    @Test
     void AI_응답의_category가_스키마를_벗어나면_AI_MODEL_CALL_FAILED() {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
         when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan());
         when(promptBuilder.build(any(), eq("FREE"))).thenReturn("system-prompt");
         when(aiReviewClient.review(any(), any(), any(), any())).thenReturn(new AiReviewResult(
                 null, List.of(new AiReviewIssue("NOT_A_REAL_CATEGORY", "CRITICAL", "Foo.java", 10, "설명")),
-                100, 50, 0.01));
+                100, 50, 0.01, true));
         when(reviewRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         assertThatThrownBy(() -> service.createFromPaste(USER_ID, pasteRequest("bad code", "java", null)))

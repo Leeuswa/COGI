@@ -54,6 +54,15 @@ public class CreditUsageServiceImpl implements CreditUsageService {
     }
 
     @Override
+    @Transactional
+    public void refund(Long userId, String modelName) {
+        LocalDate today = LocalDate.now(KST);
+        int weight = resolveModelWeight(modelName);
+        creditUsageRepository.findByUserIdAndUsageDate(userId, today)
+                .ifPresent(usage -> usage.refund(weight));
+    }
+
+    @Override
     public CreditUsageResponseDTO getStatus(Long userId) {
         LocalDate today = LocalDate.now(KST);
         return creditUsageRepository.findByUserIdAndUsageDate(userId, today)

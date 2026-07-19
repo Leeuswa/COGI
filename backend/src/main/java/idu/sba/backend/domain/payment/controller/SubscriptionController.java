@@ -80,4 +80,22 @@ public class SubscriptionController {
         subscriptionService.cancelSubscription(userId, subId);
         return ResponseEntity.ok().build();
     }
+
+    //해지 예약 취소 (본인 구독만)
+    @PostMapping("/subscriptions/{subId}/resume")
+    public ResponseEntity<Void> resumeSubscription(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long subId
+    ) {
+        subscriptionService.resumeSubscription(userId, subId);
+        return ResponseEntity.ok().build();
+    }
+
+    //내 구독 변경 이력 (최신순)
+    @GetMapping("/users/me/subscription-history")
+    public ResponseEntity<List<SubHistoryItemDTO>> getSubHistory(
+            @AuthenticationPrincipal Long userId
+    ) {
+        return ResponseEntity.ok(subscriptionService.getSubHistory(userId));
+    }
 }

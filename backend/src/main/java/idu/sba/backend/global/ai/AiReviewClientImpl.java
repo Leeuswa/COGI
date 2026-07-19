@@ -4,19 +4,30 @@ import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Slf4j
 @Component
 public class AiReviewClientImpl implements AiReviewClient {
+
+    // 이 프로젝트 클래스패스엔 Apache HttpComponents/Jetty/Reactor Netty가 없어서
+    // RestClient.builder().build()는 JdkClientHttpRequestFactory로 폴백되는데, 이건 기본 생성자로 쓰면
+    // connect/read 타임아웃이 전혀 없다 — 벤더가 고부하 등으로 응답 없이 멈추면 요청이 무한 대기하게 된다
+    // (Gemini 503 재시도 중 스튜디오가 "코드 분석 중..."에서 안 멈추던 문제의 원인). 명시적으로 타임아웃을 건다.
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(60);
 
     private final ObjectMapper objectMapper;
     private final Map<AiProvider, String> apiKeys = new EnumMap<>(AiProvider.class);
@@ -32,8 +43,12 @@ public class AiReviewClientImpl implements AiReviewClient {
         apiKeys.put(AiProvider.GROQ,   groqKey);
         apiKeys.put(AiProvider.OPENAI, openaiKey);
         apiKeys.put(AiProvider.CLAUDE, claudeKey);
+
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build());
+        requestFactory.setReadTimeout(READ_TIMEOUT);
         for (AiProvider p : AiProvider.values()) {
-            clients.put(p, RestClient.builder().baseUrl(p.baseUrl()).build());
+            clients.put(p, RestClient.builder().baseUrl(p.baseUrl()).requestFactory(requestFactory).build());
         }
     }
 
@@ -53,8 +68,9 @@ public class AiReviewClientImpl implements AiReviewClient {
                     .map(i -> new AiReviewIssue(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))
                     .toList();
             double cost = model.calculateCost(result.inputTokens(), result.outputTokens());
+            boolean analyzable = parsed.analyzable() == null || parsed.analyzable(); // 필드 누락(구프롬프트/게스트) 시 기본값 true
 
-            return new AiReviewResult(parsed.summary(), issues, result.inputTokens(), result.outputTokens(), cost);
+            return new AiReviewResult(parsed.summary(), issues, result.inputTokens(), result.outputTokens(), cost, analyzable);
         } catch (RestClientResponseException e) { //4xx/5xx — 벤더가 응답은 했지만 실패로 응답한 경우
             log.error("AI 모델 호출 실패 - model={}, provider={}, status={}, body={}",
                     model.id(), model.provider(), e.getStatusCode(), e.getResponseBodyAsString(), e);
@@ -85,14 +101,17 @@ public class AiReviewClientImpl implements AiReviewClient {
 
     // OpenAI 호환 (Gemini/Groq/OpenAI)
     private VendorCallResult callOpenAiCompatible(AiProvider p, String modelId, String systemPrompt, String userContent) {
-        Map<String, Object> body = Map.of(
+        // OpenAI는 신형 모델부터 max_tokens를 거부하고 max_completion_tokens를 요구함(400
+        // unsupported_parameter로 확인됨). Gemini/Groq는 아직 이 문제가 없어 기존 max_tokens 유지.
+        Map<String, Object> body = new HashMap<>(Map.of(
                 "model", modelId,
-                "max_tokens", 8192, // Claude 쪽과 동일한 이유로 명시 — 벤더 기본값에 맡기면 이슈 많은 리뷰에서 잘릴 수 있음
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user", "content", userContent)),
                 "response_format", Map.of("type", "json_object")
-        );
+        ));
+        body.put(p == AiProvider.OPENAI ? "max_completion_tokens" : "max_tokens", 8192);
+
         JsonNode res = clients.get(p).post()
                 .uri("/chat/completions")
                 .header("Authorization", "Bearer " + apiKeys.get(p))
@@ -130,7 +149,9 @@ public class AiReviewClientImpl implements AiReviewClient {
     private record VendorCallResult(String content, int inputTokens, int outputTokens) {}
 
     // AI 응답 JSON 파싱용 — 프롬프트가 이 형태로 답하도록 지시한다(공용 계약)
-    private record AiJsonResponse(String summary, List<IssueJson> issues) {}
+    // analyzable은 Boolean(래퍼)으로 받아 필드 자체가 없는 응답(구버전 프롬프트, 게스트 인라인 프롬프트)과
+    // 명시적 false를 구분한다 — null이면 review()에서 true로 간주한다.
+    private record AiJsonResponse(String summary, Boolean analyzable, List<IssueJson> issues) {}
 
     private record IssueJson(String category, String severity, String filePath,
                               Integer lineNumber, String description) {}

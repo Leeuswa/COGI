@@ -40,4 +40,9 @@ public class RepoMember {
         return new RepoMember(repoId, userId, role);
     }
 
+    //팀장 위임 — 트랜잭션 안에서 호출되면 dirty checking으로 자동 반영됨(별도 save 불필요)
+    public void changeRole(RepoRole role){
+        this.role = role;
+    }
+
 }

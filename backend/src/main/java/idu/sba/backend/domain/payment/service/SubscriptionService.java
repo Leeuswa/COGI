@@ -30,4 +30,10 @@ public interface SubscriptionService {
 
     //구독 해지 (본인 구독만)
     void cancelSubscription(Long userId, Long subId);
+
+    //해지 예약 취소 (본인 구독만) — cancelledAt 초기화
+    void resumeSubscription(Long userId, Long subId);
+
+    //내 구독 변경 이력 (최신순, 플랜은 이름으로)
+    List<SubHistoryItemDTO> getSubHistory(Long userId);
 }

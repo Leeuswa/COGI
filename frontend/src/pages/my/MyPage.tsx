@@ -24,6 +24,7 @@ export default function MyPage() {
   const [interests, setInterests] = useState(user.interests || []);
   const [totp, setTotp] = useState(null); // setup 응답 { secret }
   const [terms, setTerms] = useState([]);
+  const [agreedIds, setAgreedIds] = useState([]); // 내가 동의한 약관 id
   const [busy, setBusy] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ cur: '', next: '', confirm: '' });
@@ -34,7 +35,10 @@ export default function MyPage() {
   const isSocial = user.provider === 'KAKAO' || user.provider === 'GITHUB';
   const providerName = user.provider === 'KAKAO' ? '카카오' : user.provider === 'GITHUB' ? 'GitHub' : null;
 
-  useEffect(() => { api.getTerms().then(setTerms); }, []);
+  useEffect(() => {
+    api.getTerms().then(setTerms);
+    api.getMyAgreements().then(setAgreedIds).catch(() => setAgreedIds([]));
+  }, []);
 
   // GitHub 연동 리다이렉트 결과 처리 — 백엔드 콜백이 ?linked=1 또는 ?error=... 로 되돌려보낸다
   const [params, setParams] = useSearchParams();
@@ -127,7 +131,7 @@ export default function MyPage() {
       )}
       {tab === 'github' && <GithubTab user={user} onLink={linkGh} busy={busy} error={linkError} />}
       {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} onEnable={enableTotp} busy={busy} />}
-      {tab === 'terms' && <TermsTab terms={terms} />}
+      {tab === 'terms' && <TermsTab terms={terms} agreedIds={agreedIds} />}
     </main>
   );
 }

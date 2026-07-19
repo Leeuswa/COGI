@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.user.controller;
 
+import idu.sba.backend.domain.repo.service.RepoMemberService;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
@@ -28,6 +29,7 @@ public class GithubLinkController {
 
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
+    private final RepoMemberService repoMemberService;
 
     @Value("${github.link.client-id}")     private String clientId;
     @Value("${github.link.redirect-uri}")  private String redirectUri;
@@ -83,6 +85,9 @@ public class GithubLinkController {
 
             user.linkGithub(githubId, username, ghToken);            // 현재 계정에 붙임
             userRepository.save(user);
+
+            // 이 GitHub 아이디/이메일로 대기 중이던 레포 초대가 있으면 자동 수락(케이스③, 기존 계정 연동 경로)
+            repoMemberService.autoMatchPendingInvitations(user);
 
             response.sendRedirect(frontendUrl + "/app/my?linked=1"); // 성공 → 마이페이지
         } catch (BusinessException e) {
