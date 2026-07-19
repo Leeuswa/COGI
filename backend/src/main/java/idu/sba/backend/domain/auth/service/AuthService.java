@@ -25,4 +25,9 @@ public interface AuthService {
 
     //토큰 연장
     String refreshToken(Long userId);
+
+    //2차 인증 코드 검증 후 최종 로그인
+    TokenResponseDTO verifyTotp(String tempToken, String code);
+
+
 }

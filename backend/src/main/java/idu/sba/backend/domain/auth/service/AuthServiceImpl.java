@@ -16,11 +16,11 @@ import idu.sba.backend.domain.user.entity.UserStatus;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
+import idu.sba.backend.global.mail.HtmlMailSender;
 import idu.sba.backend.global.security.JwtProvider;
+import idu.sba.backend.global.security.TotpService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,7 +58,9 @@ public class AuthServiceImpl implements AuthService {
     private final TermRepository termRepository;
     private final UserAgreementRepository userAgreementRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender; //메일 발송
+    private final TotpService totpService;
+    private final HtmlMailSender htmlMailSender;
+
 
 
     @Override
@@ -180,12 +182,13 @@ public class AuthServiceImpl implements AuthService {
 
     //인증 메일코드 메일 발송
     private void sendMail(String to, String code) {
-        SimpleMailMessage message = new SimpleMailMessage();  // 빈 메일 객체 생성
-        message.setFrom(mailFrom);
-        message.setTo(to);                    // 받는 사람
-        message.setSubject("[COGI] 이메일 인증코드");  // 제목
-        message.setText("인증코드: " + code + "\n5분 안에 입력해주세요.");  // 본문
-        mailSender.send(message);             // 완성된 메일 발송
+        String inner = """
+        <p style="margin:0 0 8px;color:#1b2a4a;font-size:17px;font-weight:bold;">이메일 인증코드</p>
+        <p style="margin:0 0 20px;color:#40507a;font-size:13px;">아래 6자리 코드를 입력해주세요.</p>
+        <div style="background:#ffd23f;border:3px solid #1b2a4a;padding:16px;text-align:center;font-size:30px;font-weight:bold;letter-spacing:10px;color:#1b2a4a;">%s</div>
+        <p style="margin:18px 0 0;color:#ff6b57;font-size:12px;font-weight:bold;">⏱ 5분 안에 입력해야 해요.</p>
+        """.formatted(code);
+        htmlMailSender.send(to, "[COGI] 이메일 인증코드", inner);
     }
 
 
@@ -213,12 +216,36 @@ public class AuthServiceImpl implements AuthService {
         }
 
 
-        //성공시 실패회수 초기화, 토큰발급
+        //성공시 실패회수 초기화
         user.resetLoginFailCount();
         userRepository.save(user);
-        String token = jwtProvider.createToken(user.getId(),user.getRole().name());
-        return TokenResponseDTO.of(token,accessTokenExpiration);
 
+        // 2차 인증 계정은 JWT 대신 임시토큰만 → verify 단계로
+        if (Boolean.TRUE.equals(user.getTotpEnabled())) {
+            return TokenResponseDTO.totpChallenge(jwtProvider.createTotpToken(user.getId()));
+        }
+
+        String token = jwtProvider.createToken(user.getId(), user.getRole().name());
+        return TokenResponseDTO.of(token, accessTokenExpiration);
+
+    }
+
+    @Override
+    public TokenResponseDTO verifyTotp(String tempToken, String code) {
+        Long userId = jwtProvider.parseTotpToken(tempToken); // 위조·만료·용도불일치 → 예외
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
+
+        // 임시토큰 유효 중 OTP를 꺼버린 경우 방어
+        if (!Boolean.TRUE.equals(user.getTotpEnabled()) || user.getTotpSecret() == null) {
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
+        }
+        if (!totpService.verify(user.getTotpSecret(), code)) {
+            throw new BusinessException(ErrorCode.TOTP_CODE_INVALID);
+        }
+
+        String token = jwtProvider.createToken(user.getId(), user.getRole().name());
+        return TokenResponseDTO.of(token, accessTokenExpiration);
     }
 
     @Override
@@ -301,6 +328,10 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         return jwtProvider.createToken(user.getId(), user.getRole().name());
     }
+
+
+
+
 
     // 정지 단계에 따라 문구 선택 (1=30분, 2=24시간)
     private ErrorCode lockError(EmailVerification ev) {

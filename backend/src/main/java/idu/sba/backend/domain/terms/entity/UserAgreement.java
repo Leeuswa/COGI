@@ -21,7 +21,7 @@ public class UserAgreement {
     private Long termId; //동의한 약관
 
     private Boolean agreed = true; // 동의여부
-    private String channelPreference;// 마켓팅 수신 채널
+    private String channelPreference;   // 마켓팅 수신 채널
     private LocalDateTime agreeAt; //동의 일시
 
     @PrePersist

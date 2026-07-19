@@ -94,12 +94,26 @@ export default function MyPage() {
     } finally { setPwBusy(false); }
   };
 
+  // 1단계: 시크릿/QR 발급만. 활성화는 코드 검증 후(enableTotp)에.
   const setupTotp = async () => {
     setBusy(true);
     try {
-      const res = await api.totpSetup();
-      setTotp(res);
+      setTotp(await api.totpSetup());
+    } catch (ex) {
+      notify(ex.message || 'OTP 설정에 실패했어요');
+    } finally { setBusy(false); }
+  };
+
+  // 2단계: 인증앱 6자리 검증 → 서버가 통과시켜야 실제 활성화
+  const enableTotp = async (code) => {
+    setBusy(true);
+    try {
+      await api.totpEnable(code);
       patchUser({ totpEnabled: true });
+      setTotp(null);
+      notify('2차 인증이 켜졌어요. 다음 로그인부터 6자리를 물어봅니다');
+    } catch (ex) {
+      notify(ex.message || '인증 코드가 올바르지 않아요');
     } finally { setBusy(false); }
   };
 
@@ -116,7 +130,7 @@ export default function MyPage() {
           pw={pw} setPw={setPw} pwOpen={pwOpen} setPwOpen={setPwOpen} onChangePw={changePw} pwBusy={pwBusy} />
       )}
       {tab === 'github' && <GithubTab user={user} onLink={linkGh} busy={busy} error={linkError} />}
-      {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} busy={busy} />}
+      {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} onEnable={enableTotp} busy={busy} />}
       {tab === 'terms' && <TermsTab terms={terms} agreedIds={agreedIds} />}
     </main>
   );

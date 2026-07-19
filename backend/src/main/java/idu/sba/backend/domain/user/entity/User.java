@@ -45,7 +45,6 @@ public class User {
 
     private String totpSecret; //2단계 인증 시크릿
 
-
     private Boolean totpEnabled = false;
 
     @Enumerated(EnumType.STRING)
@@ -181,6 +180,16 @@ public class User {
     //로그인하고 마이페이지에서 비밀번호 변경
     public void changePassword(String encodedPassword){
         this.password = encodedPassword;
+    }
+
+    //2단계 인증
+    public void prepareTotp(String secret) {
+        this.totpSecret = secret; //시크릿 저장
+        this.totpEnabled = false;
+    }
+
+    public void enableTotp() {
+        this.totpEnabled = true; // 로그인시 2차 인증 요구 대상
     }
 
 
