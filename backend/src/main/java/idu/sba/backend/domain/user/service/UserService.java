@@ -16,5 +16,8 @@ public interface UserService {
     //로그인 했을때 비밀번호 변경
     void changePassword(Long userId, PasswordChangeDTO req);
 
+    TotpSetupResponseDTO setupTotp(Long userId);
 
+    //2단계 인증
+    void enableTotp(Long userId,TotpEnableRequestDTO req);
 }

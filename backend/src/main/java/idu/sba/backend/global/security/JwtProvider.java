@@ -22,6 +22,8 @@ public class JwtProvider {
     //토큰 유효시간
     private final long accessTokenExpiration;
 
+    private static final long TOTP_TOKEN_EXPIRATION = 5 * 60 * 1000L; // 5분
+
 
     public JwtProvider(
             @Value("${jwt.secret}") String secret,
@@ -86,6 +88,26 @@ public class JwtProvider {
         Claims claims = parse(state);              // 서명·만료 검증 (실패 시 예외 터짐)
         if (!"github_link".equals(claims.get("purpose", String.class))) {
             throw new BusinessException(ErrorCode.GITHUB_LINK_FAILED);
+        }
+        return Long.valueOf(claims.getSubject());
+    }
+
+    //2단계 인증 토큰 발급
+    public String createTotpToken(Long userId) {
+        Date now = new Date();
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("purpose", "totp")   // 로그인/링크 토큰과 용도 구분
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + TOTP_TOKEN_EXPIRATION))
+                .signWith(key)
+                .compact();
+    }
+    // verify 단계에서 검증 → userId 반환 (위조·만료·용도불일치면 예외)
+    public Long parseTotpToken(String token) {
+        Claims claims = parse(token);
+        if (!"totp".equals(claims.get("purpose", String.class))) {
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
         return Long.valueOf(claims.getSubject());
     }

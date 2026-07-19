@@ -163,11 +163,17 @@ export const changePassword = (currentPassword, newPassword, newPasswordConfirm)
         : new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('401'), { status: 401 })), 300)))
     : http('PATCH', '/api/users/me/password', { currentPassword, newPassword, newPasswordConfirm });
 
-// API-006-1 POST /api/auth/totp/setup — OTP 최초 설정(QR)
+// API-006-1 POST /api/users/me/totp/setup — 로그인 상태에서 시크릿/QR 발급 (아직 활성화 아님)
 export const totpSetup = () =>
   USE_MOCK
     ? mock({ secret: 'COGI-MOCK-SECRET', qrCodeUrl: null })
-    : http('POST', '/api/auth/totp/setup');
+    : http('POST', '/api/users/me/totp/setup');
+
+// POST /api/users/me/totp/enable — 인증앱 6자리 검증 통과 시 최종 활성화
+export const totpEnable = (code) =>
+  USE_MOCK
+    ? (code === '000000' ? mock({ ok: true }) : Promise.reject(new Error('OTP 불일치')))
+    : http('POST', '/api/users/me/totp/enable', { code });
 
 // API-006-2 POST /api/auth/totp/verify — 6자리 코드 검증 후 최종 JWT
 export const totpVerify = (totpCode, tempToken) =>

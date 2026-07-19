@@ -5,11 +5,9 @@ import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
-import idu.sba.backend.global.security.JwtProvider;
+import idu.sba.backend.global.mail.HtmlMailSender;
+import idu.sba.backend.global.security.TotpService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,8 +20,9 @@ public class UserServiceImpl implements UserService{
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
-    @Value("${spring.mail.username}") private String mailFrom;
+    private final TotpService totpService;
+    private final HtmlMailSender htmlMailSender;
+
 
     //프로필 조회
     @Override
@@ -97,16 +96,42 @@ public class UserServiceImpl implements UserService{
 
     private void sendPasswordChangedMail(String to){
         if(to == null) return;
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(mailFrom);
-        message.setTo(to); // 받는 사람
-        message.setSubject("[COGI] 비밀번호가 변경되었습니다"); //제목
-        message.setText("회원님의 비밀번호가 방금 변경되었습니다.\n"
-                + "본인이 변경하지 않았다면 즉시 '비밀번호 찾기'로 재설정해주세요.");  //본문
-        mailSender.send(message);  //메일 발송
+        String inner = """
+        <p style="margin:0 0 8px;color:#1b2a4a;font-size:17px;font-weight:bold;">비밀번호가 변경되었습니다</p>
+        <p style="margin:0 0 16px;color:#40507a;font-size:13px;line-height:1.7;">회원님의 비밀번호가 방금 변경되었습니다.</p>
+        <div style="background:#fff;border:3px solid #ff6b57;padding:14px;color:#1b2a4a;font-size:12.5px;line-height:1.7;">
+             본인이 변경하지 않았다면 즉시 <b>비밀번호 찾기</b>로 재설정해주세요.
+        </div>
+        """;
+        htmlMailSender.send(to, "[COGI] 비밀번호가 변경되었습니다", inner);
+    }
+
+    @Override
+    @Transactional
+    public TotpSetupResponseDTO setupTotp(Long userId) {
+        User user = findUser(userId); //유저 조회
+        String secret = totpService.generateSecret(); //새 시크릿 발급
+        user.prepareTotp(secret);
+        // 시크릿 + 인증앱 등록용 URI 반환
+        return new TotpSetupResponseDTO(secret, totpService.qrDataUri(secret, user.getEmail()));
     }
 
 
+    @Override
+    @Transactional
+    public void enableTotp(Long userId, TotpEnableRequestDTO req) {
+        User user = findUser(userId);
+
+        // setup 없이 바로 enable 시도 → 순서 오류
+        if(user.getTotpSecret() == null){
+            throw new BusinessException(ErrorCode.TOTP_NOT_INITIATED);
+        }
+        // 입력 코드가 시크릿과 안 맞으면 거부
+        if(!totpService.verify(user.getTotpSecret(),req.getCode())){
+            throw new BusinessException(ErrorCode.TOTP_CODE_INVALID);
+        }
+        user.enableTotp(); // 검증 통과 → 활성화
+    }
 
     private User findUser(Long userId){
         return userRepository.findById(userId)

@@ -37,6 +37,12 @@ public enum ErrorCode {
     SAME_AS_OLD_PASSWORD(HttpStatus.BAD_REQUEST, "기존 비밀번호와 다른 비밀번호를 사용해주세요."), // 400
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 계정입니다."), // 404
 
+    //2단계 인증
+    TOTP_NOT_INITIATED(HttpStatus.BAD_REQUEST, "먼저 OTP 설정을 진행해주세요."), // setup 안 하고 enable 시도
+    TOTP_CODE_INVALID(HttpStatus.BAD_REQUEST, "인증 코드가 올바르지 않습니다."),   // 코드 불일치
+    TOTP_QR_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "QR 생성에 실패했습니다."),
+
+
     //깃허브 연동
     GITHUB_LINK_FAILED(HttpStatus.BAD_REQUEST, "GitHub 연동에 실패했습니다."),
     GITHUB_ALREADY_LINKED(HttpStatus.CONFLICT, "이미 다른 계정에 연결된 GitHub입니다."),

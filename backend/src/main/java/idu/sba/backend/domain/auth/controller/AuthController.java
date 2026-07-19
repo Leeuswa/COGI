@@ -51,13 +51,31 @@ public class AuthController {
                 .body(ApiResponse.ok("회원가입이 완료되었습니다."));
     }
 
-    //로그인
+  //로그인
     @PostMapping("/login")
-    public ApiResponse<Void> login(
+    public ApiResponse<Map<String, Object>> login(
             @Valid @RequestBody LoginRequestDTO request,
             HttpServletResponse response) {
         TokenResponseDTO token = authService.login(request);
+
+        // 2차 인증 대기 — 쿠키는 verify 통과 후 발급
+        if (token.isTotpRequired()) {
+            return ApiResponse.ok("2차 인증이 필요합니다.",
+                    Map.of("totpRequired", true, "tempToken", token.getTempToken()));
+        }
+
         // 토큰을 HttpOnly 쿠키에 담아 응답 헤더에 추가
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                cookieUtil.createAccessTokenCookie(token.getAccessToken()).toString());
+        return ApiResponse.ok("로그인 성공", Map.of("totpRequired", false));
+    }
+
+    //2차 인증 코드 검증 후 최종 로그인
+    @PostMapping("/totp/verify")
+    public ApiResponse<Void> verifyTotp(
+            @Valid @RequestBody TotpVerifyRequestDTO request,
+            HttpServletResponse response) {
+        TokenResponseDTO token = authService.verifyTotp(request.getTempToken(), request.getTotpCode());
         response.addHeader(HttpHeaders.SET_COOKIE,
                 cookieUtil.createAccessTokenCookie(token.getAccessToken()).toString());
         return ApiResponse.ok("로그인 성공");
