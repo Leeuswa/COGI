@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
-import { PageHead, SevChip } from '../../components/ui';
+import { PageHead, SevChip, renderDescription } from '../../components/ui';
 import { catKo, ISSUE_STATUS_KO, REVIEW_TARGET_KO, REVIEW_STATUS_KO } from '../../data/constants';
 
 const fmt = (iso) => iso?.replace('T', ' ').slice(0, 16);
@@ -82,7 +82,7 @@ export default function ReviewHistory() {
                         </span>
                       )}
                     </div>
-                    <p style={{ fontSize: 13.5, lineHeight: 1.9 }}>{it.description}</p>
+                    <div style={{ fontSize: 13.5, lineHeight: 1.9 }}>{renderDescription(it.description)}</div>
                   </div>
                 ))}
               </div>

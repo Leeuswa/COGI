@@ -123,7 +123,7 @@ class ReviewServiceImplTest {
     }
 
     private PullRequest pr() {
-        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null);
+        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null, null);
         setField(pr, "id", PR_ID);
         return pr;
     }
@@ -462,7 +462,7 @@ class ReviewServiceImplTest {
 
     @Test
     void createFromPrImport_기존_PR가_있으면_재사용한다() {
-        PullRequest existing = PullRequest.open(REPO_ID, 77, "old title", null);
+        PullRequest existing = PullRequest.open(REPO_ID, 77, "old title", null, "old-author-gh");
         setField(existing, "id", 901L);
         existing.markReviewed(); //예전에 이미 리뷰됐던 PR을 다시 리뷰하는 케이스
 

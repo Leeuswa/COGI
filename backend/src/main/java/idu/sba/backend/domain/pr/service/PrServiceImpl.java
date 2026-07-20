@@ -55,10 +55,7 @@ public class PrServiceImpl implements PrService {
                 .map(list -> list.stream().map(ReviewIssueResponseDTO::of).toList())
                 .orElse(List.of()); //아직 리뷰가 없으면(PR이 OPEN) 빈 목록 — 예외 아님
 
-        String authorName = pr.getAuthorId() == null ? null
-                : userRepository.findById(pr.getAuthorId()).map(u -> u.getNickname()).orElse(null);
-
-        return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, authorName), issues);
+        return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, resolveAuthorName(pr)), issues);
     }
 
     @Override
@@ -85,15 +82,21 @@ public class PrServiceImpl implements PrService {
         requireRepoMember(currentUserId, repoId);
         return pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(repoId).stream()
                 .map(pr -> {
-                    String authorName = pr.getAuthorId() == null ? null
-                            : userRepository.findById(pr.getAuthorId()).map(User::getNickname).orElse(null);
                     List<ReviewIssue> issues = reviewRepository.findByPrId(pr.getId())
                             .map(Review::getId)
                             .map(reviewIssueRepository::findByReviewId)
                             .orElse(List.of());
-                    return PrListItemResponseDTO.of(pr, authorName, issues);
+                    return PrListItemResponseDTO.of(pr, resolveAuthorName(pr), issues);
                 })
                 .toList();
+    }
+
+    // authorId가 COGI 가입자를 가리키면 닉네임을, 아니면(미가입자·해지 등) GitHub 로그인명 원본으로 폴백
+    private String resolveAuthorName(PullRequest pr) {
+        if (pr.getAuthorId() != null) {
+            return userRepository.findById(pr.getAuthorId()).map(User::getNickname).orElse(pr.getAuthorLogin());
+        }
+        return pr.getAuthorLogin();
     }
 
     // listOpenPrs/listPrFiles 공용 — 이 두 API는 웹훅 경로와 달리 실제 로그인 사용자가 호출하므로

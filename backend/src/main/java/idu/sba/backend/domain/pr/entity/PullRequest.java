@@ -25,6 +25,7 @@ public class PullRequest {
     private Integer githubPrNumber;
     private String title; //nullable
     private Long authorId; //nullable — githubUsername으로 매칭 실패 시(미가입자) null
+    private String authorLogin; //nullable — GitHub 로그인명 원본. authorId가 안 채워졌을 때 표시용 폴백
     private String selectedModel; //nullable — null이면 플랜 기본 모델(API-028, 이번 범위에서는 항상 null)
 
     @Enumerated(EnumType.STRING)
@@ -47,23 +48,25 @@ public class PullRequest {
         this.updatedAt = LocalDateTime.now();
     }
 
-    private PullRequest(Long repoId, Integer githubPrNumber, String title, Long authorId){
+    private PullRequest(Long repoId, Integer githubPrNumber, String title, Long authorId, String authorLogin){
         this.repoId = repoId;
         this.githubPrNumber = githubPrNumber;
         this.title = title;
         this.authorId = authorId;
+        this.authorLogin = authorLogin;
         this.status = PullRequestStatus.OPEN;
         this.webhookRetryCount = 0;
     }
 
-    public static PullRequest open(Long repoId, Integer githubPrNumber, String title, Long authorId){
-        return new PullRequest(repoId, githubPrNumber, title, authorId);
+    public static PullRequest open(Long repoId, Integer githubPrNumber, String title, Long authorId, String authorLogin){
+        return new PullRequest(repoId, githubPrNumber, title, authorId, authorLogin);
     }
 
     //synchronize/reopened 이벤트 — 기존 row를 재사용해 다시 리뷰 대상으로 되돌림
-    public void reopenForReview(String title, Long authorId){
+    public void reopenForReview(String title, Long authorId, String authorLogin){
         this.title = title;
         this.authorId = authorId;
+        this.authorLogin = authorLogin;
         this.status = PullRequestStatus.OPEN;
     }
 

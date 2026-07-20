@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useGame } from '../../context/GameContext';
-import { PageHead, SevChip } from '../../components/ui';
+import { PageHead, SevChip, renderDescription } from '../../components/ui';
 import { catKo, ISSUE_STATUS_KO } from '../../data/constants';
 
 // MD/TXT 내보내기는 백엔드 없이 프론트에서 파일을 만들어 내려준다 (FR-45~46)
@@ -65,7 +65,7 @@ export default function PrDetail() {
         `## [${it.severity}] ${it.category} — ${it.filePath}:${it.lineNumber}`,
         `- 상태: ${it.status}${it.acknowledged ? ' (의도한 코드 — 통계 제외)' : ''}`,
         '', it.description, '',
-        '```', ...it.codeSnippet, '```', '',
+        ...(it.codeSnippet ? ['```', ...it.codeSnippet, '```', ''] : []),
       ]),
     ].join('\n');
 
@@ -125,15 +125,17 @@ export default function PrDetail() {
             </span>
           </div>
 
-          {/* 코드 스니펫 — 문제 라인만 배경 하이라이트 */}
-          <pre className="codebox">
-            {it.codeSnippet.map((line, i) => {
-              const isHit = line.trimStart().startsWith(String(it.lineNumber) + ' ');
-              return <span key={i} className={isHit ? 'hl-line' : undefined}>{line + '\n'}</span>;
-            })}
-          </pre>
+          {/* 코드 스니펫 — 문제 라인만 배경 하이라이트. PR diff 기반 리뷰는 스니펫을 따로 안 남겨서 없을 수 있음 */}
+          {it.codeSnippet && (
+            <pre className="codebox">
+              {it.codeSnippet.map((line, i) => {
+                const isHit = line.trimStart().startsWith(String(it.lineNumber) + ' ');
+                return <span key={i} className={isHit ? 'hl-line' : undefined}>{line + '\n'}</span>;
+              })}
+            </pre>
+          )}
 
-          <p style={{ fontSize: 13.5, lineHeight: 1.95, margin: '14px 0' }}>{it.description}</p>
+          <div style={{ fontSize: 13.5, lineHeight: 1.95, margin: '14px 0' }}>{renderDescription(it.description)}</div>
 
           {/* 스튜디오에서 내린 판정을 '확인만' 한다 — 결정은 스튜디오에서 끝났다 (#5/#7) */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>

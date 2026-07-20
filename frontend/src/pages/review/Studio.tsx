@@ -16,44 +16,11 @@ import { Link } from "react-router-dom";
 import * as api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
-import { PageHead, SevChip } from "../../components/ui";
+import { PageHead, SevChip, renderDescription } from "../../components/ui";
 import { MODEL_TIERS, PLAN_TIER, catKo } from "../../data/constants";
 import PreviewDock from "./PreviewDock";
 
 const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend";
-
-// AI가 description에 섞어 보내는 마크다운 코드 표기(```블록, `인라인`)만 구분해서 렌더링.
-// 마크다운 라이브러리 없이, 정규식으로 코드 부분만 잘라내 코드체로 보여준다.
-const renderDescription = (text: string) => {
-  const parts: React.ReactNode[] = [];
-  const regex = /```[\w-]*\n?([\s\S]*?)```|`([^`\n]+)`/g;
-  let lastIndex = 0;
-  let match;
-  let key = 0;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
-    }
-    if (match[1] !== undefined) {
-      parts.push(
-        <pre key={key++} className="codebox snippet">
-          {match[1].trim()}
-        </pre>,
-      );
-    } else {
-      parts.push(
-        <code key={key++} className="inline-code">
-          {match[2]}
-        </code>,
-      );
-    }
-    lastIndex = regex.lastIndex;
-  }
-  if (lastIndex < text.length) {
-    parts.push(<span key={key++}>{text.slice(lastIndex)}</span>);
-  }
-  return parts;
-};
 
 export default function Studio() {
   const { user } = useAuth();

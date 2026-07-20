@@ -293,10 +293,10 @@ public class ReviewServiceImpl implements ReviewService {
         Long authorId = resolveAuthorId(request.getAuthorLogin());
         PullRequest pr = pullRequestRepository.findByRepoIdAndGithubPrNumber(repoId, prNumber)
                 .map(existing -> {
-                    existing.reopenForReview(request.getTitle(), authorId);
+                    existing.reopenForReview(request.getTitle(), authorId, request.getAuthorLogin());
                     return existing;
                 })
-                .orElseGet(() -> PullRequest.open(repoId, prNumber, request.getTitle(), authorId));
+                .orElseGet(() -> PullRequest.open(repoId, prNumber, request.getTitle(), authorId, request.getAuthorLogin()));
         pullRequestRepository.save(pr);
 
         Review review = Review.createFromPrImport(callerId, pr.getId(), modelName, request.getCode());
