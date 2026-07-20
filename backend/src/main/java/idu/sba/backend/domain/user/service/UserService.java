@@ -25,4 +25,7 @@ public interface UserService {
 
     //2단계 인증
     void enableTotp(Long userId,TotpEnableRequestDTO req);
+
+    //소셜로그인 약관동의
+    void submitAgreements(Long userId, AgreementSubmitDTO req);
 }

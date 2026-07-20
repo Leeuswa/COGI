@@ -70,4 +70,12 @@ public class UserController {
         userService.enableTotp(userId,request);
         return ApiResponse.ok("2차 인증이 활성화 되었습니다.");
     }
+
+    @PostMapping("/agreements")
+    public ApiResponse<Void> submitAgreements(@AuthenticationPrincipal Long userId,
+                                              @RequestBody AgreementSubmitDTO request) {
+        userService.submitAgreements(userId, request);
+        return ApiResponse.ok("약관 동의가 저장되었습니다.");
+    }
+
 }
