@@ -92,7 +92,7 @@ class GithubWebhookServiceImplTest {
     @Test
     void 기존_PR이면_reopenForReview로_재사용한다() {
         GithubRepository repo = repo("owner/repo-name");
-        PullRequest existing = PullRequest.open(REPO_ID, 42, "옛 제목", null);
+        PullRequest existing = PullRequest.open(REPO_ID, 42, "옛 제목", null, null);
         setField(existing, "id", 500L);
         setField(existing, "status", PullRequestStatus.FAILED); //이전에 실패했던 PR이 synchronize로 다시 옴
 

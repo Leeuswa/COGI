@@ -62,7 +62,7 @@ class PrServiceImplTest {
     }
 
     private PullRequest pr() {
-        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null);
+        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null, null);
         setField(pr, "id", PR_ID);
         return pr;
     }
@@ -165,6 +165,36 @@ class PrServiceImplTest {
 
         assertThat(result.getPr().getAuthorName()).isNull();
         org.mockito.Mockito.verify(userRepository, org.mockito.Mockito.never()).findById(any());
+    }
+
+    @Test
+    void authorId가_없어도_authorLogin이_있으면_그걸_작성자명으로_보여준다() {
+        PullRequest pr = pr();
+        setField(pr, "authorLogin", "outside-contributor"); //COGI 미가입자(webhook payload에만 있던 로그인명)
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getPr().getAuthorName()).isEqualTo("outside-contributor");
+    }
+
+    @Test
+    void authorId가_있어도_유저가_안_남아있으면_authorLogin으로_폴백한다() {
+        PullRequest pr = pr();
+        setField(pr, "authorId", 77L);
+        setField(pr, "authorLogin", "author-gh");
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+        when(userRepository.findById(77L)).thenReturn(Optional.empty()); //탈퇴 등으로 사라진 케이스
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getPr().getAuthorName()).isEqualTo("author-gh");
     }
 
     // ---------- listOpenPrs ----------
