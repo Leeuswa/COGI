@@ -279,9 +279,10 @@ export const transferOwnership = (repoId, targetUserId) =>
 
 /* ══════════ 리뷰 대시보드 (RDB) ══════════ */
 
-// API-032 GET /api/teams/{teamId}/prs — 팀 PR 목록 + 필터 (FR-41~42)
-export const getTeamPrs = (teamId, filters = {}) =>
-  USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/teams/${teamId}/prs?` + new URLSearchParams(filters));
+// API-032 GET /api/repos/{repoId}/prs/reviewed — PR 리뷰 대시보드(팀 대신 레포 기준으로 축소) [설계 추론]
+// 원래 명세는 팀 단위(teamId)였지만 백엔드에 "팀" 개념이 따로 없어(레포+팀원이 곧 팀) 레포 기준으로 구현
+export const getRepoReviewedPrs = (repoId) =>
+  USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/repos/${repoId}/prs/reviewed`);
 
 // API-031 PATCH /api/issues/{issueId}/acknowledge — 의도한 코드 응답 (FR-40)
 // [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)/고침(RESOLVED)을 팀장 승인 없이 바로 반영 (요구 #7)
@@ -309,6 +310,13 @@ export const getRepoPrs = (repoId) =>
 // 스튜디오 'PR 가져오기' 피커 2단계 — 특정 PR의 변경 파일 목록(코드는 diff 근사치)
 export const getRepoPrFiles = (repoId, prNumber) =>
   USE_MOCK ? mock(M.mockPrFiles) : http('GET', `/api/repos/${repoId}/prs/${prNumber}/files`);
+
+// 스튜디오 'PR 가져오기' 피커 3단계(리뷰 실행) [설계 추론] — target_type=PR로 저장돼 PR 리뷰 목록에도 뜬다
+export const reviewImportedPr = (repoId, prNumber, code, modelName, title, authorLogin) =>
+  USE_MOCK
+    ? mock({ reviewId: 4, modelName: modelName || 'claude-haiku-4-5', status: 'COMPLETED',
+        summary: null, analyzable: true, issues: [{ ...M.mockIssue, id: 4 }] }, 900)
+    : http('POST', `/api/repos/${repoId}/prs/${prNumber}/review`, { code, modelName, title, authorLogin });
 
 /* ══════════ 비로그인 / 직접 업로드 (LOC) ══════════ */
 

@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.review.service;
 
+import idu.sba.backend.domain.pr.dto.PrReviewImportRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
@@ -28,5 +29,9 @@ public interface ReviewService {
 
     // 리뷰 히스토리 상세 [설계 추론]: 본인 리뷰가 아니면 REVIEW_ACCESS_DENIED
     ReviewHistoryDetailResponseDTO getHistoryDetail(Long userId, Long reviewId);
+
+    // Studio "PR 가져오기"로 고른 파일을 리뷰 [설계 추론] — 웹훅 경로와 달리 호출자 본인 크레딧/동기 응답.
+    // target_type=PR로 저장돼 API-025(GET /api/prs/{prId}/review)에서도 조회 가능해진다.
+    ReviewResultResponseDTO createFromPrImport(Long callerId, Long repoId, Integer prNumber, PrReviewImportRequestDTO request);
 
 }

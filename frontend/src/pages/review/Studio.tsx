@@ -122,7 +122,7 @@ export default function Studio() {
 
   const importFiles = () => {
     const files = picker.files.filter((f) => picker.checked.has(f.path));
-    const prNumber = picker.pr.number;
+    const { repo, pr } = picker;
     setPicker(null);
     if (files.length === 0) return;
     const front = files.find(isFrontend);
@@ -130,22 +130,35 @@ export default function Studio() {
       setPreviewCode(front.code);
       setDockOpen(true);
     } // 디자인이 바로 보이게 도크 자동 오픈
-    runReview(files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"), files, prNumber);
+    runReview(files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"), files, {
+      repoId: repo.repoId,
+      prNumber: pr.number,
+      title: pr.title,
+      authorLogin: pr.authorLogin,
+    });
   };
 
-  /* ── ② 리뷰 시작 — 여기서부터 모델 잠금 ── */
-  const runReview = async (codeText: string, files?: any[], prNumber?: number) => {
+  /* ── ② 리뷰 시작 — 여기서부터 모델 잠금.
+   * PR 가져오기로 시작한 리뷰는 target_type=PR로 저장돼(prMeta 있으면 reviewImportedPr 호출)
+   * "PR 리뷰"(/app/prs) 목록에도 실제로 뜬다 — 직접 붙여넣기/업로드는 그대로 PASTE/UPLOAD. ── */
+  const runReview = async (
+    codeText: string,
+    files?: any[],
+    prMeta?: { repoId: number; prNumber: number; title?: string; authorLogin?: string },
+  ) => {
     if (!spendCredit(modelWeight(model))) return;
     const hasFront = files?.some(isFrontend) || /<[a-z][^>]*>/i.test(codeText); // 미리보기 힌트용
     if (files)
       push({
         who: "me",
-        text: `🐙 PR #${prNumber} 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}`,
+        text: `🐙 PR #${prMeta.prNumber} 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}`,
       });
     else push({ who: "me", text: codeText, isCode: true });
     setBusy(true);
     try {
-      const res = await api.pasteReview(codeText, model);
+      const res = prMeta
+        ? await api.reviewImportedPr(prMeta.repoId, prMeta.prNumber, codeText, model, prMeta.title, prMeta.authorLogin)
+        : await api.pasteReview(codeText, model);
       setReviewId(res.reviewId ?? 1);
       if (res.analyzable === false) {
         // 코드가 아니거나 분석 불가한 입력 — 서버가 크레딧을 이미 환불했으니 로컬 표시도 맞춘다
@@ -392,9 +405,8 @@ export default function Studio() {
                         api.finalizeIssue(it.id, verdicts[it.id]),
                       ),
                     );
-                    // PASTE/UPLOAD/PR 가져오기 전부 이 화면에서 만든 리뷰는 항상 target_type=PASTE/UPLOAD라
-                    // "PR 리뷰"로 이동시킬 곳이 원래 없었음(팀 결재가 필요한 실제 PR 리뷰는 별개 대시보드,
-                    // 아직 미구현) — 화면 이동 없이 이 자리에서 완료만 알린다
+                    // PR 가져오기로 만든 리뷰는 target_type=PR로 저장돼 "PR 리뷰"(/app/prs)에서도 보이지만,
+                    // 팀 결재(RDB-003)가 필요한 화면은 아니라서 강제로 이동시키지 않고 여기서 완료만 알린다
                     notify("리뷰를 완료했어요. 판정이 저장됐어요.");
                   } finally {
                     setBusy(false);
