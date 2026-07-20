@@ -52,9 +52,7 @@ public class GithubApiClient {
 
     //PR의 변경 파일 + diff(patch) 조회(API-024/025) — 100개 초과 파일은 페이지네이션 필요하나 이번 범위는 첫 페이지만
     public List<GithubPrFileDto> listPrFiles(String accessToken, String repoFullName, int prNumber) {
-        // repoFullName("owner/repo")을 {fullName} 하나로 넘기면 Spring이 그 안의 '/'를 %2F로 인코딩해버려서
-        // GitHub가 존재하지 않는 경로로 받는다 — owner/repo를 각자 별도 경로 세그먼트로 넘겨야 한다.
-        String[] parts = repoFullName.split("/", 2);
+        String[] parts = splitFullName(repoFullName);
         try {
             GithubPrFileDto[] files = restClient.get()
                     .uri("/repos/{owner}/{repo}/pulls/{prNumber}/files?per_page=100", parts[0], parts[1], prNumber)
@@ -68,6 +66,30 @@ public class GithubApiClient {
                     repoFullName, prNumber, e.getStatusCode(), e.getResponseBodyAsString(), e);
             throw new BusinessException(ErrorCode.GITHUB_API_ERROR);
         }
+    }
+
+    //레포의 열린 PR 목록 조회(Studio "PR 가져오기" 피커용) — 100개 초과는 이번 범위에서 페이지네이션 안 함
+    public List<GithubPrSummaryDto> listPullRequests(String accessToken, String repoFullName) {
+        String[] parts = splitFullName(repoFullName);
+        try {
+            GithubPrSummaryDto[] prs = restClient.get()
+                    .uri("/repos/{owner}/{repo}/pulls?state=open&per_page=100", parts[0], parts[1])
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Accept", "application/vnd.github+json")
+                    .retrieve()
+                    .body(GithubPrSummaryDto[].class);
+            return prs != null ? List.of(prs) : List.of();
+        } catch (RestClientResponseException e) {
+            log.error("PR 목록 조회 실패 - repoFullName={}, status={}, body={}",
+                    repoFullName, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new BusinessException(ErrorCode.GITHUB_API_ERROR);
+        }
+    }
+
+    // repoFullName("owner/repo")을 경로 변수 하나로 넘기면 Spring이 그 안의 '/'를 %2F로 인코딩해버려서
+    // GitHub가 존재하지 않는 경로로 받는다 — owner/repo를 각자 별도 경로 세그먼트로 넘겨야 한다.
+    private String[] splitFullName(String repoFullName) {
+        return repoFullName.split("/", 2);
     }
 
 }

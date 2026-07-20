@@ -12,7 +12,7 @@
  * PR 상세(팀장 승인·내보내기)는 별도 페이지 유지 — 거기서 [스튜디오에서 이어가기]로 넘어온다.
  */
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import * as api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
@@ -20,7 +20,7 @@ import { PageHead, SevChip } from "../../components/ui";
 import { MODEL_TIERS, PLAN_TIER, catKo } from "../../data/constants";
 import PreviewDock from "./PreviewDock";
 
-const isFrontend = (f) => /html|css/i.test(f.language) || f.kind === "frontend";
+const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend";
 
 // AI가 description에 섞어 보내는 마크다운 코드 표기(```블록, `인라인`)만 구분해서 렌더링.
 // 마크다운 라이브러리 없이, 정규식으로 코드 부분만 잘라내 코드체로 보여준다.
@@ -58,7 +58,6 @@ const renderDescription = (text: string) => {
 export default function Studio() {
   const { user } = useAuth();
   const { spendCredit, refundCredit, notify, S, creditLimit } = useGame();
-  const loc = useLocation();
   const fileRef = useRef(null);
   const threadRef = useRef(null); // 채팅 스레드 컨테이너 — 내부 스크롤 전용
   const myTier = PLAN_TIER[user.planName] ?? 1;
@@ -70,9 +69,8 @@ export default function Studio() {
   const [model, setModel] = useState(MODEL_TIERS[0].name);
   const [busy, setBusy] = useState(false);
   const [reviewId, setReviewId] = useState(null); // null = 아직 시작 전 (모델 변경 가능)
-  const nav = useNavigate();
   const [verdicts, setVerdicts] = useState({}); // #6 이슈별 판정 { [issueId]: 'RESOLVED' | 'IGNORED' }
-  const [picker, setPicker] = useState(null); // PR 파일 선택 모달 { files, checked:Set }
+  const [picker, setPicker] = useState(null); // PR 가져오기 모달 — 레포→PR→파일 3단계 { step, repos, repo, prs, pr, files, checked:Set }
   const [previewCode, setPreviewCode] = useState(null); // 미리보기 대상 (프론트 파일)
   const [dockOpen, setDockOpen] = useState(false);
   const actionCost = reviewId === null ? modelWeight(model) : 1; // 리뷰 시작=모델 등급, 후속 질문=1
@@ -84,27 +82,9 @@ export default function Studio() {
     if (t) t.scrollTop = t.scrollHeight; // scrollTo 미지원 환경도 안전
   }, [msgs, busy]);
 
-  const auto = useRef(false);
-  useEffect(() => {
-    if (auto.current) return;
-    auto.current = true;
-    (async () => {
-      if (loc.state?.prId) {
-        // PR 리뷰에서 넘어온 경우에만 자동 시작: 그 PR 파일로 리뷰
-        const files = await api.getPrFiles(loc.state.prId);
-        const front = files.find(isFrontend);
-        if (front) {
-          setPreviewCode(front.code);
-          setDockOpen(true);
-        }
-        runReview(
-          files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"),
-          files,
-        );
-      }
-      // 직접 들어온 경우: 자동 실행 없음 — [🐙 PR 가져오기] / [직접 붙여넣기]로 소스를 먼저 고른다
-    })();
-  }, []);
+  // PR 상세 화면(PrDetail.tsx)에서 [스튜디오에서 마저 판정]으로 넘어오는 자동 실행은
+  // PR 대시보드(API-032/034, 아직 mock)의 prId 체계에 맞물려 있어 이번 범위에서 같이 못 고침 —
+  // 대시보드가 실제 백엔드를 갖추면 그때 (repoId, prNumber) 기준으로 재연결 필요.
 
   const push = (m) => setMsgs((prev) => [...prev, m]);
   const cogiSays = (list, gap = 650) => {
@@ -114,14 +94,35 @@ export default function Studio() {
     setTimeout(() => setBusy(false), gap * (list.length + 1));
   };
 
-  /* ── ① PR 가져오기: PR 상세에서 넘어왔으면 그 PR, 아니면 대표 PR 의 파일 목록 ── */
+  /* ── ① PR 가져오기: 레포 선택 → PR 선택 → 파일 선택, 3단계 피커 ── */
   const openPicker = async () => {
-    const files = await api.getPrFiles(loc.state?.prId ?? 1);
-    setPicker({ files, checked: new Set(files.map((f) => f.path)) }); // 기본 전체 선택
+    const repos = await api.getMyLinkedRepos();
+    if (repos.length === 0) {
+      notify("연동된 레포가 없어요. 레포 연동 화면에서 먼저 연동해주세요.");
+      return;
+    }
+    setPicker({ step: "repo", repos }); // 기본: 레포 선택 단계부터
+  };
+
+  const selectRepo = async (repo) => {
+    const prs = await api.getRepoPrs(repo.repoId);
+    setPicker((p) => ({ ...p, step: "pr", repo, prs }));
+  };
+
+  const selectPr = async (pr) => {
+    const files = await api.getRepoPrFiles(picker.repo.repoId, pr.number);
+    setPicker((p) => ({
+      ...p,
+      step: "files",
+      pr,
+      files,
+      checked: new Set(files.map((f) => f.path)), // 기본 전체 선택
+    }));
   };
 
   const importFiles = () => {
     const files = picker.files.filter((f) => picker.checked.has(f.path));
+    const prNumber = picker.pr.number;
     setPicker(null);
     if (files.length === 0) return;
     const front = files.find(isFrontend);
@@ -129,17 +130,17 @@ export default function Studio() {
       setPreviewCode(front.code);
       setDockOpen(true);
     } // 디자인이 바로 보이게 도크 자동 오픈
-    runReview(files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"), files);
+    runReview(files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"), files, prNumber);
   };
 
   /* ── ② 리뷰 시작 — 여기서부터 모델 잠금 ── */
-  const runReview = async (codeText: string, files?: any[]) => {
+  const runReview = async (codeText: string, files?: any[], prNumber?: number) => {
     if (!spendCredit(modelWeight(model))) return;
     const hasFront = files?.some(isFrontend) || /<[a-z][^>]*>/i.test(codeText); // 미리보기 힌트용
     if (files)
       push({
         who: "me",
-        text: `🐙 PR #42 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}`,
+        text: `🐙 PR #${prNumber} 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}`,
       });
     else push({ who: "me", text: codeText, isCode: true });
     setBusy(true);
@@ -345,7 +346,7 @@ export default function Studio() {
           return (
             <div className={`studio-done ${all ? "ready" : ""}`}>
               {all ? (
-                <span>{`✅ 지적 ${issues.length}건을 모두 확인했어요. 아래 버튼으로 리뷰를 마치면 결과가 PR 리뷰에 정리됩니다.`}</span>
+                <span>{`✅ 지적 ${issues.length}건을 모두 확인했어요. 아래 버튼으로 리뷰를 마치면 판정이 저장돼요.`}</span>
               ) : (
                 <div className="next-issue">
                   <div
@@ -391,16 +392,16 @@ export default function Studio() {
                         api.finalizeIssue(it.id, verdicts[it.id]),
                       ),
                     );
-                    notify(
-                      "리뷰를 완료했어요. PR 리뷰에서 정리된 결과를 확인하세요",
-                    );
-                    nav("/app/prs");
+                    // PASTE/UPLOAD/PR 가져오기 전부 이 화면에서 만든 리뷰는 항상 target_type=PASTE/UPLOAD라
+                    // "PR 리뷰"로 이동시킬 곳이 원래 없었음(팀 결재가 필요한 실제 PR 리뷰는 별개 대시보드,
+                    // 아직 미구현) — 화면 이동 없이 이 자리에서 완료만 알린다
+                    notify("리뷰를 완료했어요. 판정이 저장됐어요.");
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                리뷰 완료 → PR 리뷰에서 확인
+                리뷰 완료
               </button>
             </div>
           );
@@ -507,71 +508,128 @@ export default function Studio() {
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3>🐙 PR #42 — 가져올 파일 선택</h3>
-            <p className="note sm" style={{ marginBottom: 14 }}>
-              여러 개 선택할 수 있어요. 프론트 파일이 포함되면 미리보기도
-              열립니다.
-            </p>
-            <label
-              className="check-row"
-              style={{ fontWeight: 700, marginBottom: 10 }}
-            >
-              <input
-                type="checkbox"
-                checked={picker.checked.size === picker.files.length}
-                onChange={(e) =>
-                  setPicker((p) => ({
-                    ...p,
-                    checked: new Set(
-                      e.target.checked ? p.files.map((f) => f.path) : [],
-                    ),
-                  }))
-                }
-              />
-              전체 선택
-            </label>
-            {picker.files.map((f) => (
-              <label
-                key={f.path}
-                className="check-row"
-                style={{ marginBottom: 8 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={picker.checked.has(f.path)}
-                  onChange={() =>
-                    setPicker((p) => {
-                      const next = new Set(p.checked);
-                      next.has(f.path) ? next.delete(f.path) : next.add(f.path);
-                      return { ...p, checked: next };
-                    })
-                  }
-                />
-                <span className="mono" style={{ fontSize: 12.5 }}>
-                  {f.path}
-                </span>
-                <span className={`chip ${isFrontend(f) ? "low" : "navy"}`}>
-                  {isFrontend(f) ? "프론트" : "백엔드"}
-                </span>
-              </label>
-            ))}
-            {insufficientCredit && (
-              <p className="model-hint" style={{ marginTop: 10 }}>
-                ⚡ 오늘 크레딧을 다 썼어요 · 자정에 초기화돼요
-              </p>
+            {/* 1단계: 레포 선택 */}
+            {picker.step === "repo" && (
+              <>
+                <h3>🐙 어느 레포의 PR을 가져올까요?</h3>
+                <p className="note sm" style={{ marginBottom: 14 }}>
+                  연동된 레포 목록이에요.
+                </p>
+                {picker.repos.map((r) => (
+                  <div
+                    key={r.repoId}
+                    className="check-row"
+                    style={{ marginBottom: 8 }}
+                    onClick={() => selectRepo(r)}
+                  >
+                    <span className="mono" style={{ fontSize: 12.5 }}>{r.repoName}</span>
+                  </div>
+                ))}
+                <div className="row" style={{ marginTop: 20 }}>
+                  <button className="btn wh sm" onClick={() => setPicker(null)}>취소</button>
+                </div>
+              </>
             )}
-            <div className="row" style={{ marginTop: 20 }}>
-              <button className="btn wh sm" onClick={() => setPicker(null)}>
-                취소
-              </button>
-              <button
-                className="btn co sm ml-auto"
-                onClick={importFiles}
-                disabled={picker.checked.size === 0 || insufficientCredit}
-              >
-                {picker.checked.size}개 가져와서 리뷰 (⚡{modelWeight(model)})
-              </button>
-            </div>
+
+            {/* 2단계: PR 선택 */}
+            {picker.step === "pr" && (
+              <>
+                <h3>🐙 {picker.repo.repoName} — 가져올 PR 선택</h3>
+                <p className="note sm" style={{ marginBottom: 14 }}>
+                  {picker.prs.length === 0 ? "열린 PR이 없어요." : "열린 PR 목록이에요."}
+                </p>
+                {picker.prs.map((pr) => (
+                  <div
+                    key={pr.number}
+                    className="check-row"
+                    style={{ marginBottom: 8 }}
+                    onClick={() => selectPr(pr)}
+                  >
+                    <span className="mono xs">#{pr.number}</span>
+                    <span style={{ fontSize: 13 }}>{pr.title}</span>
+                    {pr.authorLogin && (
+                      <span className="chip navy">@{pr.authorLogin}</span>
+                    )}
+                  </div>
+                ))}
+                <div className="row" style={{ marginTop: 20 }}>
+                  <button className="btn wh sm" onClick={() => setPicker((p) => ({ step: "repo", repos: p.repos }))}>
+                    ← 레포 다시 선택
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* 3단계: 파일 선택 */}
+            {picker.step === "files" && (
+              <>
+                <h3>🐙 PR #{picker.pr.number} — 가져올 파일 선택</h3>
+                <p className="note sm" style={{ marginBottom: 14 }}>
+                  여러 개 선택할 수 있어요. 프론트 파일이 포함되면 미리보기도
+                  열립니다.
+                </p>
+                <label
+                  className="check-row"
+                  style={{ fontWeight: 700, marginBottom: 10 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={picker.checked.size === picker.files.length}
+                    onChange={(e) =>
+                      setPicker((p) => ({
+                        ...p,
+                        checked: new Set(
+                          e.target.checked ? p.files.map((f) => f.path) : [],
+                        ),
+                      }))
+                    }
+                  />
+                  전체 선택
+                </label>
+                {picker.files.map((f) => (
+                  <label
+                    key={f.path}
+                    className="check-row"
+                    style={{ marginBottom: 8 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={picker.checked.has(f.path)}
+                      onChange={() =>
+                        setPicker((p) => {
+                          const next = new Set(p.checked);
+                          next.has(f.path) ? next.delete(f.path) : next.add(f.path);
+                          return { ...p, checked: next };
+                        })
+                      }
+                    />
+                    <span className="mono" style={{ fontSize: 12.5 }}>
+                      {f.path}
+                    </span>
+                    <span className={`chip ${isFrontend(f) ? "low" : "navy"}`}>
+                      {isFrontend(f) ? "프론트" : "백엔드"}
+                    </span>
+                  </label>
+                ))}
+                {insufficientCredit && (
+                  <p className="model-hint" style={{ marginTop: 10 }}>
+                    ⚡ 오늘 크레딧을 다 썼어요 · 자정에 초기화돼요
+                  </p>
+                )}
+                <div className="row" style={{ marginTop: 20 }}>
+                  <button className="btn wh sm" onClick={() => setPicker(null)}>
+                    취소
+                  </button>
+                  <button
+                    className="btn co sm ml-auto"
+                    onClick={importFiles}
+                    disabled={picker.checked.size === 0 || insufficientCredit}
+                  >
+                    {picker.checked.size}개 가져와서 리뷰 (⚡{modelWeight(model)})
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
