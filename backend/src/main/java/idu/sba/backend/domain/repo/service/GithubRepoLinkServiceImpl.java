@@ -45,7 +45,8 @@ public class GithubRepoLinkServiceImpl implements GithubRepoLinkService {
         GithubRepoDto repo = githubApiClient.getRepo(accessToken, githubRepoId);
 
         GithubRepository saved = githubRepositoryRepository.save(
-                GithubRepository.link(currentUserId, String.valueOf(repo.getId()), repo.getName(), repo.isPrivate()));
+                GithubRepository.link(currentUserId, String.valueOf(repo.getId()), repo.getName(),
+                        repo.isPrivate(), repo.getFullName()));
 
         //연동한 사람을 이 레포의 OWNER로 등록(레포 초대 기능과 연결되는 지점)
         repoMemberService.registerOwner(saved.getId(), currentUserId);

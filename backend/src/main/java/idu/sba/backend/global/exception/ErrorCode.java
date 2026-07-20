@@ -82,7 +82,10 @@ public enum ErrorCode {
     //AI 코드 리뷰 생성(REV-003)
     CREDIT_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS,"오늘의 리뷰 요청 한도를 모두 사용했습니다."), //429
     MODEL_NOT_ALLOWED_FOR_PLAN(HttpStatus.FORBIDDEN,"현재 요금제에서 선택할 수 없는 모델입니다."),
-    AI_MODEL_CALL_FAILED(HttpStatus.BAD_GATEWAY,"AI 모델 호출에 실패했습니다.");
+    AI_MODEL_CALL_FAILED(HttpStatus.BAD_GATEWAY,"AI 모델 호출에 실패했습니다."),
+
+    //PR 리뷰(API-024/025)
+    PR_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 PR입니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지

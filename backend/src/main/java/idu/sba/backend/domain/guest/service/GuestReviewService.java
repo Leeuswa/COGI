@@ -13,6 +13,7 @@ import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
+import idu.sba.backend.global.ai.AiInputType;
 import idu.sba.backend.global.ai.AiModel;
 import idu.sba.backend.global.ai.AiReviewClient;
 import idu.sba.backend.global.ai.AiReviewResult;
@@ -90,7 +91,7 @@ public class GuestReviewService {
         try {
             String systemPrompt = buildPrompt(request.getLanguage(), level);
             AiReviewResult result = aiReviewClient.review(
-                    GUEST_MODEL, systemPrompt, request.getCode(), request.getLanguage());
+                    GUEST_MODEL, systemPrompt, request.getCode(), request.getLanguage(), AiInputType.PASTED_CODE);
             summary = result.summary();
             comments = result.issues().stream()
                     .map(i -> new ReviewComment(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))

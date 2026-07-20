@@ -347,9 +347,9 @@ class RepoMemberServiceImplTest {
         RepoMember asMember = RepoMember.of(2L, MEMBER_ID, RepoRole.MEMBER);
         when(repoMemberRepository.findByUserId(MEMBER_ID)).thenReturn(List.of(asOwner, asMember));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(
-                GithubRepository.link(MEMBER_ID, "gh-1", "repo-one", false)));
+                GithubRepository.link(MEMBER_ID, "gh-1", "repo-one", false, "owner/repo-one")));
         when(githubRepositoryRepository.findById(2L)).thenReturn(Optional.of(
-                GithubRepository.link(OWNER_ID, "gh-2", "repo-two", false)));
+                GithubRepository.link(OWNER_ID, "gh-2", "repo-two", false, "owner/repo-two")));
 
         var result = service.listMyRepos(MEMBER_ID);
 
@@ -457,6 +457,21 @@ class RepoMemberServiceImplTest {
         assertThat(target.getRole()).isEqualTo(RepoRole.OWNER);
         assertThat(result.getRole()).isEqualTo("OWNER");
         assertThat(result.getGithubUsername()).isEqualTo("target-gh");
+    }
+
+    @Test
+    void transferOwnership_시_GithubRepository의_연동_등록자도_새_팀장으로_갱신된다() {
+        RepoMember owner = owner();
+        RepoMember target = RepoMember.of(REPO_ID, MEMBER_ID, RepoRole.MEMBER);
+        GithubRepository repo = GithubRepository.link(OWNER_ID, "gh-repo-1", "repo-name", false, "owner/repo-name");
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID)).thenReturn(Optional.of(owner));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, MEMBER_ID)).thenReturn(Optional.of(target));
+        when(userRepository.findById(MEMBER_ID)).thenReturn(Optional.of(userWithGithub(MEMBER_ID, "target-gh", "target@test.com")));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo));
+
+        service.transferOwnership(OWNER_ID, REPO_ID, MEMBER_ID);
+
+        assertThat(repo.getUserId()).isEqualTo(MEMBER_ID);
     }
 
 }
