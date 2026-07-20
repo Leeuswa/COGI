@@ -16,7 +16,9 @@ import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
+import idu.sba.backend.global.mail.HtmlMailSender;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SubscriptionServiceImpl implements SubscriptionService {
 
     private final PlanRepository planRepository;
@@ -39,6 +42,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final TossPaymentClient tossPaymentClient;
     private final TermRepository termRepository;
     private final UserAgreementRepository userAgreementRepository;
+
+    //이메일 알림 연동
+    private final HtmlMailSender htmlMailSender;
+
 
     private static final String FREE_PLAN_NAME = "FREE"; // FREE 플랜 시드의 이름
 
@@ -159,6 +166,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.updatePlanId(newPlan.getId());
 
+        try {
+            sendBillingMail(user.getEmail(), newPlan.getName(), newPlan.getPrice(), pm.getCardMaskedNumber());
+        } catch (Exception e) {
+            log.warn("결제 청구 메일 발송 실패 userId={}: {}", userId, e.getMessage());
+        }
+
+
         return saved.getId();
     }
 
@@ -269,5 +283,20 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         int remainingDays = totalDays - changeDate.getDayOfMonth();
         int diff = newPrice - oldPrice;
         return diff * remainingDays / totalDays;
+    }
+
+    //결제시 이메일 알림
+    private void sendBillingMail(String to, String planName, long amount, String cardMasked) {
+        String inner = """
+        <p style="margin:0 0 8px;color:#1b2a4a;font-size:17px;font-weight:bold;">결제 완료</p>
+        <p style="margin:0 0 20px;color:#40507a;font-size:13px;">구독 결제가 정상 처리되었습니다.</p>
+        <div style="background:#fdfcf7;border:3px solid #1b2a4a;padding:16px;color:#1b2a4a;font-size:14px;">
+          <p style="margin:0 0 6px;">플랜: <b>%s</b></p>
+          <p style="margin:0 0 6px;">금액: <b>%,d원</b></p>
+          <p style="margin:0;">결제수단: <b>%s</b></p>
+        </div>
+        """.formatted(planName, amount, cardMasked);
+        htmlMailSender.send(to, "[COGI] 결제가 완료되었습니다", inner);
+
     }
 }
