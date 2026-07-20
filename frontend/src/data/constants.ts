@@ -42,7 +42,7 @@ export const SEVERITIES = ['CRITICAL', 'MAJOR', 'MINOR'];
 export const CATEGORY_KO = { BUG: '버그', PERFORMANCE: '성능', CODE_SMELL: '코드 냄새', CONVENTION: '컨벤션', SECURITY: '보안' };
 export const SEVERITY_KO = { CRITICAL: '심각', MAJOR: '주의', MINOR: '경미' };
 export const ISSUE_STATUS_KO = { OPEN: '미해결', PENDING: '승인 대기', RESOLVED: '해결됨', IGNORED: '무시됨' };
-export const PR_STATUS_KO = { REVIEWED: '검토 완료', REVIEWING: '검토 중', FAILED: '검토 실패' };
+export const PR_STATUS_KO = { REVIEWED: '검토 완료', REVIEWING: '검토 중', OPEN: '검토 대기', FAILED: '검토 실패' };
 // 리뷰 히스토리(REVIEW_TARGET_TYPE) 표기용 — PR은 웹훅 경로, 나머지는 리뷰 스튜디오에서 만든 리뷰
 export const REVIEW_TARGET_KO = { PASTE: '붙여넣기', UPLOAD: '파일 업로드', PR: 'PR', GUEST: '체험 리뷰' };
 export const REVIEW_STATUS_KO = { PENDING: '처리 중', COMPLETED: '완료', FAILED: '실패' };

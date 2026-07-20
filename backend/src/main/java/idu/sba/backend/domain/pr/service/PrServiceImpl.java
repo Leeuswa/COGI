@@ -2,6 +2,7 @@ package idu.sba.backend.domain.pr.service;
 
 import idu.sba.backend.domain.pr.dto.PrDetailResponseDTO;
 import idu.sba.backend.domain.pr.dto.PrFileResponseDTO;
+import idu.sba.backend.domain.pr.dto.PrListItemResponseDTO;
 import idu.sba.backend.domain.pr.dto.PrReviewResponseDTO;
 import idu.sba.backend.domain.pr.dto.PrSummaryResponseDTO;
 import idu.sba.backend.domain.pr.entity.PullRequest;
@@ -12,6 +13,7 @@ import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
 import idu.sba.backend.domain.review.entity.Review;
+import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.User;
@@ -75,6 +77,22 @@ public class PrServiceImpl implements PrService {
         return githubApiClient.listPrFiles(accessToken, repo.getFullName(), prNumber).stream()
                 .filter(f -> f.getPatch() != null) //바이너리/과대용량 diff는 patch가 없어 GitHub가 생략함
                 .map(PrFileResponseDTO::of)
+                .toList();
+    }
+
+    @Override
+    public List<PrListItemResponseDTO> listReviewedPrs(Long currentUserId, Long repoId) {
+        requireRepoMember(currentUserId, repoId);
+        return pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(repoId).stream()
+                .map(pr -> {
+                    String authorName = pr.getAuthorId() == null ? null
+                            : userRepository.findById(pr.getAuthorId()).map(User::getNickname).orElse(null);
+                    List<ReviewIssue> issues = reviewRepository.findByPrId(pr.getId())
+                            .map(Review::getId)
+                            .map(reviewIssueRepository::findByReviewId)
+                            .orElse(List.of());
+                    return PrListItemResponseDTO.of(pr, authorName, issues);
+                })
                 .toList();
     }
 

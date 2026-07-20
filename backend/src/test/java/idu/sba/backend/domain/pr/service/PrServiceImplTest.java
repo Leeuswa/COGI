@@ -234,4 +234,35 @@ class PrServiceImplTest {
         assertThat(result.get(0).getCode()).contains("+new");
     }
 
+    // ---------- listReviewedPrs (API-032, 팀 대신 레포 기준 [설계 추론]) ----------
+
+    @Test
+    void listReviewedPrs_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.listReviewedPrs(USER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void listReviewedPrs_이슈개수와_최고심각도를_포함해_반환한다() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(REPO_ID)).thenReturn(List.of(pr()));
+        Review review = Review.createFromPr(USER_ID, PR_ID, "claude-haiku-4-5");
+        setField(review, "id", 900L);
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.of(review));
+        when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(
+                ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.MINOR, "Foo.java", 1, "설명1"),
+                ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 2, "설명2")));
+
+        var result = service.listReviewedPrs(USER_ID, REPO_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getIssueCount()).isEqualTo(2);
+        assertThat(result.get(0).getTopSeverity()).isEqualTo("CRITICAL");
+    }
+
 }
