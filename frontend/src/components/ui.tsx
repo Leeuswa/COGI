@@ -72,6 +72,7 @@ export function Nav() {
           <NavLink to="/app" end className={({ isActive }) => (isActive ? 'on' : '')}>대시보드</NavLink>
           <NavLink to="/app/prs" className={({ isActive }) => (isActive ? 'on' : '')}>PR 리뷰</NavLink>
           <NavLink to="/app/paste" className={({ isActive }) => (isActive ? 'on' : '')}>리뷰 스튜디오</NavLink>
+          <NavLink to="/app/history" className={({ isActive }) => (isActive ? 'on' : '')}>리뷰 히스토리</NavLink>
           <NavLink to="/app/weakness" className={({ isActive }) => (isActive ? 'on' : '')}>약점</NavLink>
           <NavLink to="/app/cards" className={({ isActive }) => (isActive ? 'on' : '')}>학습카드</NavLink>
           <NavLink to="/app/courses" className={({ isActive }) => (isActive ? 'on' : '')}>강의</NavLink>

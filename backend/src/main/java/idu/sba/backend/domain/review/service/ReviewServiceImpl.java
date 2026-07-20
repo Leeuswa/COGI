@@ -8,6 +8,8 @@ import idu.sba.backend.domain.pr.repository.PullRequestRepository;
 import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
+import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
+import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewResultResponseDTO;
@@ -38,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -236,6 +239,32 @@ public class ReviewServiceImpl implements ReviewService {
     private ReviewResultResponseDTO toResponse(Review review, ReviewOutcome outcome) {
         return ReviewResultResponseDTO.of(review, outcome.issues().stream().map(ReviewIssueResponseDTO::of).toList(),
                 outcome.summary(), outcome.analyzable());
+    }
+
+    @Override
+    public List<ReviewHistoryItemResponseDTO> getHistory(Long userId) {
+        List<Review> reviews = reviewRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<Long> reviewIds = reviews.stream().map(Review::getId).toList();
+        Map<Long, List<ReviewIssue>> issuesByReviewId = reviewIssueRepository.findByReviewIdIn(reviewIds).stream()
+                .collect(Collectors.groupingBy(ReviewIssue::getReviewId));
+
+        return reviews.stream()
+                .map(review -> ReviewHistoryItemResponseDTO.of(review,
+                        issuesByReviewId.getOrDefault(review.getId(), List.of())))
+                .toList();
+    }
+
+    @Override
+    public ReviewHistoryDetailResponseDTO getHistoryDetail(Long userId, Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
+        if (!userId.equals(review.getUserId())) {
+            throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
+        }
+        List<ReviewIssueResponseDTO> issues = reviewIssueRepository.findByReviewId(reviewId).stream()
+                .map(ReviewIssueResponseDTO::of)
+                .toList();
+        return ReviewHistoryDetailResponseDTO.of(review, issues);
     }
 
 }
