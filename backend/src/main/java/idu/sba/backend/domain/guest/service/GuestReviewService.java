@@ -51,7 +51,7 @@ public class GuestReviewService {
     private static final int TRIAL_LIMIT = 3;
 
     // 게스트 체험이 쓰는 모델. claim 시 reviews.model_name 에도 이 값을 남긴다.
-    private static final AiModel GUEST_MODEL = AiModel.GEMINI_FLASH_LITE;
+    private static final AiModel GUEST_MODEL = AiModel.GEMINI_FLASH;
 
     // 체험 횟수 유지 창. 첫 리뷰 시점부터 24시간 뒤 카운터가 만료돼 3회가 리셋된다.
     private static final Duration TRIAL_WINDOW = Duration.ofHours(24);
