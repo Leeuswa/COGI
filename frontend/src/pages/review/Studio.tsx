@@ -503,7 +503,7 @@ export default function Studio() {
       {picker && (
         <div className="modal-mask" onClick={() => setPicker(null)}>
           <div
-            className="modal"
+            className="modal wide"
             role="dialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}

@@ -89,7 +89,11 @@ public enum ErrorCode {
 
     //이슈 확정(API-031 [설계 추론])
     ISSUE_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 이슈입니다."),
-    ISSUE_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰 이슈만 처리할 수 있습니다.");
+    ISSUE_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰 이슈만 처리할 수 있습니다."),
+
+    //리뷰 히스토리 [설계 추론]
+    REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 리뷰입니다."),
+    REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰만 조회할 수 있습니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지

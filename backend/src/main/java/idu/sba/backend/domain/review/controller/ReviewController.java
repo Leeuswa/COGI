@@ -1,5 +1,7 @@
 package idu.sba.backend.domain.review.controller;
 
+import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
+import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewResultResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewUploadRequestDTO;
@@ -49,6 +51,19 @@ public class ReviewController {
         String code = readFileContent(file);
         ReviewUploadRequestDTO request = new ReviewUploadRequestDTO(code, language, file.getOriginalFilename(), modelName);
         return ApiResponse.ok(reviewService.createFromUpload(userId, request));
+    }
+
+    // [설계 추론] 리뷰 히스토리 — 붙여넣기/업로드/PR가져오기로 만든 개별 리뷰 목록(대시보드 집계와 별개)
+    @GetMapping("/history")
+    public ApiResponse<List<ReviewHistoryItemResponseDTO>> getHistory(@AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(reviewService.getHistory(userId));
+    }
+
+    // [설계 추론] 리뷰 히스토리 상세 — 개별 리뷰의 이슈 목록
+    @GetMapping("/history/{reviewId}")
+    public ApiResponse<ReviewHistoryDetailResponseDTO> getHistoryDetail(
+            @AuthenticationPrincipal Long userId, @PathVariable Long reviewId) {
+        return ApiResponse.ok(reviewService.getHistoryDetail(userId, reviewId));
     }
 
     private String readFileContent(MultipartFile file) {

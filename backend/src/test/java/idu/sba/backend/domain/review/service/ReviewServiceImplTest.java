@@ -11,6 +11,10 @@ import idu.sba.backend.domain.repo.client.GithubPrFileDto;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
+import idu.sba.backend.domain.review.entity.IssueCategory;
+import idu.sba.backend.domain.review.entity.IssueSeverity;
+import idu.sba.backend.domain.review.entity.Review;
+import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.entity.ReviewStatus;
 import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
@@ -321,6 +325,68 @@ class ReviewServiceImplTest {
         assertThat(pr.getStatus()).isEqualTo(PullRequestStatus.FAILED);
         verify(subscriptionService, never()).getCurrentPlanEntity(any());
         verify(creditUsageService, never()).refund(any(), any()); //modelName조차 안 정해졌으니 환불 대상 아님
+    }
+
+    // ---------- 리뷰 히스토리 [설계 추론] ----------
+
+    private Review review(Long id, Long userId) {
+        Review review = Review.createPaste(userId, "code", "java", "claude-haiku-4-5");
+        setField(review, "id", id);
+        review.markCompleted();
+        return review;
+    }
+
+    @Test
+    void getHistory_리뷰가_없으면_빈_목록을_반환한다() {
+        when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
+        when(reviewIssueRepository.findByReviewIdIn(List.of())).thenReturn(List.of());
+
+        assertThat(service.getHistory(USER_ID)).isEmpty();
+    }
+
+    @Test
+    void getHistory_이슈_개수와_최고_심각도를_계산한다() {
+        Review review = review(10L, USER_ID);
+        when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
+        when(reviewIssueRepository.findByReviewIdIn(List.of(10L))).thenReturn(List.of(
+                ReviewIssue.of(10L, IssueCategory.BUG, IssueSeverity.MINOR, "Foo.java", 1, "설명1"),
+                ReviewIssue.of(10L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 2, "설명2")));
+
+        var result = service.getHistory(USER_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getIssueCount()).isEqualTo(2);
+        assertThat(result.get(0).getTopSeverity()).isEqualTo("CRITICAL"); //MINOR보다 CRITICAL이 더 심각
+    }
+
+    @Test
+    void getHistoryDetail_존재하지_않으면_REVIEW_NOT_FOUND() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getHistoryDetail(USER_ID, 10L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    void getHistoryDetail_본인_리뷰가_아니면_REVIEW_ACCESS_DENIED() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, OWNER_ID)));
+
+        assertThatThrownBy(() -> service.getHistoryDetail(USER_ID, 10L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_ACCESS_DENIED);
+    }
+
+    @Test
+    void getHistoryDetail_정상_케이스면_이슈목록을_반환한다() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, USER_ID)));
+        when(reviewIssueRepository.findByReviewId(10L)).thenReturn(List.of(
+                ReviewIssue.of(10L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 1, "설명")));
+
+        var result = service.getHistoryDetail(USER_ID, 10L);
+
+        assertThat(result.getReviewId()).isEqualTo(10L);
+        assertThat(result.getIssues()).hasSize(1);
     }
 
 }

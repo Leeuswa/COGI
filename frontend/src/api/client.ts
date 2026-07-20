@@ -362,6 +362,21 @@ export const uploadReview = (file, modelName?: string) => {
 export const getModelOptions = () =>
   USE_MOCK ? mock(MODEL_TIERS.map((m) => m.name)) : http('GET', '/api/reviews/model-options');
 
+// [설계 추론] GET /api/reviews/history — 붙여넣기/업로드/PR가져오기로 만든 개별 리뷰 목록(최신순)
+// "약점 통계"는 3회 이상 반복된 카테고리만 집계해서 보여주는 화면이라, 리뷰 1건 단위로 다시 찾아보려면 이게 필요하다.
+export const getReviewHistory = () =>
+  USE_MOCK
+    ? mock([{ reviewId: 2, targetType: 'PASTE', modelName: 'claude-haiku-4-5', status: 'COMPLETED',
+        originalFilename: null, createdAt: '2026-07-18T10:00:00', issueCount: 1, topSeverity: 'CRITICAL' }])
+    : http('GET', '/api/reviews/history');
+
+// [설계 추론] GET /api/reviews/history/{reviewId} — 히스토리 상세(이슈 목록)
+export const getReviewHistoryDetail = (reviewId) =>
+  USE_MOCK
+    ? mock({ reviewId, targetType: 'PASTE', modelName: 'claude-haiku-4-5', status: 'COMPLETED',
+        originalFilename: null, createdAt: '2026-07-18T10:00:00', issues: [M.mockIssue] })
+    : http('GET', `/api/reviews/history/${reviewId}`);
+
 /* ══════════ 맞춤 학습 (LRN) ══════════ */
 
 // API-042 GET /api/users/me/weakness-stats — 약점 통계(3회 이상). 데이터 없으면 콜드스타트 (FR-57)
