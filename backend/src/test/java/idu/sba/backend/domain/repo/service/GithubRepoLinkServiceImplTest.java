@@ -52,10 +52,15 @@ class GithubRepoLinkServiceImplTest {
     }
 
     private GithubRepoDto repoDto(Long id, String name, boolean isPrivate) {
+        return repoDto(id, name, isPrivate, "owner/" + name);
+    }
+
+    private GithubRepoDto repoDto(Long id, String name, boolean isPrivate, String fullName) {
         GithubRepoDto dto = new GithubRepoDto();
         setField(dto, "id", id);
         setField(dto, "name", name);
         setField(dto, "isPrivate", isPrivate);
+        setField(dto, "fullName", fullName);
         return dto;
     }
 
@@ -113,6 +118,20 @@ class GithubRepoLinkServiceImplTest {
         assertThat(result.getRepoName()).isEqualTo("repo-a");
         assertThat(result.getWebhookId()).isNull();
         verify(repoMemberService).registerOwner(999L, USER_ID);
+    }
+
+    @Test
+    void 연동시_GithubRepoDto의_full_name이_그대로_저장된다() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("token-abc")));
+        when(githubRepositoryRepository.existsByGithubRepoId("111")).thenReturn(false);
+        when(githubApiClient.getRepo("token-abc", "111")).thenReturn(repoDto(111L, "repo-a", false, "owner/repo-a"));
+        when(githubRepositoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.linkRepo(USER_ID, "111");
+
+        var captor = org.mockito.ArgumentCaptor.forClass(idu.sba.backend.domain.repo.entity.GithubRepository.class);
+        verify(githubRepositoryRepository).save(captor.capture());
+        assertThat(captor.getValue().getFullName()).isEqualTo("owner/repo-a");
     }
 
 }

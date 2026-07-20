@@ -17,4 +17,7 @@ public class GithubRepoDto {
     @JsonProperty("private")
     private boolean isPrivate;
 
+    @JsonProperty("full_name")
+    private String fullName; //"owner/repo" 형태 — PR 파일/diff 조회(API-024/025)에 필요
+
 }

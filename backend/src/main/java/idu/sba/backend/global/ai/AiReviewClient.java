@@ -5,6 +5,6 @@ package idu.sba.backend.global.ai;
 // 4xx/5xx·JSON 파싱 실패는 BusinessException(ErrorCode.AI_MODEL_CALL_FAILED)로 변환해서 던지는 게 계약이다.
 public interface AiReviewClient {
 
-    AiReviewResult review(AiModel model, String systemPrompt, String code, String language);
+    AiReviewResult review(AiModel model, String systemPrompt, String code, String language, AiInputType inputType);
 
 }

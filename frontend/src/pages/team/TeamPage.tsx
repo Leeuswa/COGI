@@ -114,6 +114,12 @@ export default function TeamPage() {
       <PageHead badge="TEAM" title="팀"
         lead={'내가 속한 GitHub 레포 기준으로 팀을 관리해요.\nGitHub 아이디로 팀원을 지명해서 초대할 수 있어요.'} />
 
+      {repos.length > 0 && (
+        <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 18 }}>
+          <Link className="btn co sm" to="/app/repos">+ 새 팀 만들기</Link>
+        </div>
+      )}
+
       {inbox.length > 0 && (
         <div className="panel" style={{ marginBottom: 22, background: '#fff6d6' }}>
           <h3>받은 초대 {inbox.length}건</h3>

@@ -55,8 +55,8 @@ public class AiReviewClientImpl implements AiReviewClient {
     // systemPrompt는 호출부(비로그인 체험 / 로그인 리뷰 파이프라인)가 이미 완성해서 넘긴다.
     // 이 클라이언트는 "어느 벤더로, 어떻게 호출하고, 응답을 어떻게 파싱하는지"만 책임진다.
     @Override
-    public AiReviewResult review(AiModel model, String systemPrompt, String code, String language) {
-        String userContent = buildUserContent(code, language);
+    public AiReviewResult review(AiModel model, String systemPrompt, String code, String language, AiInputType inputType) {
+        String userContent = buildUserContent(code, language, inputType);
         try {
             AiProvider provider = model.provider();
             VendorCallResult result = provider.anthropicStyle()
@@ -81,8 +81,13 @@ public class AiReviewClientImpl implements AiReviewClient {
         }
     }
 
-    private String buildUserContent(String code, String language) {
-        return (language != null && !language.isBlank() ? "언어: " + language + "\n\n" : "") + "코드:\n" + code;
+    // input_type은 _common_rules.txt 0번 규칙이 참조하는 값 — 프롬프트가 pr_diff/pasted_code를
+    // 구분해 다르게 행동하도록 이미 지시돼 있었는데, 실제로 이 값을 보낸 적이 없었던 걸 PR 리뷰를
+    // 만들며 발견해 같이 고침.
+    private String buildUserContent(String code, String language, AiInputType inputType) {
+        return "input_type: " + inputType.wireValue() + "\n\n"
+                + (language != null && !language.isBlank() ? "언어: " + language + "\n\n" : "")
+                + "코드:\n" + code;
     }
 
     // "JSON으로만 답하라"고 지시해도 모델이 ```json ... ``` 코드펜스로 감싸는 경우가 흔해서 방어적으로 벗겨낸다

@@ -17,4 +17,8 @@ public interface ReviewService {
     // API-027: 내 요금제에서 선택 가능한 모델 목록
     List<String> getModelOptions(Long userId);
 
+    // API-024: 웹훅으로 감지된 PR을 리뷰 — HTTP 호출자가 없어 응답 DTO 없음(결과는 API-025로 조회).
+    // 실패해도 예외를 던지지 않고 PullRequest.status로 흡수한다(GithubWebhookServiceImpl 참고).
+    void createFromPr(Long pullRequestId);
+
 }
