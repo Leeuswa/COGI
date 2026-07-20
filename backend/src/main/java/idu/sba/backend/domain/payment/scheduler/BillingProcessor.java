@@ -7,7 +7,9 @@ import idu.sba.backend.domain.payment.repository.PlanRepository;
 import idu.sba.backend.domain.payment.repository.SubscriptionHistoryRepository;
 import idu.sba.backend.domain.payment.repository.SubscriptionRepository;
 import idu.sba.backend.domain.user.repository.UserRepository;
+import idu.sba.backend.global.mail.HtmlMailSender;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,7 @@ import java.util.UUID;
 // @Transactional은 스프링 프록시가 걸어줘서, 같은 클래스 self-invocation이면 무시됨.
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BillingProcessor {
 
     private final SubscriptionRepository subscriptionRepository;
@@ -24,6 +27,7 @@ public class BillingProcessor {
     private final UserRepository userRepository;
     private final SubscriptionHistoryRepository historyRepository;
     private final TossPaymentClient tossPaymentClient;
+    private final HtmlMailSender htmlMailSender;
 
     @Transactional
     public void processOne(Long subId, Long freeId) {
@@ -49,6 +53,14 @@ public class BillingProcessor {
         // 정기결제 = RENEWAL (기존엔 UPGRADE로 잘못 기록)
         saveHistory(sub.getId(), sub.getPlanId(), sub.getPlanId(), ChangeType.RENEWAL, plan.getPrice());
         // 결제 실패 시 confirmBilling에서 예외 → 트랜잭션 롤백 + 스케줄러가 handlePaymentFailure 호출
+
+        // 정기결제 청구 메일 (실패해도 결제/연장은 유지)
+        try {
+            userRepository.findById(sub.getUserId()).ifPresent(u ->
+                    sendBillingMail(u.getEmail(), plan.getName(), plan.getPrice(), pm.getCardMaskedNumber()));
+        } catch (Exception e) {
+            log.warn("정기결제 청구 메일 발송 실패 subId={}: {}", subId, e.getMessage());
+        }
     }
 
     // 결제 실패 시: FREE 강등. 스케줄러 catch에서 별도 트랜잭션으로 호출
@@ -73,4 +85,19 @@ public class BillingProcessor {
         h.record(subId, prevPlanId, newPlanId, type, amount);
         historyRepository.save(h);
     }
+
+    // 결제 청구 메일 본문
+    private void sendBillingMail(String to, String planName, int amount, String cardMasked) {
+        String inner = """
+            <p style="margin:0 0 8px;color:#1b2a4a;font-size:17px;font-weight:bold;">결제 완료</p>
+            <p style="margin:0 0 20px;color:#40507a;font-size:13px;">정기 구독 결제가 정상 처리되었습니다.</p>
+            <div style="background:#fdfcf7;border:3px solid #1b2a4a;padding:16px;color:#1b2a4a;font-size:14px;">
+              <p style="margin:0 0 6px;">플랜: <b>%s</b></p>
+              <p style="margin:0 0 6px;">금액: <b>%,d원</b></p>
+              <p style="margin:0;">결제수단: <b>%s</b></p>
+            </div>
+            """.formatted(planName, amount, cardMasked);
+        htmlMailSender.send(to, "[COGI] 정기결제가 완료되었습니다", inner);
+    }
+
 }
