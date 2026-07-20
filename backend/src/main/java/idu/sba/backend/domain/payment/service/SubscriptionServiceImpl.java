@@ -81,7 +81,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                     Plan plan = planRepository.findById(sub.getPlanId())
                             .orElseThrow(() -> new IllegalStateException("구독중인 플랜을 찾을 수 없습니다."));
                     return new MyPlanResponseDTO(sub.getId(), plan.getId(), plan.getName(),
-                            sub.getStartedAt(), sub.getExpiresAt(), sub.getCancelledAt());
+                            sub.getStartedAt(), sub.getExpiresAt().toLocalDate(), sub.getCancelledAt());
                 })
                 .orElseGet(() -> {
                     Plan free = planRepository.findByName(FREE_PLAN_NAME)
