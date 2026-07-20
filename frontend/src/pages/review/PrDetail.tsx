@@ -119,7 +119,8 @@ export default function PrDetail() {
             <SevChip sev={it.severity} />
             <span className="chip navy">{catKo(it.category)}</span>
             <span className={`chip ${statusChip(it.status)}`}>{ISSUE_STATUS_KO[it.status] ?? it.status}</span>
-            {it.acknowledged && <span className="chip gray">통계 제외</span>}
+            {/* acknowledged는 항상 IGNORED와 같이 감(무시됨=통계 제외) — 같은 회색 칩을 또 붙이면 중복돼 보여서 텍스트로만 부연 */}
+            {it.acknowledged && <span className="note xs">(통계 제외)</span>}
             <span className="mono" style={{ fontSize: 12, color: 'var(--sub)', marginLeft: 'auto' }}>
               {it.filePath}:{it.lineNumber}
             </span>

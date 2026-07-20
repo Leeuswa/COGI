@@ -37,6 +37,7 @@ export default function Studio() {
   const [busy, setBusy] = useState(false);
   const [reviewId, setReviewId] = useState(null); // null = 아직 시작 전 (모델 변경 가능)
   const [verdicts, setVerdicts] = useState({}); // #6 이슈별 판정 { [issueId]: 'RESOLVED' | 'IGNORED' }
+  const [finalized, setFinalized] = useState(false); // "리뷰 완료" 버튼 재클릭 방지 — 한 번 확정하면 다시 못 누르게
   const [picker, setPicker] = useState(null); // PR 가져오기 모달 — 레포→PR→파일 3단계 { step, repos, repo, prs, pr, files, checked:Set }
   const [previewCode, setPreviewCode] = useState(null); // 미리보기 대상 (프론트 파일)
   const [dockOpen, setDockOpen] = useState(false);
@@ -213,6 +214,7 @@ export default function Studio() {
     setPreviewCode(null);
     setDockOpen(false);
     setInput("");
+    setFinalized(false);
   };
 
   return (
@@ -363,7 +365,7 @@ export default function Studio() {
               )}
               <button
                 className="btn co sm"
-                disabled={!all || busy}
+                disabled={!all || busy || finalized}
                 onClick={async () => {
                   setBusy(true);
                   try {
@@ -372,6 +374,7 @@ export default function Studio() {
                         api.finalizeIssue(it.id, verdicts[it.id]),
                       ),
                     );
+                    setFinalized(true); // 재클릭 방지 — 같은 판정을 중복 저장할 이유가 없음
                     // PR 가져오기로 만든 리뷰는 target_type=PR로 저장돼 "PR 리뷰"(/app/prs)에서도 보이지만,
                     // 팀 결재(RDB-003)가 필요한 화면은 아니라서 강제로 이동시키지 않고 여기서 완료만 알린다
                     notify("리뷰를 완료했어요. 판정이 저장됐어요.");
@@ -380,7 +383,7 @@ export default function Studio() {
                   }
                 }}
               >
-                리뷰 완료
+                {finalized ? "완료됨" : "리뷰 완료"}
               </button>
             </div>
           );

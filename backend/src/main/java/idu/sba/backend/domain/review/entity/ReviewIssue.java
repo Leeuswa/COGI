@@ -72,10 +72,12 @@ public class ReviewIssue {
     }
 
     // 스튜디오 판정 확정(RESOLVED/IGNORED) — 팀장 승인 없이 바로 반영(요구 #7).
+    // acknowledged(통계 제외)는 "의도한 코드"(IGNORED)일 때만 true — RESOLVED는 고치겠다는 뜻이라
+    // 실제 약점 패턴이 맞으므로 통계에서 빼면 안 됨(예전엔 둘 다 true로 잘못 설정하던 버그)
     // requestType/approvedBy는 안 건드림 — 승인 흐름(RDB-003)이 실제로 생기면 그때 채울 필드
     public void finalizeAs(IssueStatus verdict){
         this.status = verdict;
-        this.acknowledged = true;
+        this.acknowledged = (verdict == IssueStatus.IGNORED);
     }
 
 }

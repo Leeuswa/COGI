@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
 import { PageHead, SevChip, renderDescription } from '../../components/ui';
-import { catKo, ISSUE_STATUS_KO, REVIEW_TARGET_KO, REVIEW_STATUS_KO } from '../../data/constants';
+import { catKo, ISSUE_STATUS_KO, REVIEW_TARGET_KO, PROCESS_STATUS_KO } from '../../data/constants';
 
 const fmt = (iso) => iso?.replace('T', ' ').slice(0, 16);
 
@@ -48,7 +48,7 @@ export default function ReviewHistory() {
                   <td className="mono xs">{r.modelName}</td>
                   <td className="mono">{r.issueCount}</td>
                   <td>{r.topSeverity ? <SevChip sev={r.topSeverity} /> : <span className="note sm">-</span>}</td>
-                  <td><span className={`chip ${r.status === 'COMPLETED' ? 'low' : r.status === 'FAILED' ? 'hi' : 'gray'}`}>{REVIEW_STATUS_KO[r.status] ?? r.status}</span></td>
+                  <td><span className={`chip ${r.status === 'COMPLETED' ? 'low' : r.status === 'FAILED' ? 'hi' : 'gray'}`}>{PROCESS_STATUS_KO[r.status] ?? r.status}</span></td>
                   <td className="mono xs">{fmt(r.createdAt)}</td>
                 </tr>
               ))}
@@ -75,7 +75,8 @@ export default function ReviewHistory() {
                       <SevChip sev={it.severity} />
                       <span className="chip navy">{catKo(it.category)}</span>
                       <span className="chip gray">{ISSUE_STATUS_KO[it.status] ?? it.status}</span>
-                      {it.acknowledged && <span className="chip gray">통계 제외</span>}
+                      {/* acknowledged는 항상 IGNORED와 같이 감(무시됨=통계 제외) — 같은 회색 칩을 또 붙이면 중복돼 보여서 텍스트로만 부연 */}
+                      {it.acknowledged && <span className="note xs">(통계 제외)</span>}
                       {it.filePath && (
                         <span className="mono" style={{ fontSize: 12, color: 'var(--sub)', marginLeft: 'auto' }}>
                           {it.filePath}{it.lineNumber ? `:${it.lineNumber}` : ''}

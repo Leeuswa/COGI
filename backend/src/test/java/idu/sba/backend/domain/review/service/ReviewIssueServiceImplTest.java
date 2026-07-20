@@ -97,7 +97,7 @@ class ReviewIssueServiceImplTest {
     }
 
     @Test
-    void 정상_케이스면_RESOLVED로_확정되고_acknowledged가_true가_된다() {
+    void RESOLVED로_확정하면_고칠_예정이라_통계에서_빠지지_않는다() {
         ReviewIssue issue = issue();
         when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
         when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(reviewOwnedBy(USER_ID)));
@@ -105,11 +105,11 @@ class ReviewIssueServiceImplTest {
         service.finalizeIssue(USER_ID, ISSUE_ID, "RESOLVED");
 
         assertThat(issue.getStatus()).isEqualTo(IssueStatus.RESOLVED);
-        assertThat(issue.isAcknowledged()).isTrue();
+        assertThat(issue.isAcknowledged()).isFalse(); //실제 약점 패턴이 맞으므로 통계 제외 대상이 아님
     }
 
     @Test
-    void IGNORED로도_확정_가능하다() {
+    void IGNORED로_확정하면_의도한_코드라_통계에서_제외된다() {
         ReviewIssue issue = issue();
         when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
         when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(reviewOwnedBy(USER_ID)));
