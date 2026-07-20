@@ -37,6 +37,8 @@ export default function Studio() {
   const [busy, setBusy] = useState(false);
   const [reviewId, setReviewId] = useState(null); // null = 아직 시작 전 (모델 변경 가능)
   const [verdicts, setVerdicts] = useState({}); // #6 이슈별 판정 { [issueId]: 'RESOLVED' | 'IGNORED' }
+  const [finalized, setFinalized] = useState(false); // "리뷰 완료" 버튼 재클릭 방지 — 한 번 확정하면 다시 못 누르게
+  const [isPrReview, setIsPrReview] = useState(false); // 이번 리뷰가 PR 가져오기로 시작됐는지 — 완료 안내 문구 분기용
   const [picker, setPicker] = useState(null); // PR 가져오기 모달 — 레포→PR→파일 3단계 { step, repos, repo, prs, pr, files, checked:Set }
   const [previewCode, setPreviewCode] = useState(null); // 미리보기 대상 (프론트 파일)
   const [dockOpen, setDockOpen] = useState(false);
@@ -115,12 +117,13 @@ export default function Studio() {
   ) => {
     if (!spendCredit(modelWeight(model))) return;
     const hasFront = files?.some(isFrontend) || /<[a-z][^>]*>/i.test(codeText); // 미리보기 힌트용
-    if (files)
+    if (files) {
       push({
         who: "me",
         text: `🐙 PR #${prMeta.prNumber} 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}`,
       });
-    else push({ who: "me", text: codeText, isCode: true });
+      setIsPrReview(true);
+    } else push({ who: "me", text: codeText, isCode: true });
     setBusy(true);
     try {
       const res = prMeta
@@ -213,6 +216,8 @@ export default function Studio() {
     setPreviewCode(null);
     setDockOpen(false);
     setInput("");
+    setFinalized(false);
+    setIsPrReview(false);
   };
 
   return (
@@ -363,7 +368,7 @@ export default function Studio() {
               )}
               <button
                 className="btn co sm"
-                disabled={!all || busy}
+                disabled={!all || busy || finalized}
                 onClick={async () => {
                   setBusy(true);
                   try {
@@ -372,15 +377,22 @@ export default function Studio() {
                         api.finalizeIssue(it.id, verdicts[it.id]),
                       ),
                     );
+                    setFinalized(true); // 재클릭 방지 — 같은 판정을 중복 저장할 이유가 없음
                     // PR 가져오기로 만든 리뷰는 target_type=PR로 저장돼 "PR 리뷰"(/app/prs)에서도 보이지만,
-                    // 팀 결재(RDB-003)가 필요한 화면은 아니라서 강제로 이동시키지 않고 여기서 완료만 알린다
-                    notify("리뷰를 완료했어요. 판정이 저장됐어요.");
+                    // 팀 결재(RDB-003)가 필요한 화면은 아니라서 강제로 이동시키지 않고 여기서 완료만 알린다.
+                    // 단, PR 리뷰의 CRITICAL 이슈를 "고칠게요"로 확정했다면 서버가 팀장 승인 대기로 돌려놓으므로 안내를 다르게 준다
+                    const hasCriticalResolveRequest = isPrReview && issues.some(
+                      (it) => verdicts[it.id] === "RESOLVED" && it.severity === "CRITICAL",
+                    );
+                    notify(hasCriticalResolveRequest
+                      ? "리뷰를 완료했어요. 심각도 높은 이슈는 팀장 승인 후 '해결됨'으로 반영돼요."
+                      : "리뷰를 완료했어요. 판정이 저장됐어요.");
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                리뷰 완료
+                {finalized ? "완료됨" : "리뷰 완료"}
               </button>
             </div>
           );
