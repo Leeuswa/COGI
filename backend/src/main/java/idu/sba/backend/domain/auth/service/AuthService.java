@@ -22,4 +22,12 @@ public interface AuthService {
 
     //비밀번호 재설정 (비밀번호 5회이상 틀려서 계정 잠금일 시)
     void resetPassword(PasswordResetDTO request);
+
+    //토큰 연장
+    String refreshToken(Long userId);
+
+    //2차 인증 코드 검증 후 최종 로그인
+    TokenResponseDTO verifyTotp(String tempToken, String code);
+
+
 }

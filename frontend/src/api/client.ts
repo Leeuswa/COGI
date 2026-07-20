@@ -10,29 +10,68 @@
  * 실제 네트워크처럼 느껴지게 250ms 정도만.
  */
 import * as M from '../data/mock';
-import { MODEL_TIERS, PLAN_TIER } from '../data/constants';
+import { MODEL_TIERS } from '../data/constants';
 
-const USE_MOCK = true;
+const USE_MOCK = false; // 목 데이터 → 실제 백엔드
 const BASE = ''; // 프록시 쓰면 '' 그대로, 직접 붙이면 'http://localhost:8080'
 
 // 목 응답 헬퍼. structuredClone으로 원본 오염 방지
-// 목/실서버 반환은 일단 any — 화면별 응답 타입은 점진적으로 붙인다 (strict 이행 시)
+// 목/실서버 반환은 일단 any — 화면별 응답 타입은 점진적으로 붙인다 (strict 이행 시)ß
 const mock = (data: any, ms = 250): Promise<any> =>
   new Promise((res) => setTimeout(() => res(structuredClone(data)), ms));
 
 // 실서버 호출 헬퍼. JWT는 localStorage에서 꺼내 Authorization 헤더로
+// async function http(method: string, path: string, body?: unknown): Promise<any> {
+//   const token = localStorage.getItem('cogi-jwt');
+//   const res = await fetch(BASE + path, {
+//     method,
+//     headers: {
+//       'Content-Type': 'application/json',
+//       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+//     },
+//     body: body ? JSON.stringify(body) : undefined,
+//   });
+//   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+//   return res.status === 204 ? null : res.json();
+// }
+
+// 실서버 호출. JWT는 HttpOnly 쿠키라 JS가 안 만지고, credentials로 쿠키 자동 전송
 async function http(method: string, path: string, body?: unknown): Promise<any> {
-  const token = localStorage.getItem('cogi-jwt');
   const res = await fetch(BASE + path, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',   // 쿠키 자동 첨부
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (!res.ok) {
+    // 세션 만료: 로그인 상태에서 401이 오면 자동 로그아웃(로그인 실패=미로그인 401은 제외)
+    if (res.status === 401 && localStorage.getItem('cogi-user')) {
+      localStorage.removeItem('cogi-user');
+      localStorage.removeItem('cogi-expires');
+      window.location.href = '/login?expired=1';
+    }
+    // 백엔드 {success,message,data}의 message를 꺼내 화면에 그대로 보여줄 수 있게 실어 던진다
+    let message = '';
+    try { message = (await res.json())?.message ?? ''; } catch { /* 본문 없음/파싱 실패 */ }
+    throw Object.assign(new Error(message || `HTTP ${res.status}`), { status: res.status });
+  }
+  // 본문이 비어 있을 수 있음(204 또는 200 empty, 예: DELETE 해지) → res.json() 대신 text로 받아 방어
+  const text = res.status === 204 ? '' : await res.text();
+  const json = text ? JSON.parse(text) : null;
+  // 백엔드가 {success,message,data}로 감싸므로 data만 꺼내 화면에 전달
+  return json && json.data !== undefined ? json.data : json;
+}
+
+// multipart(form-data) 전용 — Content-Type은 지정하지 않는다(브라우저가 boundary 포함해서 자동 설정)
+async function httpMultipart(path: string, formData: FormData): Promise<any> {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
-  return res.status === 204 ? null : res.json();
+  const json = res.status === 204 ? null : await res.json();
+  return json && json.data !== undefined ? json.data : json;
 }
 
 /* ══════════ 회원/인증 (AUTH) ══════════ */
@@ -76,11 +115,12 @@ export const socialLogin = (provider) =>
     : Promise.reject(new Error('실서버 소셜 로그인은 리다이렉트 흐름을 사용'));
 
 // API-003 POST /api/auth/signup — 이메일+비밀번호 가입 (약관 동의 포함, FR-89)
-export const signup = (email, password, passwordConfirm, agreeTermIds) =>
+// nickname은 선택 — 비우면 백엔드가 이메일 앞부분으로 채운다. 약관 동의 이력은 가입 트랜잭션에서 함께 저장(별도 호출 불필요).
+export const signup = (email, password, passwordConfirm, agreeTermIds, nickname) =>
   USE_MOCK
     ? mock({ status: 'EMAIL_PENDING', email, accessToken: 'mock-jwt',
-        user: { ...M.mockUser, email, name: email.split('@')[0], provider: 'EMAIL', onboardingCompleted: false } })
-    : http('POST', '/api/auth/signup', { email, password, passwordConfirm, agreeTerms: agreeTermIds });
+        user: { ...M.mockUser, email, name: nickname || email.split('@')[0], provider: 'EMAIL', onboardingCompleted: false } })
+    : http('POST', '/api/auth/signup', { email, password, passwordConfirm, termIds: agreeTermIds, nickname });
 
 // API-004 POST /api/auth/email/send-code — 인증코드 발송 (SIGNUP/FIND_ID/RESET_PW 공용)
 export const sendEmailCode = (email, purpose) =>
@@ -97,7 +137,8 @@ export const verifyEmailCode = (email, code) =>
 // API-006 POST /api/auth/login — 아이디(또는 이메일) 로그인. 5회 오류 잠금(423)은 백엔드 소관
 // 목: mock/user.js 의 테스트 계정(user/1234, adim/1234)만 통과. 그 외엔 401과 같은 실패
 export const login = (loginId, password) => {
-  if (!USE_MOCK) return http('POST', '/api/auth/login', { loginId, password });
+  // 백엔드는 이메일로 로그인. 성공 시 JWT는 응답 body가 아니라 HttpOnly 쿠키로 내려온다.
+  if (!USE_MOCK) return http('POST', '/api/auth/login', { email: loginId, password });
   const id = String(loginId).trim().toLowerCase(); // 공백/대문자 실수 방어
   const acc = M.mockAccounts.find((a) => a.loginId === id && a.password === String(password).trim());
   if (!acc) return new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('401'), { status: 401 })), 300));
@@ -107,20 +148,34 @@ export const login = (loginId, password) => {
   });
 };
 
+// POST /api/auth/logout — 서버가 HttpOnly 쿠키를 만료시켜 세션을 끊는다. (JS로는 못 지우는 쿠키라 서버 호출 필수)
+export const logout = () =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/auth/logout');
+
+// POST /api/auth/refresh — 세션(JWT) 연장. 현재 쿠키가 유효할 때 새 토큰 쿠키를 재발급받는다.
+export const extendSession = () =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/auth/refresh');
+
 // [설계 추론] 로그인 상태 비밀번호 변경 — 비밀번호 찾기(API-008)와 별개로,
 // 마이페이지에서 현재 비밀번호 확인 후 즉시 교체. 백엔드 협의 필요
-export const changePassword = (currentPassword, newPassword) =>
+export const changePassword = (currentPassword, newPassword, newPasswordConfirm) =>
   USE_MOCK
     ? (currentPassword === '1234' // 목: 테스트 계정 비번과 대조
         ? mock({ changed: true })
         : new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('401'), { status: 401 })), 300)))
-    : http('PATCH', '/api/users/me/password', { currentPassword, newPassword });
+    : http('PATCH', '/api/users/me/password', { currentPassword, newPassword, newPasswordConfirm });
 
-// API-006-1 POST /api/auth/totp/setup — OTP 최초 설정(QR)
+// API-006-1 POST /api/users/me/totp/setup — 로그인 상태에서 시크릿/QR 발급 (아직 활성화 아님)
 export const totpSetup = () =>
   USE_MOCK
     ? mock({ secret: 'COGI-MOCK-SECRET', qrCodeUrl: null })
-    : http('POST', '/api/auth/totp/setup');
+    : http('POST', '/api/users/me/totp/setup');
+
+// POST /api/users/me/totp/enable — 인증앱 6자리 검증 통과 시 최종 활성화
+export const totpEnable = (code) =>
+  USE_MOCK
+    ? (code === '000000' ? mock({ ok: true }) : Promise.reject(new Error('OTP 불일치')))
+    : http('POST', '/api/users/me/totp/enable', { code });
 
 // API-006-2 POST /api/auth/totp/verify — 6자리 코드 검증 후 최종 JWT
 export const totpVerify = (totpCode, tempToken) =>
@@ -130,15 +185,15 @@ export const totpVerify = (totpCode, tempToken) =>
 
 // API-007 POST /api/auth/password/reset-request — 재설정 토큰 발급
 export const passwordResetRequest = (email, verifiedCode) =>
-  USE_MOCK ? mock({ resetToken: 'mock-reset' }) : http('POST', '/api/auth/password/reset-request', { email, verifiedCode });
+  USE_MOCK ? mock({ resetToken: 'mock-reset' }) : http('POST', '/api/auth/password/reset-request', { email, code: verifiedCode });
 
 // API-008 PATCH /api/auth/password/reset — 새 비밀번호 저장(잠금 해제 포함)
 export const passwordReset = (resetToken, newPassword) =>
-  USE_MOCK ? mock({ ok: true }) : http('PATCH', '/api/auth/password/reset', { resetToken, newPassword });
+  USE_MOCK ? mock({ ok: true }) : http('PATCH', '/api/auth/password/reset', { resetToken, newPassword, newPasswordConfirm: newPassword }); // 확인값은 화면에서 이미 일치 검증됨
 
 // API-009 GET /api/users/me/profile — 프로필+현재 플랜
 export const getProfile = () =>
-  USE_MOCK ? mock(M.mockUser) : http('GET', '/api/users/me/profile');
+  USE_MOCK ? mock(M.mockUser) : http('GET', '/api/users/me/profile').then((u) => ({ ...u, name: u.nickname }));
 
 // FR-91 약관 재동의 필요 여부 — 필수 약관 버전이 올라갔는데 내 동의가 구버전이면 required=true.
 // 목 기본값은 false. 배너 테스트: mock/terms.js 의 mockReagreement.required 를 true 로
@@ -148,7 +203,7 @@ export const checkReagreement = () =>
 // API-010 PATCH /api/users/me/profile — 프로필 수정(즉시 반영, FR-12)
 // name(닉네임)은 이메일 가입자만 수정 가능. 소셜(카카오/GitHub) 가입자가 보내면 서버가 400으로 거절해야 한다.
 export const updateProfile = (name, level, interests) =>
-  USE_MOCK ? mock({ name, level, interests }) : http('PATCH', '/api/users/me/profile', { name, level, interests });
+  USE_MOCK ? mock({ name, level, interests }) : http('PATCH', '/api/users/me/profile', { nickname: name, level, interests });
 
 // API-011 GET /api/users/me/onboarding-status
 export const getOnboardingStatus = () =>
@@ -165,6 +220,10 @@ export const linkGithub = () =>
 // API-063 GET /api/terms — 활성 약관 목록
 export const getTerms = () =>
   USE_MOCK ? mock(M.mockTerms) : http('GET', '/api/terms');
+
+// GET /api/users/me/agreements — 내가 동의한 약관 id 목록 (마이페이지 동의 현황)
+export const getMyAgreements = () =>
+  USE_MOCK ? mock([1, 2]) : http('GET', '/api/users/me/agreements');
 
 // API-064 POST /api/users/me/agreements — 약관 동의 제출
 export const submitAgreements = (agreements) =>
@@ -189,8 +248,9 @@ export const getPrReview = (prId) =>
 
 
 // API-029 POST /api/repos/{repoId}/members/invite — GitHub 아이디로 팀원 초대 (FR-36)
-export const inviteMember = (repoId, githubUsername) =>
-  USE_MOCK ? mock({ inviteId: 1, status: 'PENDING' }) : http('POST', `/api/repos/${repoId}/members/invite`, { githubUsername });
+// githubUsername으로 못 찾으면(GITHUB_USER_NOT_FOUND) email을 채워 재요청 — 그때만 이메일 초대장이 발송된다
+export const inviteMember = (repoId, githubUsername, email?: string) =>
+  USE_MOCK ? mock({ inviteId: 1, status: 'PENDING' }) : http('POST', `/api/repos/${repoId}/members/invite`, { githubUsername, email });
 
 // API-031 GET /api/repos/{repoId}/members — 팀 구성원 목록 (성장추이 팀원 필터에서도 씀)
 export const getTeamMembers = (repoId) =>
@@ -201,9 +261,21 @@ export const respondInvite = (repoId, inviteId, accept) =>
   USE_MOCK ? mock({ status: accept ? 'ACCEPTED' : 'REJECTED' })
     : http('POST', `/api/repos/${repoId}/members/invitations/${inviteId}/${accept ? 'accept' : 'reject'}`);
 
-// (조회) 내가 받은 대기 중 초대 — 명세에 목록 API가 없어 최소 형태로 추론. 백엔드 확정 시 경로만 맞추면 됨
+// 내가 받은 대기 중 초대 목록(인앱 알림)
 export const getMyInvitations = () =>
-  USE_MOCK ? mock(M.mockInvitations) : http('GET', '/api/users/me/invitations');
+  USE_MOCK ? mock(M.mockInvitations) : http('GET', '/api/me/repo-invitations');
+
+// 팀원이 스스로 팀 나가기 — 팀장은 먼저 위임해야 함(OWNER_CANNOT_LEAVE)
+export const leaveRepo = (repoId) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/repos/${repoId}/members/leave`);
+
+// 팀장이 팀원 내보내기
+export const removeTeamMember = (repoId, targetUserId) =>
+  USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/repos/${repoId}/members/${targetUserId}`);
+
+// 팀장 위임 — 기존 팀장은 MEMBER로 강등, 대상은 OWNER로 승격
+export const transferOwnership = (repoId, targetUserId) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/repos/${repoId}/members/${targetUserId}/transfer-owner`);
 
 /* ══════════ 리뷰 대시보드 (RDB) ══════════ */
 
@@ -264,22 +336,25 @@ export const claimGuestReview = (reviewId, guestToken) =>
   USE_MOCK ? mock({ claimed: true }) : http('POST', `/api/guest/local-review/${reviewId}/claim`, { guestToken });
 
 // API-040 POST /api/reviews/paste — 로그인 후 붙여넣기 리뷰 (LRN-001 통계 반영 대상)
-export const pasteReview = (code, language, modelName) =>
+// language는 스튜디오 UI에서 뺐다 — 코드만 붙여넣으면 AI가 알아서 언어를 판단함(_common_rules.txt 1번 규칙),
+// 백엔드 DTO의 language 필드는 nullable이라 그대로 생략해서 보낸다.
+export const pasteReview = (code, modelName) =>
   USE_MOCK
     ? mock({ reviewId: 2, issues: [{ ...M.mockIssue, id: 2, filePath: '(붙여넣은 코드)' }] }, 900)
-    : http('POST', '/api/reviews/paste', { code, language, modelName });
+    : http('POST', '/api/reviews/paste', { code, modelName });
 
 // API-041 POST /api/reviews/upload — 파일 업로드 리뷰
-export const uploadReview = (file) => {
+export const uploadReview = (file, modelName?: string) => {
   if (USE_MOCK) return mock({ reviewId: 3, issues: [{ ...M.mockIssue, id: 3, filePath: file.name }] }, 900);
   const fd = new FormData();
   fd.append('file', file);
-  const token = localStorage.getItem('cogi-jwt');
-  return fetch(BASE + '/api/reviews/upload', {
-    method: 'POST', body: fd,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  }).then((r) => r.json());
+  if (modelName) fd.append('modelName', modelName);
+  return httpMultipart('/api/reviews/upload', fd);
 };
+
+// API-027 GET /api/reviews/model-options — 내 요금제에서 선택 가능한 모델 이름 목록
+export const getModelOptions = () =>
+  USE_MOCK ? mock(MODEL_TIERS.map((m) => m.name)) : http('GET', '/api/reviews/model-options');
 
 /* ══════════ 맞춤 학습 (LRN) ══════════ */
 
@@ -356,7 +431,7 @@ export const getRetentionStatus = () =>
 
 // API-055 GET /api/users/me/credit-usage — 일일 크레딧 사용량 (90%/100% 알림 판단)
 export const getCreditUsage = () =>
-  USE_MOCK ? mock({ used: 0, limit: 20 }) : http('GET', '/api/users/me/credit-usage');
+  USE_MOCK ? mock({ usedCredits: 0, dailyLimit: 20, remaining: 20 }) : http('GET', '/api/users/me/credit-usage');
 
 // API-058 GET /api/users/me/plan — 내 현재 플랜/크레딧 한도 (users.plan_id 캐시 기준)
 export const getMyPlan = () =>
@@ -366,9 +441,11 @@ export const getMyPlan = () =>
 export const getPlans = () =>
   USE_MOCK ? mock(M.mockPlans) : http('GET', '/api/plans');
 
-// API-059 POST /api/payments/methods — 결제수단 등록(테스트 모드 한정, FR-86)
-export const registerPaymentMethod = (cardInfo) =>
-  USE_MOCK ? mock({ paymentMethodId: 1 }) : http('POST', '/api/payments/methods', { cardInfo });
+// API-059 POST /api/payments/methods — 결제수단 등록(토스 SDK 결제창 방식)
+// arg = { authKey, customerKey } — 토스 결제창 성공 콜백에서 받은 값. 백엔드가 authKey로 빌링키를 발급·저장.
+// 응답은 paymentMethodId(숫자)만 돌려준다.
+export const registerPaymentMethod = (arg) =>
+  USE_MOCK ? mock(1) : http('POST', '/api/payments/methods', arg);
 
 // API-060 POST /api/subscriptions — 구독 시작
 export const startSubscription = (planId, paymentMethodId, agreeTermIds) =>
@@ -378,9 +455,13 @@ export const startSubscription = (planId, paymentMethodId, agreeTermIds) =>
 export const changePlan = (subId, newPlanId) =>
   USE_MOCK ? mock({ ok: true, proratedAmount: 3300 }) : http('PATCH', `/api/subscriptions/${subId}`, { newPlanId });
 
-// API-062 DELETE /api/subscriptions/{subId} — 해지
+// API-062 DELETE /api/subscriptions/{subId} — 해지(예약)
 export const cancelSubscription = (subId) =>
   USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/subscriptions/${subId}`);
+
+// 해지 예약 취소 — cancelledAt 초기화, 구독 유지
+export const resumeSubscription = (subId) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/subscriptions/${subId}/resume`);
 
 // (조회) 구독 변경 이력 — subscription_history
 export const getSubHistory = () =>
@@ -395,59 +476,15 @@ export const getWeeklyReports = () =>
 export const sendWeeklyReportMail = (reportId) =>
   USE_MOCK ? mock({ sent: true }) : http('POST', `/api/users/me/weekly-reports/${reportId}/send-mail`);
 
-/* ── 팀 (초대 링크 합류 + 팀장/팀원 관리) — [설계 추론] API-034 팀원 초대의 링크 방식 확장.
-   기존 이메일 초대(API-034)와 별개로, 링크 코드를 아는 사람이 신청하고 팀장이 승인하는 흐름 ── */
-export const getMyTeam = (loginId) =>
-  USE_MOCK
-    /* 목 시나리오 (README 참고):
-       team   → 팀장 뷰 / admin → 팀원 뷰
-       member → 팀 없음 + GitHub 초대 도착 (수락하면 바로 합류)
-       user   → 팀 없음 + 이메일 초대 도착 (GitHub 연동 후 합류) */
-    ? mock(
-        loginId === 'team' ? { ...M.mockTeam, myRole: 'OWNER' }
-        : loginId === 'admin' ? { ...M.mockTeam, myRole: 'MEMBER' }
-        : loginId === 'member' ? { none: true, invite: { teamName: 'Team Fable', via: 'GITHUB' } }
-        : { none: true, invite: { teamName: 'Team Fable', via: 'EMAIL' } })
-    : http('GET', '/api/teams/me');
+// 내가 이미 연동해둔 레포 목록 — 팀 화면(TeamPage)이 "내 팀 = 내가 연동한 레포"를 보여줄 때 씀
+export const getMyLinkedRepos = () =>
+  USE_MOCK ? mock([{ repoId: 1, repoName: M.mockRepo.repoName }]) : http('GET', '/api/repos/me');
 
 // [설계 추론] 알림 — GitHub/이메일 초대가 오면 종 아이콘에 쌓인다 (삭제는 프론트 로컬)
 export const getNotifications = (loginId) =>
   USE_MOCK ? mock(M.mockNotifications[loginId] ?? []) : http('GET', '/api/notifications');
 export const dismissNotification = (id) =>
   USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/notifications/${id}`);
-
-// [설계 추론] GitHub 아이디 초대 수락 — 팀장 재수락 없이 즉시 정식 멤버 (요구 #10)
-export const acceptTeamInvite = () =>
-  USE_MOCK
-    ? mock({ team: { ...M.mockTeam, myRole: 'MEMBER',
-        members: [...M.mockTeam.members, { id: 4, name: '나', email: 'me@fable.dev', role: 'MEMBER', joinedAt: '오늘' }] } })
-    : http('POST', '/api/teams/invites/accept');
-
-// [설계 추론] 팀 없이 레포만 연동한 사람이 스스로 팀장이 되는 길 (요구 #12)
-export const createTeam = (name) =>
-  USE_MOCK
-    ? mock({ team: { id: 2, name, inviteCode: 'NEW-TEAM', myRole: 'OWNER',
-        members: [{ id: 1, name: '나', email: 'me@fable.dev', role: 'OWNER', joinedAt: '오늘' }], pending: [] } })
-    : http('POST', '/api/teams', { name });
-export const getInviteInfo = (code) =>
-  USE_MOCK ? mock({ teamName: M.mockTeam.name, memberCount: M.mockTeam.members.length, valid: code === M.mockTeam.inviteCode })
-    : http('GET', `/api/teams/invite/${code}`);
-export const requestJoinTeam = (code) =>
-  USE_MOCK ? mock({ status: 'PENDING' }) : http('POST', `/api/teams/invite/${code}/join`);
-// [설계 추론] 팀장 직접 초대 — 이미 가입한 사람은 GitHub 아이디로, 비회원은 이메일로 초대장 발송
-export const inviteToTeam = ({ githubUsername, email }: { githubUsername?: string; email?: string }) =>
-  USE_MOCK
-    ? mock(githubUsername
-        ? { invited: true, via: 'GITHUB', target: githubUsername }
-        : { invited: true, via: 'EMAIL', target: email })
-    : http('POST', '/api/teams/me/invites', { githubUsername, email });
-
-export const decideJoin = (memberId, approve) =>
-  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/teams/me/pending/${memberId}`, { approve });
-export const removeMember = (memberId) =>
-  USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/teams/me/members/${memberId}`);
-export const leaveTeam = () =>
-  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/teams/me/leave');
 
 // API-054 GET /api/admin/system/review-latency — 리뷰 응답시간 지표 (FR-77, 목표 수치는 문서상 미확정)
 export const getReviewLatency = (from, to) =>

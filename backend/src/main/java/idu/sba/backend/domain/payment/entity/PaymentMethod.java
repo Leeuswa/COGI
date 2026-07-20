@@ -19,6 +19,9 @@ public class PaymentMethod {
     @Column(name = "user_id", nullable = false)
     private Long userId; // 등록한 사용자 (users.id)
 
+    @Column(name = "customer_key", nullable = false, length = 300)
+    private String customerKey; // 빌링키 발급 시 함께 저장한 UUID — 결제 승인 시 재사용
+
     @Column(name = "billing_key", nullable = false, length = 255)
     private String billingKey; // 토스 등 PG 발급 빌링키 (평문 카드정보는 저장 안 함)
 
@@ -33,8 +36,9 @@ public class PaymentMethod {
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
 
-    public PaymentMethod(Long userId, String billingKey, String cardMaskedNumber) {
+    public PaymentMethod(Long userId, String customerKey, String billingKey, String cardMaskedNumber) {
         this.userId = userId;
+        this.customerKey = customerKey;
         this.billingKey = billingKey;
         this.cardMaskedNumber = cardMaskedNumber;
     }

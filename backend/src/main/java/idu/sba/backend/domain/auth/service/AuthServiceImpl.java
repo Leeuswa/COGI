@@ -10,16 +10,17 @@ import idu.sba.backend.domain.terms.entity.Term;
 import idu.sba.backend.domain.terms.entity.UserAgreement;
 import idu.sba.backend.domain.terms.repository.TermRepository;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
+import idu.sba.backend.domain.user.entity.Provider;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.entity.UserStatus;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
+import idu.sba.backend.global.mail.HtmlMailSender;
 import idu.sba.backend.global.security.JwtProvider;
+import idu.sba.backend.global.security.TotpService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,19 +58,25 @@ public class AuthServiceImpl implements AuthService {
     private final TermRepository termRepository;
     private final UserAgreementRepository userAgreementRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender; //메일 발송
+    private final TotpService totpService;
+    private final HtmlMailSender htmlMailSender;
+
 
 
     @Override
     @Transactional
     public void sendCode(EmailSendCodeRequestDTO req) {
         LocalDateTime now = LocalDateTime.now();
+            // 회원가입 목적인데 이미 가입된 이메일이면 코드 발송 전에 막음
+        if (req.getPurpose() == Purpose.SIGNUP && userRepository.existsByEmail(req.getEmail())) {
+            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
 
         var lastOpt = emailVerificationRepository.findFirstByEmailOrderByCreateAtDesc(req.getEmail());
 
         lastOpt.ifPresent(last -> {
-            if(last.isLocked()) {       //정지중 -> 재발송 거부
-                throw new BusinessException(ErrorCode.CODE_LOCKED);
+            if(last.isLocked()) { //정지중 -> 재발송 거부
+                throw new BusinessException(lockError(last));
             }
             if(last.getCreateAt().isAfter(now.minusSeconds(60))) { // 60초 쿨타임
                     throw new BusinessException(ErrorCode.CODE_SEND_COOLDOWN);
@@ -98,8 +105,8 @@ public class AuthServiceImpl implements AuthService {
                 .findFirstByEmailOrderByCreateAtDesc(req.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CODE_MISMATCH));
 
-        if(ev.isLocked()){  //정지중
-            throw new BusinessException(ErrorCode.CODE_LOCKED);
+        if(ev.isLocked()){ //정지중
+            throw new BusinessException(lockError(ev));
         }
 
         //만료됐으면 410
@@ -111,7 +118,7 @@ public class AuthServiceImpl implements AuthService {
         if(!ev.matches(req.getCode())){ //불일치
             ev.recordFail();
             emailVerificationRepository.save(ev);
-            throw new BusinessException(ev.isLocked() ? ErrorCode.CODE_LOCKED : ErrorCode.CODE_MISMATCH);
+            throw new BusinessException(ev.isLocked() ? lockError(ev) : ErrorCode.CODE_MISMATCH);
         }
 
         //인증완료 처리
@@ -136,7 +143,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         //이메일 중복확인
-        if(userRepository.existsByEmail(req.getEmail())){
+        if (userRepository.existsByEmail(req.getEmail())) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
@@ -152,12 +159,16 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.REQUIRED_TERMS_NOT_AGREED);
         }
 
+        //닉네임 설정 안할시 이메일의 @앞에 가져옴
+        String nickname = (req.getNickname() != null && !req.getNickname().isBlank())
+                ? req.getNickname()
+                : req.getEmail().split("@")[0];
         //유저 저장
         User user = userRepository.save(
                 User.builder()
                         .email(req.getEmail())
                         .password(passwordEncoder.encode(req.getPassword()))
-                        .nickname(req.getNickname())
+                        .nickname(nickname)
                         .build());
 
         //동의 이력 저장
@@ -171,19 +182,20 @@ public class AuthServiceImpl implements AuthService {
 
     //인증 메일코드 메일 발송
     private void sendMail(String to, String code) {
-        SimpleMailMessage message = new SimpleMailMessage();  // 빈 메일 객체 생성
-        message.setFrom(mailFrom);
-        message.setTo(to);                    // 받는 사람
-        message.setSubject("[COGI] 이메일 인증코드");  // 제목
-        message.setText("인증코드: " + code + "\n5분 안에 입력해주세요.");  // 본문
-        mailSender.send(message);             // 완성된 메일 발송
+        String inner = """
+        <p style="margin:0 0 8px;color:#1b2a4a;font-size:17px;font-weight:bold;">이메일 인증코드</p>
+        <p style="margin:0 0 20px;color:#40507a;font-size:13px;">아래 6자리 코드를 입력해주세요.</p>
+        <div style="background:#ffd23f;border:3px solid #1b2a4a;padding:16px;text-align:center;font-size:30px;font-weight:bold;letter-spacing:10px;color:#1b2a4a;">%s</div>
+        <p style="margin:18px 0 0;color:#ff6b57;font-size:12px;font-weight:bold;">⏱ 5분 안에 입력해야 해요.</p>
+        """.formatted(code);
+        htmlMailSender.send(to, "[COGI] 이메일 인증코드", inner);
     }
 
 
     @Override
     public TokenResponseDTO login(LoginRequestDTO req) {
         //이메일 유저 조회
-        User user = userRepository.findByEmail(req.getEmail())
+        User user = userRepository.findByProviderAndEmail(Provider.LOCAL,req.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
 
         //이미 잠긴 계정
@@ -204,11 +216,36 @@ public class AuthServiceImpl implements AuthService {
         }
 
 
-        //성공시 실패회수 초기화, 토큰발급
+        //성공시 실패회수 초기화
         user.resetLoginFailCount();
-        String token = jwtProvider.createToken(user.getId(),user.getRole().name());
-        return TokenResponseDTO.of(token,accessTokenExpiration);
+        userRepository.save(user);
 
+        // 2차 인증 계정은 JWT 대신 임시토큰만 → verify 단계로
+        if (Boolean.TRUE.equals(user.getTotpEnabled())) {
+            return TokenResponseDTO.totpChallenge(jwtProvider.createTotpToken(user.getId()));
+        }
+
+        String token = jwtProvider.createToken(user.getId(), user.getRole().name());
+        return TokenResponseDTO.of(token, accessTokenExpiration);
+
+    }
+
+    @Override
+    public TokenResponseDTO verifyTotp(String tempToken, String code) {
+        Long userId = jwtProvider.parseTotpToken(tempToken); // 위조·만료·용도불일치 → 예외
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
+
+        // 임시토큰 유효 중 OTP를 꺼버린 경우 방어
+        if (!Boolean.TRUE.equals(user.getTotpEnabled()) || user.getTotpSecret() == null) {
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
+        }
+        if (!totpService.verify(user.getTotpSecret(), code)) {
+            throw new BusinessException(ErrorCode.TOTP_CODE_INVALID);
+        }
+
+        String token = jwtProvider.createToken(user.getId(), user.getRole().name());
+        return TokenResponseDTO.of(token, accessTokenExpiration);
     }
 
     @Override
@@ -217,7 +254,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CODE_MISMATCH));
 
         if(ev.isLocked()){
-            throw new BusinessException(ErrorCode.CODE_LOCKED);
+            throw new BusinessException(lockError(ev));
         }
         if (ev.isExpired()){
             throw new BusinessException(ErrorCode.CODE_EXPIRED);
@@ -226,7 +263,7 @@ public class AuthServiceImpl implements AuthService {
         if(!ev.matches(req.getCode())){
             ev.recordFail();
             emailVerificationRepository.save(ev);
-            throw new BusinessException(ev.isLocked() ? ErrorCode.CODE_LOCKED : ErrorCode.CODE_MISMATCH);
+            throw new BusinessException(ev.isLocked() ? lockError(ev) : ErrorCode.CODE_MISMATCH);
         }
 
         //인증 완료
@@ -270,7 +307,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         //대상 유저 조회
-        User user = userRepository.findByEmail(token.getEmail())
+        User user = userRepository.findByProviderAndEmail(Provider.LOCAL,token.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         //기존 비밀번호와 같으면 거부
@@ -283,6 +320,22 @@ public class AuthServiceImpl implements AuthService {
         token.markUsed();
 
 
+    }
+
+    @Override
+    public String refreshToken(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        return jwtProvider.createToken(user.getId(), user.getRole().name());
+    }
+
+
+
+
+
+    // 정지 단계에 따라 문구 선택 (1=30분, 2=24시간)
+    private ErrorCode lockError(EmailVerification ev) {
+        return ev.getLockStage() >= 2 ? ErrorCode.CODE_LOCKED_24H : ErrorCode.CODE_LOCKED_30M;
     }
 }
 

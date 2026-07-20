@@ -59,7 +59,7 @@ export default function ProfileTab({
                   onChange={(e) => setPw((v) => ({ ...v, cur: e.target.value }))} />
               </div>
               <div>
-                <label>새 비밀번호 (8자 이상)</label>
+                <label>새 비밀번호 (영어·숫자·특수문자 포함 8자 이상)</label>
                 <input type="password" value={pw.next} autoComplete="new-password"
                   onChange={(e) => setPw((v) => ({ ...v, next: e.target.value }))} />
               </div>

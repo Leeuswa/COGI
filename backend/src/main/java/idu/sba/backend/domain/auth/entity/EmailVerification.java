@@ -84,6 +84,7 @@ public class EmailVerification {
                 this.lockStage = 1;
             } else {
                 this.lockedUntil = now.plusHours(24);
+                this.lockStage = 2;
             }
             this.attemptCount = 0;
         }

@@ -17,6 +17,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
 import { TermsDialog } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import { useCountdown } from '../../hooks/useCountdown';
+import { isValidPassword, PW_HINT } from '../../utils/password';
+
+// 초 → "m:ss"
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export default function Signup() {
   const { signIn } = useAuth();
@@ -29,6 +34,7 @@ export default function Signup() {
 
   const [step, setStep] = useState(1);            // 이메일 가입 전용 (1: 입력, 2: 코드)
   const [email, setEmail] = useState('');
+  const [nickname, setNickname] = useState('');   // 선택 — 비우면 서버가 이메일 앞부분으로 채움
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [terms, setTerms] = useState([]);         // 약관 목록 (API-063)
@@ -37,6 +43,8 @@ export default function Signup() {
   const [code, setCode] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cooldown, startCooldown] = useCountdown(); // 재발송 쿨타임(초)
+  const [expiry, startExpiry] = useCountdown();     // 코드 유효시간(초)
 
   // 결제/구독 약관(PAYMENT)은 가입이 아니라 "결제 진행 시" 동의받는다 (AUTH-009 비고) → 여기선 제외
   useEffect(() => { api.getTerms().then((all) => setTerms(all.filter((t) => t.type !== 'PAYMENT'))); }, []);
@@ -55,18 +63,9 @@ export default function Signup() {
   };
 
   /* ── 소셜 가입: 버튼 클릭 → 프로필 받아오기 ── */
-  const startSocial = async (provider) => {
-    setErr('');
-    // 실서버: OAuth 페이지로 이동. 콜백 후 /signup?social=kakao 로 돌아와 이 화면이 이어진다.
-    const url = provider === 'KAKAO' ? api.kakaoOAuthUrl() : api.githubOAuthUrl();
-    if (url.startsWith('http')) { window.location.href = url; return; }
-    // 목: 동의 끝난 셈 치고 바로 프로필 조회
-    setBusy(true);
-    try {
-      const p = await api.socialProfile(provider);
-      setProfile(p);
-      setMode('social');
-    } finally { setBusy(false); }
+  const startSocial = (provider) => {
+    // 소셜 가입/로그인은 백엔드 OAuth 진입점으로 풀페이지 이동. 동의 후 백엔드가 쿠키를 세팅하고 /oauth/callback 으로 돌려보낸다.
+    window.location.href = provider === 'KAKAO' ? api.kakaoOAuthUrl() : api.githubOAuthUrl();
   };
 
   /* ── 소셜 가입: 약관 동의 → 확정 ── */
@@ -88,14 +87,20 @@ export default function Signup() {
   const step1 = async (e) => {
     e.preventDefault();
     setErr('');
-    if (pw.length < 8) return setErr('비밀번호는 8자 이상이어야 해요.');
+    if (!isValidPassword(pw)) return setErr(PW_HINT);
     if (pw !== pw2) return setErr('비밀번호 확인이 일치하지 않아요.');
     if (!requiredOk()) return setErr('필수 약관에 동의해주세요.');
 
     setBusy(true);
     try {
       await api.sendEmailCode(email, 'SIGNUP');
+      startCooldown(60);   // 60초 뒤 재발송 가능
+      startExpiry(300);    // 코드 5분 유효
       setStep(2);
+    } catch (ex) {
+      setErr(ex.status === 409
+        ? '이미 가입된 이메일이에요. 로그인하거나 비밀번호 찾기를 이용해주세요.'
+        : '인증코드 발송에 실패했어요. 잠시 후 다시 시도해주세요.');
     } finally { setBusy(false); }
   };
 
@@ -103,15 +108,30 @@ export default function Signup() {
   const step2 = async (e) => {
     e.preventDefault();
     setErr('');
+    if (expiry === 0) return setErr('코드가 만료됐어요. 다시 받아주세요.');
     setBusy(true);
     try {
-      await api.verifyEmailCode(email, code);            // 5분 만료 검증
-      const res = await api.signup(email, pw, pw2, agreed); // 가입 (약관 동의 포함)
-      await api.submitAgreements(agreed.map((id) => ({ termId: id, agreed: true })));
-      signIn(res.accessToken, res.user); // 닉네임 초기값은 @ 앞부분 — 마이페이지에서 수정 가능
-      nav('/onboarding', { state: { from: backTo } });
-    } catch {
-      setErr('인증코드가 맞지 않아요. (목 모드 힌트: 000000)');
+      await api.verifyEmailCode(email, code);              // 5분 만료 검증
+      await api.signup(email, pw, pw2, agreed, nickname);  // 가입만 (약관 동의는 백엔드가 함께 저장, nickname 선택)
+      // 가입은 여기까지. 로그인 화면으로 보내고, 로그인 시 온보딩 미완료면 온보딩으로 이동한다.
+      nav('/login', { state: { signupDone: true, from: backTo } });
+    } catch (ex) {
+      setErr(ex.message || '인증코드가 맞지 않아요.');
+    } finally { setBusy(false); }
+  };
+
+  // 코드 재발송 (60초 쿨타임 끝난 뒤에만) + 타이머 리셋
+  const resend = async () => {
+    if (cooldown > 0) return;
+    setCode('');
+    setErr('');
+    setBusy(true);
+    try {
+      await api.sendEmailCode(email, 'SIGNUP');
+      startCooldown(60);
+      startExpiry(300);
+    } catch (ex) {
+      setErr(ex.status === 409 ? '이미 가입된 이메일이에요.' : '재발송에 실패했어요.');
     } finally { setBusy(false); }
   };
 
@@ -205,7 +225,11 @@ export default function Signup() {
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
               </div>
               <div>
-                <label>비밀번호 (8자 이상)</label>
+                <label>닉네임 (선택 — 비우면 이메일 앞부분으로 자동)</label>
+                <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={20} autoComplete="nickname" />
+              </div>
+              <div>
+                <label>비밀번호 (영어·숫자·특수문자 포함 8자 이상)</label>
                 <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" />
               </div>
               <div>
@@ -238,12 +262,19 @@ export default function Signup() {
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                   style={{ fontFamily: 'Silkscreen, monospace', letterSpacing: 6, textAlign: 'center' }} required />
               </div>
+              {/* 코드 유효시간(5분) 실시간 */}
+              <p className="note sm" style={{ marginTop: 4 }}>
+                {expiry > 0
+                  ? <>남은 시간 <b style={{ fontFamily: 'Silkscreen, monospace' }}>{fmt(expiry)}</b></>
+                  : <span style={{ color: 'crimson' }}>코드가 만료됐어요. 다시 받아주세요.</span>}
+              </p>
               {err && <p className="err">{err}</p>}
-              <button className="btn co" type="submit" disabled={busy || code.length !== 6}>
+              <button className="btn co" type="submit" disabled={busy || code.length !== 6 || expiry === 0}>
                 {busy ? '검증 중…' : '가입 완료'}
               </button>
-              <button className="btn wh sm" type="button" onClick={() => api.sendEmailCode(email, 'SIGNUP')}>
-                코드 재발송
+              {/* 재발송(60초 쿨타임) 실시간 */}
+              <button className="btn wh sm" type="button" onClick={resend} disabled={busy || cooldown > 0}>
+                {cooldown > 0 ? `재발송 (${cooldown}초)` : '코드 재발송'}
               </button>
             </form>
           </>

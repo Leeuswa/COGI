@@ -40,6 +40,9 @@ dependencies {
 
     // OAuth2 소셜 로그인 (GitHub, 카카오)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    // TOTP 2차 인증 (시크릿 생성·코드 검증)
+    implementation 'dev.samstevens.totp:totp:1.7.1'
+
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

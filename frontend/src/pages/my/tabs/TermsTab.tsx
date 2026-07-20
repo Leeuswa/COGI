@@ -5,8 +5,9 @@
 import { useState } from 'react';
 import { TermsDialog } from '../../../components/ui';
 
-export default function TermsTab({ terms }) {
+export default function TermsTab({ terms, agreedIds = [] }) {
   const [viewTerm, setViewTerm] = useState(null);
+  const agreed = new Set(agreedIds); // 실제 동의한 약관 id
   return (
     <div className="panel flush">
       <table className="tbl">
@@ -19,9 +20,11 @@ export default function TermsTab({ terms }) {
               </td>
               <td className="mono">v{t.version}</td>
               <td><span className={`chip ${t.isRequired ? 'navy' : 'gray'}`}>{t.isRequired ? '필수' : '선택'}</span></td>
-              <td>{t.type === 'PAYMENT'
-                ? <span className="chip gray">결제 시 동의</span>
-                : <span className="chip low">동의함</span>}</td>
+              <td>{agreed.has(t.id)
+                ? <span className="chip low">동의함</span>
+                : t.type === 'PAYMENT'
+                  ? <span className="chip gray">결제 시 동의</span>
+                  : <span className="chip gray">미동의</span>}</td>
             </tr>
           ))}
         </tbody>

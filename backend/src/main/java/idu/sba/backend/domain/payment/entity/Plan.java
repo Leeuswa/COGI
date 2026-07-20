@@ -19,7 +19,7 @@ public class Plan {
     private String name; // FREE , PRO ,MAX 이름 지정
 
     @Column(name = "daily_credit_limit", nullable = false)
-    private int dailyCreditLimit; //일일 크레딧 한도 ( FREE는 20 , PRO는 50  , MAX는 70)
+    private int dailyCreditLimit; //일일 크레딧 한도 ( FREE는 20 , PRO는 40  , MAX는 70)
 
 
     @Column(name = "allowed_models", nullable = false, length = 255)
