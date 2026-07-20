@@ -1,5 +1,7 @@
 package idu.sba.backend.global.ai;
 
+import idu.sba.backend.domain.review.service.PromptBuilder;
+import idu.sba.backend.domain.user.entity.Level;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -8,12 +10,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 // 실제 AI API에 네트워크 호출을 보내는 통합 테스트.
 //   !! 실행할 때마다 실제 과금이 발생
+//
+// AiReviewClient.AiReview(존재한 적 없는 타입)/4-arg review(...)를 참조하고 있어 컴파일이 안 되던 걸
+// 실제 인터페이스(AiReviewResult 반환, 5-arg review)에 맞춰 최소 수정함 — 동작 자체는 검증 안 함(실제 과금 발생).
 
 @SpringBootTest
 class AiReviewClientIntegrationTest {
 
     @Autowired
     private AiReviewClient aiReviewClient;
+
+    @Autowired
+    private PromptBuilder promptBuilder;
 
     private static final String SAMPLE_CODE = """
             public class Sample {
@@ -65,14 +73,15 @@ class AiReviewClientIntegrationTest {
     }
 
     private void callAndPrint(AiModel model) {
-        AiReviewClient.AiReview result = aiReviewClient.review(model, SAMPLE_CODE, "java", "BEGINNER");
+        String systemPrompt = promptBuilder.build(Level.BEGINNER, "FREE");
+        AiReviewResult result = aiReviewClient.review(model, systemPrompt, SAMPLE_CODE, "java", AiInputType.PASTED_CODE);
 
         System.out.println("===== " + model.name() + " (" + model.id() + ") =====");
         System.out.println("summary: " + result.summary());
-        result.toReviewComments().forEach(c ->
-                System.out.println(" - [" + c.getCategory() + "/" + c.getSeverity() + "] " + c.getDescription()));
+        result.issues().forEach(c ->
+                System.out.println(" - [" + c.category() + "/" + c.severity() + "] " + c.description()));
 
         assertThat(result.summary()).isNotBlank();
-        assertThat(result.toReviewComments()).isNotEmpty();
+        assertThat(result.issues()).isNotEmpty();
     }
 }
