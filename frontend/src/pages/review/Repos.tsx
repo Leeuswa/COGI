@@ -40,9 +40,14 @@ export default function Repos() {
   };
 
   const link = async (repo) => {
-    const res = await api.linkRepo(repo.githubRepoId);
-    setLinked((prev) => ({ ...prev, [repo.githubRepoId]: res.repoId }));
-    notify(`${repo.repoName} 연동 완료!`);
+    try {
+      const res = await api.linkRepo(repo.githubRepoId);
+      setLinked((prev) => ({ ...prev, [repo.githubRepoId]: res.repoId }));
+      notify(`${repo.repoName} 연동 완료!`);
+    } catch (e) {
+      // 이미 다른 사람이 연동한 레포면 REPO_ALREADY_LINKED(409) — 팀장에게 초대를 요청해야 함(재연동 불가)
+      notify(e.message || '연동에 실패했어요');
+    }
   };
 
   // GitHub 아이디로만 먼저 시도 — 우리 시스템이 모르는 아이디면(GITHUB_USER_NOT_FOUND, 400)
