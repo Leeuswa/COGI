@@ -2,6 +2,9 @@ package idu.sba.backend.domain.pr.service;
 
 import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
+import idu.sba.backend.domain.repo.client.GithubApiClient;
+import idu.sba.backend.domain.repo.client.GithubPrFileDto;
+import idu.sba.backend.domain.repo.client.GithubPrSummaryDto;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
@@ -39,6 +42,7 @@ class PrServiceImplTest {
     @Mock private ReviewRepository reviewRepository;
     @Mock private ReviewIssueRepository reviewIssueRepository;
     @Mock private UserRepository userRepository;
+    @Mock private GithubApiClient githubApiClient;
 
     @InjectMocks
     private PrServiceImpl service;
@@ -67,6 +71,31 @@ class PrServiceImplTest {
         GithubRepository repo = GithubRepository.link(USER_ID, "999", "repo-name", false, "owner/repo-name");
         setField(repo, "id", REPO_ID);
         return repo;
+    }
+
+    private User userWithToken(String token) {
+        User user = User.createByGithub("gh-" + USER_ID, "user-gh", "user@test.com", token);
+        setField(user, "id", USER_ID);
+        return user;
+    }
+
+    private GithubPrSummaryDto prSummary(Integer number, String title, String authorLogin) {
+        GithubPrSummaryDto dto = new GithubPrSummaryDto();
+        setField(dto, "number", number);
+        setField(dto, "title", title);
+        if (authorLogin != null) {
+            GithubPrSummaryDto.GithubPrUserDto user = new GithubPrSummaryDto.GithubPrUserDto();
+            setField(user, "login", authorLogin);
+            setField(dto, "user", user);
+        }
+        return dto;
+    }
+
+    private GithubPrFileDto prFile(String filename, String patch) {
+        GithubPrFileDto dto = new GithubPrFileDto();
+        setField(dto, "filename", filename);
+        setField(dto, "patch", patch);
+        return dto;
     }
 
     @Test
@@ -136,6 +165,73 @@ class PrServiceImplTest {
 
         assertThat(result.getPr().getAuthorName()).isNull();
         org.mockito.Mockito.verify(userRepository, org.mockito.Mockito.never()).findById(any());
+    }
+
+    // ---------- listOpenPrs ----------
+
+    @Test
+    void listOpenPrs_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.listOpenPrs(USER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void listOpenPrs_GitHub_미연동이면_GITHUB_NOT_LINKED() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken(null)));
+
+        assertThatThrownBy(() -> service.listOpenPrs(USER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.GITHUB_NOT_LINKED);
+    }
+
+    @Test
+    void listOpenPrs_정상_케이스면_GithubApiClient_결과를_DTO로_변환한다() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("caller-token")));
+        when(githubApiClient.listPullRequests("caller-token", "owner/repo-name"))
+                .thenReturn(List.of(prSummary(42, "제목", "author-gh")));
+
+        var result = service.listOpenPrs(USER_ID, REPO_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getNumber()).isEqualTo(42);
+        assertThat(result.get(0).getTitle()).isEqualTo("제목");
+        assertThat(result.get(0).getAuthorLogin()).isEqualTo("author-gh");
+    }
+
+    // ---------- listPrFiles ----------
+
+    @Test
+    void listPrFiles_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.listPrFiles(USER_ID, REPO_ID, 42))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void listPrFiles_patch가_없는_파일은_제외된다() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("caller-token")));
+        when(githubApiClient.listPrFiles("caller-token", "owner/repo-name", 42)).thenReturn(List.of(
+                prFile("Foo.java", "@@ -1 +1 @@\n-old\n+new"),
+                prFile("image.png", null))); //바이너리 — patch 없음
+
+        var result = service.listPrFiles(USER_ID, REPO_ID, 42);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getPath()).isEqualTo("Foo.java");
+        assertThat(result.get(0).getCode()).contains("+new");
     }
 
 }

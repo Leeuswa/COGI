@@ -300,9 +300,15 @@ export const exportPdf = (prId) =>
 
 // API-038 GET /api/prs/{prId}/preview — 프론트엔드 변경 실시간 미리보기 (FR-47~49)
 // ponytail: 명세상 [불확실]·MVP 제외 후보라 404 응답(미지원 사유)만 다루는 스텁. WebContainer 붙일 때 확장
-// PR 변경 파일 목록 — 스튜디오 'PR 가져오기'가 쓴다 (FR-38 데이터, 파일 다중 선택용)
-export const getPrFiles = (prId) =>
-  USE_MOCK ? mock(M.mockPrFiles) : http('GET', `/api/prs/${prId}/files`);
+
+// 스튜디오 'PR 가져오기' 피커 1단계 — 레포의 열린 PR 목록(GitHub 실시간 조회)
+export const getRepoPrs = (repoId) =>
+  USE_MOCK ? mock([{ number: 42, title: '샘플 PR', authorLogin: 'octocat' }])
+    : http('GET', `/api/repos/${repoId}/prs`);
+
+// 스튜디오 'PR 가져오기' 피커 2단계 — 특정 PR의 변경 파일 목록(코드는 diff 근사치)
+export const getRepoPrFiles = (repoId, prNumber) =>
+  USE_MOCK ? mock(M.mockPrFiles) : http('GET', `/api/repos/${repoId}/prs/${prNumber}/files`);
 
 /* ══════════ 비로그인 / 직접 업로드 (LOC) ══════════ */
 

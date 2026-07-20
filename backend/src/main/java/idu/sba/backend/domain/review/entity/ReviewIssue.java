@@ -49,6 +49,11 @@ public class ReviewIssue {
         this.updatedAt = this.createdAt;
     }
 
+    @PreUpdate
+    protected void onUpdate(){
+        this.updatedAt = LocalDateTime.now();
+    }
+
     private ReviewIssue(Long reviewId, IssueCategory category, IssueSeverity severity,
                          String filePath, Integer lineNumber, String description){
         this.reviewId = reviewId;
@@ -64,6 +69,13 @@ public class ReviewIssue {
     public static ReviewIssue of(Long reviewId, IssueCategory category, IssueSeverity severity,
                                   String filePath, Integer lineNumber, String description){
         return new ReviewIssue(reviewId, category, severity, filePath, lineNumber, description);
+    }
+
+    // 스튜디오 판정 확정(RESOLVED/IGNORED) — 팀장 승인 없이 바로 반영(요구 #7).
+    // requestType/approvedBy는 안 건드림 — 승인 흐름(RDB-003)이 실제로 생기면 그때 채울 필드
+    public void finalizeAs(IssueStatus verdict){
+        this.status = verdict;
+        this.acknowledged = true;
     }
 
 }

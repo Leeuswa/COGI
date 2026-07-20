@@ -1,9 +1,12 @@
 package idu.sba.backend.domain.pr.service;
 
 import idu.sba.backend.domain.pr.dto.PrDetailResponseDTO;
+import idu.sba.backend.domain.pr.dto.PrFileResponseDTO;
 import idu.sba.backend.domain.pr.dto.PrReviewResponseDTO;
+import idu.sba.backend.domain.pr.dto.PrSummaryResponseDTO;
 import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
+import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
@@ -11,6 +14,7 @@ import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
 import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
+import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
@@ -29,6 +33,7 @@ public class PrServiceImpl implements PrService {
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
     private final UserRepository userRepository;
+    private final GithubApiClient githubApiClient;
 
     @Override
     public PrReviewResponseDTO getPrReview(Long currentUserId, Long prId) {
@@ -52,6 +57,45 @@ public class PrServiceImpl implements PrService {
                 : userRepository.findById(pr.getAuthorId()).map(u -> u.getNickname()).orElse(null);
 
         return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, authorName), issues);
+    }
+
+    @Override
+    public List<PrSummaryResponseDTO> listOpenPrs(Long currentUserId, Long repoId) {
+        GithubRepository repo = requireRepoMember(currentUserId, repoId);
+        String accessToken = requireAccessToken(currentUserId);
+        return githubApiClient.listPullRequests(accessToken, repo.getFullName()).stream()
+                .map(PrSummaryResponseDTO::of)
+                .toList();
+    }
+
+    @Override
+    public List<PrFileResponseDTO> listPrFiles(Long currentUserId, Long repoId, int prNumber) {
+        GithubRepository repo = requireRepoMember(currentUserId, repoId);
+        String accessToken = requireAccessToken(currentUserId);
+        return githubApiClient.listPrFiles(accessToken, repo.getFullName(), prNumber).stream()
+                .filter(f -> f.getPatch() != null) //바이너리/과대용량 diff는 patch가 없어 GitHub가 생략함
+                .map(PrFileResponseDTO::of)
+                .toList();
+    }
+
+    // listOpenPrs/listPrFiles 공용 — 이 두 API는 웹훅 경로와 달리 실제 로그인 사용자가 호출하므로
+    // 항상 그 사용자 본인의 GitHub 토큰을 쓴다(레포 팀장 기준이 아님)
+    private GithubRepository requireRepoMember(Long currentUserId, Long repoId) {
+        GithubRepository repo = githubRepositoryRepository.findById(repoId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REPO_NOT_FOUND));
+        if (!repoMemberRepository.existsByRepoIdAndUserId(repoId, currentUserId)) {
+            throw new BusinessException(ErrorCode.NOT_REPO_MEMBER);
+        }
+        return repo;
+    }
+
+    private String requireAccessToken(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (user.getGithubAccessToken() == null) {
+            throw new BusinessException(ErrorCode.GITHUB_NOT_LINKED);
+        }
+        return user.getGithubAccessToken();
     }
 
 }

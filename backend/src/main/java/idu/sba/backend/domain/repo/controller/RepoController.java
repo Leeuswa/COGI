@@ -1,5 +1,8 @@
 package idu.sba.backend.domain.repo.controller;
 
+import idu.sba.backend.domain.pr.dto.PrFileResponseDTO;
+import idu.sba.backend.domain.pr.dto.PrSummaryResponseDTO;
+import idu.sba.backend.domain.pr.service.PrService;
 import idu.sba.backend.domain.repo.dto.GithubRepoResponseDTO;
 import idu.sba.backend.domain.repo.dto.MyLinkedRepoResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoLinkResponseDTO;
@@ -21,6 +24,7 @@ public class RepoController {
 
     private final GithubRepoLinkService githubRepoLinkService;
     private final RepoMemberService repoMemberService;
+    private final PrService prService;
 
     //API-022: 내 GitHub 레포 목록 조회(private 포함)
     @GetMapping("/github")
@@ -41,6 +45,20 @@ public class RepoController {
             @PathVariable String repoId) {
         RepoLinkResponseDTO result = githubRepoLinkService.linkRepo(userId, repoId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("레포를 연동했습니다.", result));
+    }
+
+    // Studio "PR 가져오기" 피커 1단계 — 레포의 열린 PR 목록(GitHub 실시간 조회)
+    @GetMapping("/{repoId}/prs")
+    public ApiResponse<List<PrSummaryResponseDTO>> listRepoPrs(
+            @AuthenticationPrincipal Long userId, @PathVariable Long repoId) {
+        return ApiResponse.ok(prService.listOpenPrs(userId, repoId));
+    }
+
+    // Studio "PR 가져오기" 피커 2단계 — 특정 PR의 변경 파일 목록
+    @GetMapping("/{repoId}/prs/{prNumber}/files")
+    public ApiResponse<List<PrFileResponseDTO>> listRepoPrFiles(
+            @AuthenticationPrincipal Long userId, @PathVariable Long repoId, @PathVariable int prNumber) {
+        return ApiResponse.ok(prService.listPrFiles(userId, repoId, prNumber));
     }
 
 }
