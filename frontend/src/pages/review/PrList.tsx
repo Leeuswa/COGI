@@ -87,7 +87,9 @@ export default function PrList() {
                   {shown.map((pr) => (
                     <tr key={pr.id}>
                       <td className="mono">#{pr.githubPrNumber}</td>
-                      <td><Link to={`/app/prs/${pr.id}`} style={{ borderBottom: '2px solid var(--coral)' }}>{pr.title}</Link></td>
+                      <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Link to={`/app/prs/${pr.id}`} title={pr.title}>{pr.title}</Link>
+                      </td>
                       <td style={{ fontSize: 12.5 }}>{pr.authorName ?? '-'}</td>
                       <td className="mono">{pr.issueCount}</td>
                       <td>{pr.topSeverity ? <SevChip sev={pr.topSeverity} /> : <span className="note sm">-</span>}</td>
