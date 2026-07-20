@@ -206,6 +206,9 @@ public class RepoMemberServiceImpl implements RepoMemberService {
         owner.changeRole(RepoRole.MEMBER);
         target.changeRole(RepoRole.OWNER);
 
+        //GithubRepository.userId("연동 등록자")도 같이 갱신 — 안 하면 위임 후에도 예전 팀장을 계속 가리키게 됨
+        githubRepositoryRepository.findById(repoId).ifPresent(repo -> repo.changeOwner(targetUserId));
+
         User targetUser = userRepository.findById(targetUserId).orElseThrow();
         return RepoMemberResponseDTO.of(target, targetUser);
     }

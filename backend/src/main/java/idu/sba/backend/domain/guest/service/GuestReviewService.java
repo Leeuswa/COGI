@@ -13,6 +13,7 @@ import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
+import idu.sba.backend.global.ai.AiInputType;
 import idu.sba.backend.global.ai.AiModel;
 import idu.sba.backend.global.ai.AiReviewClient;
 import idu.sba.backend.global.ai.AiReviewResult;
@@ -51,7 +52,7 @@ public class GuestReviewService {
     private static final int TRIAL_LIMIT = 3;
 
     // 게스트 체험이 쓰는 모델. claim 시 reviews.model_name 에도 이 값을 남긴다.
-    private static final AiModel GUEST_MODEL = AiModel.GEMINI_FLASH_LITE;
+    private static final AiModel GUEST_MODEL = AiModel.GEMINI_FLASH;
 
     // 체험 횟수 유지 창. 첫 리뷰 시점부터 24시간 뒤 카운터가 만료돼 3회가 리셋된다.
     private static final Duration TRIAL_WINDOW = Duration.ofHours(24);
@@ -90,7 +91,7 @@ public class GuestReviewService {
         try {
             String systemPrompt = buildPrompt(request.getLanguage(), level);
             AiReviewResult result = aiReviewClient.review(
-                    GUEST_MODEL, systemPrompt, request.getCode(), request.getLanguage());
+                    GUEST_MODEL, systemPrompt, request.getCode(), request.getLanguage(), AiInputType.PASTED_CODE);
             summary = result.summary();
             comments = result.issues().stream()
                     .map(i -> new ReviewComment(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))

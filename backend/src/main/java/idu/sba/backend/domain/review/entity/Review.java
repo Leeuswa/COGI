@@ -71,6 +71,14 @@ public class Review {
         return review;
     }
 
+    // PR 웹훅 경로(API-024) — sourceCode/language는 null. PR은 GitHub에서 언제든 재조회 가능해서
+    // paste/upload와 달리 원본 스냅샷을 안 남긴다(테이블 정의서 코멘트와 일치).
+    public static Review createFromPr(Long userId, Long prId, String modelName){
+        Review review = new Review(ReviewTargetType.PR, userId, modelName, null, null, null);
+        review.prId = prId;
+        return review;
+    }
+
     public void markCompleted(){
         this.status = ReviewStatus.COMPLETED;
     }

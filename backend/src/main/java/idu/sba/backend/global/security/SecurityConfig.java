@@ -45,6 +45,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/guest/**").permitAll()
                         // /api/plans 요금제 목록 조회 (GET만 허용)
                         .requestMatchers(HttpMethod.GET, "/api/plans").permitAll()
+                        // GitHub Webhook 수신(API-024) — JWT가 아니라 X-Hub-Signature-256 서명으로 자체 인증
+                        .requestMatchers(HttpMethod.POST, "/api/webhooks/github").permitAll()
                         // 나머지 모든 요청은 토큰 필요, 없으면 401에러
                         .anyRequest().authenticated()
                 )
