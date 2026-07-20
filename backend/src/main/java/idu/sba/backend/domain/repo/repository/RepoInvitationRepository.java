@@ -19,4 +19,8 @@ public interface RepoInvitationRepository extends JpaRepository<RepoInvitation, 
     List<RepoInvitation> findByStatusAndInvitedUserIdIsNullAndInviteeEmailIgnoreCase(
             RepoInvitationStatus status, String inviteeEmail);
 
+    //같은 레포에 같은 사람한테 이미 보낸 PENDING 초대가 있는지(중복 발송 방지)
+    boolean existsByRepoIdAndInvitedGithubUsernameIgnoreCaseAndStatus(
+            Long repoId, String invitedGithubUsername, RepoInvitationStatus status);
+
 }

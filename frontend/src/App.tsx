@@ -31,6 +31,7 @@ import Repos from './pages/review/Repos';
 import PrList from './pages/review/PrList';
 import PrDetail from './pages/review/PrDetail';
 import Studio from './pages/review/Studio';
+import ReviewHistory from './pages/review/ReviewHistory';
 import Weakness from './pages/learn/Weakness';
 import Cards from './pages/learn/Cards';
 import CardDetail from './pages/learn/CardDetail';
@@ -39,8 +40,9 @@ import Skills from './pages/learn/Skills';
 import Growth from './pages/growth/Growth';
 import WeeklyReports from './pages/growth/WeeklyReports';
 import TeamPage from './pages/team/TeamPage';
-import InviteLanding from './pages/team/InviteLanding';
 import Plan from './pages/plan/Plan';
+import BillingSuccess from './pages/plan/BillingSuccess';
+import BillingFail from './pages/plan/BillingFail';
 import MyPage from './pages/my/MyPage';
 import Admin from './pages/admin/Admin';
 
@@ -79,7 +81,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/guest" element={<GuestReview />} />
-        <Route path="/invite/:code" element={<InviteLanding />} /> {/* 팀 초대 링크 착지 */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/find-password" element={<FindPassword />} />
@@ -96,6 +97,7 @@ export default function App() {
             <Route path="/app/prs" element={<PrList />} />
             <Route path="/app/prs/:prId" element={<PrDetail />} />
             <Route path="/app/paste" element={<Studio />} />
+            <Route path="/app/history" element={<ReviewHistory />} />
             <Route path="/app/preview" element={<Navigate to="/app/paste" replace />} /> {/* 스튜디오로 흡수 */}
             <Route path="/app/weakness" element={<Weakness />} />
             <Route path="/app/cards" element={<Cards />} />
@@ -106,6 +108,8 @@ export default function App() {
             <Route path="/app/reports" element={<WeeklyReports />} />
             <Route path="/app/team" element={<TeamPage />} />
             <Route path="/app/plan" element={<Plan />} />
+            <Route path="/app/billing/success" element={<BillingSuccess />} /> {/* 토스 결제창 성공 콜백 */}
+            <Route path="/app/billing/fail" element={<BillingFail />} /> {/* 토스 결제창 실패 콜백 */}
             <Route path="/app/my" element={<MyPage />} />
             <Route path="/app/admin" element={<Admin />} />
           </Route>

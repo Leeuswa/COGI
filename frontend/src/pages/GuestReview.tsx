@@ -30,12 +30,21 @@ export default function GuestReview() {
     setBusy(true);
     try {
       const res = await api.guestReview(code, language, level);
-      setIssues(res.issues);
+      setIssues(res.comments); // 백엔드 응답 필드명은 comments
       // 가입하면 이 리뷰를 계정으로 가져갈 수 있게 식별자를 남긴다 (API-039-1, 24시간 뒤 서버가 폐기)
-      if (res.reviewId) localStorage.setItem('cogi-guest-review', JSON.stringify({ reviewId: res.reviewId, guestToken: res.guestToken }));
+      // guestToken은 HttpOnly 쿠키(guest_token)로 자동 전송되므로 reviewId만 남긴다
+      if (res.reviewId) localStorage.setItem('cogi-guest-review', JSON.stringify({ reviewId: res.reviewId }));
       const next = used + 1;
       setUsed(next);
       localStorage.setItem(KEY, String(next));
+    } catch (e) {
+      // 서버가 403(체험 3회 소진) 등으로 거절한 경우 — 조용히 삼키지 않고 안내
+      if (e?.status === 403) {
+        setUsed(LIMIT); // 입력 잠그고 가입 유도 화면으로 전환
+        localStorage.setItem(KEY, String(LIMIT));
+      } else {
+        alert('리뷰 요청에 실패했어요. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
       setBusy(false);
     }
@@ -105,8 +114,8 @@ export default function GuestReview() {
       {issues && (
         <div className="panel">
           <h3>리뷰 결과</h3>
-          {issues.map((it) => (
-            <div key={it.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {issues.map((it, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <SevChip sev={it.severity} />
                 <span className="chip navy">{catKo(it.category)}</span>

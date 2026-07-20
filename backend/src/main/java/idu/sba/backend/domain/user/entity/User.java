@@ -19,8 +19,11 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+
+    //   LOCAL: 가입 이메일
+    //   GITHUB/KAKAO: 소셜 계정 이메일(없으면 null 가능)
     @Column(unique = true)
-    private String email;   //GitHub 전용 가입자는 null 일 수 있음
+    private String email;
 
     private String password;
 
@@ -41,7 +44,6 @@ public class User {
     private String kakaoId; //카카오 고유 ID
 
     private String totpSecret; //2단계 인증 시크릿
-
 
     private Boolean totpEnabled = false;
 
@@ -140,6 +142,12 @@ public class User {
         this.isLocked = false; //계정 잠금 해제
     }
 
+    // 구독 플랜 변경: 캐시용 plan_id 갱신
+    public void updatePlanId(Long planId) {
+        this.planId = planId;
+    }
+
+
     //GitHub 재로그인 시 토큰 갱신(스코프 재동의로 토큰이 바뀔 수 있음)
     public void updateGithubAccessToken(String githubAccessToken){
         this.githubAccessToken = githubAccessToken;
@@ -160,6 +168,30 @@ public class User {
         this.guideConfirmed = guideConfirmed;
         this.onboardingCompleted = true;   // 온보딩 완료 표시
     }
+
+    // 일반회원,카카오 사용자 계정에 깃허브 연동
+    public void linkGithub(String githubId,String githubUsername,String githubAccessToken){
+        this.githubId = githubId;
+        this.githubUsername = githubUsername;
+        this.githubAccessToken = githubAccessToken;
+    }
+
+
+    //로그인하고 마이페이지에서 비밀번호 변경
+    public void changePassword(String encodedPassword){
+        this.password = encodedPassword;
+    }
+
+    //2단계 인증
+    public void prepareTotp(String secret) {
+        this.totpSecret = secret; //시크릿 저장
+        this.totpEnabled = false;
+    }
+
+    public void enableTotp() {
+        this.totpEnabled = true; // 로그인시 2차 인증 요구 대상
+    }
+
 
 
 }

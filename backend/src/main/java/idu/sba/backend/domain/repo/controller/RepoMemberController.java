@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/repos/{repoId}/members")
 @RequiredArgsConstructor
@@ -46,6 +48,42 @@ public class RepoMemberController {
             @PathVariable Long inviteId) {
         repoMemberService.rejectInvite(userId, repoId, inviteId);
         return ApiResponse.ok("초대를 거절했습니다.");
+    }
+
+    //API-031: 레포(팀) 멤버 목록 조회 — 멤버면 누구나 조회 가능
+    @GetMapping
+    public ApiResponse<List<RepoMemberResponseDTO>> listMembers(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId) {
+        return ApiResponse.ok(repoMemberService.listMembers(userId, repoId));
+    }
+
+    //팀원이 스스로 팀 나가기 — 팀장은 위임 먼저 해야 함
+    @PostMapping("/leave")
+    public ApiResponse<Void> leave(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId) {
+        repoMemberService.leaveRepo(userId, repoId);
+        return ApiResponse.ok("팀에서 나갔습니다.");
+    }
+
+    //팀장이 팀원 내보내기
+    @DeleteMapping("/{targetUserId}")
+    public ApiResponse<Void> removeMember(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId,
+            @PathVariable Long targetUserId) {
+        repoMemberService.removeMember(userId, repoId, targetUserId);
+        return ApiResponse.ok("팀원을 내보냈습니다.");
+    }
+
+    //팀장 위임
+    @PostMapping("/{targetUserId}/transfer-owner")
+    public ApiResponse<RepoMemberResponseDTO> transferOwner(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long repoId,
+            @PathVariable Long targetUserId) {
+        return ApiResponse.ok("팀장을 위임했습니다.", repoMemberService.transferOwnership(userId, repoId, targetUserId));
     }
 
 }

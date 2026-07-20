@@ -12,35 +12,36 @@
  * PR 상세(팀장 승인·내보내기)는 별도 페이지 유지 — 거기서 [스튜디오에서 이어가기]로 넘어온다.
  */
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import * as api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
-import { PageHead, SevChip } from "../../components/ui";
+import { PageHead, SevChip, renderDescription } from "../../components/ui";
 import { MODEL_TIERS, PLAN_TIER, catKo } from "../../data/constants";
 import PreviewDock from "./PreviewDock";
 
-const isFrontend = (f) => /html|css/i.test(f.language) || f.kind === "frontend";
+const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend";
 
 export default function Studio() {
   const { user } = useAuth();
-  const { spendCredit, notify } = useGame();
-  const loc = useLocation();
+  const { spendCredit, refundCredit, notify, S, creditLimit } = useGame();
   const fileRef = useRef(null);
   const threadRef = useRef(null); // 채팅 스레드 컨테이너 — 내부 스크롤 전용
   const myTier = PLAN_TIER[user.planName] ?? 1;
+  const modelWeight = (m) => MODEL_TIERS.find((t) => t.name === m)?.tier ?? 1; // 크레딧 차감 가중치 = 모델 tier
+  const remainingCredit = creditLimit - S.creditUsed;
 
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
-  const [language, setLanguage] = useState("TypeScript");
-  const [model, setModel] = useState("gemini-3-pro");
+  const [model, setModel] = useState(MODEL_TIERS[0].name);
   const [busy, setBusy] = useState(false);
   const [reviewId, setReviewId] = useState(null); // null = 아직 시작 전 (모델 변경 가능)
-  const nav = useNavigate();
   const [verdicts, setVerdicts] = useState({}); // #6 이슈별 판정 { [issueId]: 'RESOLVED' | 'IGNORED' }
-  const [picker, setPicker] = useState(null); // PR 파일 선택 모달 { files, checked:Set }
+  const [picker, setPicker] = useState(null); // PR 가져오기 모달 — 레포→PR→파일 3단계 { step, repos, repo, prs, pr, files, checked:Set }
   const [previewCode, setPreviewCode] = useState(null); // 미리보기 대상 (프론트 파일)
   const [dockOpen, setDockOpen] = useState(false);
+  const actionCost = reviewId === null ? modelWeight(model) : 1; // 리뷰 시작=모델 등급, 후속 질문=1
+  const insufficientCredit = remainingCredit < actionCost;
 
   // 새 말풍선 → 채팅 영역 '안에서만' 아래로. scrollIntoView 는 페이지 전체를 끌고 내려가서 금지
   useEffect(() => {
@@ -48,27 +49,9 @@ export default function Studio() {
     if (t) t.scrollTop = t.scrollHeight; // scrollTo 미지원 환경도 안전
   }, [msgs, busy]);
 
-  const auto = useRef(false);
-  useEffect(() => {
-    if (auto.current) return;
-    auto.current = true;
-    (async () => {
-      if (loc.state?.prId) {
-        // PR 리뷰에서 넘어온 경우에만 자동 시작: 그 PR 파일로 리뷰
-        const files = await api.getPrFiles(loc.state.prId);
-        const front = files.find(isFrontend);
-        if (front) {
-          setPreviewCode(front.code);
-          setDockOpen(true);
-        }
-        runReview(
-          files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"),
-          files,
-        );
-      }
-      // 직접 들어온 경우: 자동 실행 없음 — [🐙 PR 가져오기] / [직접 붙여넣기]로 소스를 먼저 고른다
-    })();
-  }, []);
+  // PR 상세 화면(PrDetail.tsx)에서 [스튜디오에서 마저 판정]으로 넘어오는 자동 실행은
+  // PR 대시보드(API-032/034, 아직 mock)의 prId 체계에 맞물려 있어 이번 범위에서 같이 못 고침 —
+  // 대시보드가 실제 백엔드를 갖추면 그때 (repoId, prNumber) 기준으로 재연결 필요.
 
   const push = (m) => setMsgs((prev) => [...prev, m]);
   const cogiSays = (list, gap = 650) => {
@@ -78,14 +61,35 @@ export default function Studio() {
     setTimeout(() => setBusy(false), gap * (list.length + 1));
   };
 
-  /* ── ① PR 가져오기: PR 상세에서 넘어왔으면 그 PR, 아니면 대표 PR 의 파일 목록 ── */
+  /* ── ① PR 가져오기: 레포 선택 → PR 선택 → 파일 선택, 3단계 피커 ── */
   const openPicker = async () => {
-    const files = await api.getPrFiles(loc.state?.prId ?? 1);
-    setPicker({ files, checked: new Set(files.map((f) => f.path)) }); // 기본 전체 선택
+    const repos = await api.getMyLinkedRepos();
+    if (repos.length === 0) {
+      notify("연동된 레포가 없어요. 레포 연동 화면에서 먼저 연동해주세요.");
+      return;
+    }
+    setPicker({ step: "repo", repos }); // 기본: 레포 선택 단계부터
+  };
+
+  const selectRepo = async (repo) => {
+    const prs = await api.getRepoPrs(repo.repoId);
+    setPicker((p) => ({ ...p, step: "pr", repo, prs }));
+  };
+
+  const selectPr = async (pr) => {
+    const files = await api.getRepoPrFiles(picker.repo.repoId, pr.number);
+    setPicker((p) => ({
+      ...p,
+      step: "files",
+      pr,
+      files,
+      checked: new Set(files.map((f) => f.path)), // 기본 전체 선택
+    }));
   };
 
   const importFiles = () => {
     const files = picker.files.filter((f) => picker.checked.has(f.path));
+    const { repo, pr } = picker;
     setPicker(null);
     if (files.length === 0) return;
     const front = files.find(isFrontend);
@@ -93,35 +97,58 @@ export default function Studio() {
       setPreviewCode(front.code);
       setDockOpen(true);
     } // 디자인이 바로 보이게 도크 자동 오픈
-    runReview(files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"), files);
+    runReview(files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"), files, {
+      repoId: repo.repoId,
+      prNumber: pr.number,
+      title: pr.title,
+      authorLogin: pr.authorLogin,
+    });
   };
 
-  /* ── ② 리뷰 시작 — 여기서부터 모델 잠금 ── */
-  const runReview = async (codeText: string, files?: any[]) => {
-    if (!spendCredit(1)) return;
+  /* ── ② 리뷰 시작 — 여기서부터 모델 잠금.
+   * PR 가져오기로 시작한 리뷰는 target_type=PR로 저장돼(prMeta 있으면 reviewImportedPr 호출)
+   * "PR 리뷰"(/app/prs) 목록에도 실제로 뜬다 — 직접 붙여넣기/업로드는 그대로 PASTE/UPLOAD. ── */
+  const runReview = async (
+    codeText: string,
+    files?: any[],
+    prMeta?: { repoId: number; prNumber: number; title?: string; authorLogin?: string },
+  ) => {
+    if (!spendCredit(modelWeight(model))) return;
     const hasFront = files?.some(isFrontend) || /<[a-z][^>]*>/i.test(codeText); // 미리보기 힌트용
     if (files)
       push({
         who: "me",
-        text: `🐙 PR #42 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}`,
+        text: `🐙 PR #${prMeta.prNumber} 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}`,
       });
     else push({ who: "me", text: codeText, isCode: true });
     setBusy(true);
     try {
-      const res = await api.pasteReview(codeText, language, model);
+      const res = prMeta
+        ? await api.reviewImportedPr(prMeta.repoId, prMeta.prNumber, codeText, model, prMeta.title, prMeta.authorLogin)
+        : await api.pasteReview(codeText, model);
       setReviewId(res.reviewId ?? 1);
-      cogiSays([
-        {
-          text: `${MODEL_TIERS.find((m) => m.name === model)?.label}(으)로 봤어요. 짚을 게 ${res.issues.length}건!`,
-        },
-        ...res.issues.map((it) => ({ issue: it })),
-        {
-          text: hasFront
-            ? "프론트 코드가 있네요 — 위의 [▶ 미리보기]를 열면 화면을 직접 만지면서 고칠 수 있어요."
-            : "더 궁금한 건 그대로 물어보세요. 같은 유형 3회면 약점 통계로 승격돼요.",
-        },
-      ]);
+      if (res.analyzable === false) {
+        // 코드가 아니거나 분석 불가한 입력 — 서버가 크레딧을 이미 환불했으니 로컬 표시도 맞춘다
+        refundCredit(modelWeight(model));
+        cogiSays([
+          { text: res.summary || "코드가 아니라서 분석할 수 없었어요. 크레딧은 안 깎였어요." },
+        ]);
+      } else {
+        cogiSays([
+          {
+            text: `${MODEL_TIERS.find((m) => m.name === model)?.label}(으)로 봤어요. 짚을 게 ${res.issues.length}건!`,
+          },
+          ...res.issues.map((it) => ({ issue: it })),
+          {
+            text: hasFront
+              ? "프론트 코드가 있네요 — 위의 [▶ 미리보기]를 열면 화면을 직접 만지면서 고칠 수 있어요."
+              : "더 궁금한 건 그대로 물어보세요. 같은 유형 3회면 약점 통계로 승격돼요.",
+          },
+        ]);
+      }
     } catch {
+      refundCredit(modelWeight(model)); // 서버도 @Transactional 롤백으로 안 썼으니 로컬도 원복
+      push({ who: "cogi", text: "리뷰 처리 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 시도해주세요." });
       setBusy(false);
     }
   };
@@ -134,6 +161,9 @@ export default function Studio() {
     try {
       const res = await api.askReviewQuestion(reviewId, q);
       push({ who: "cogi", text: res.answer });
+    } catch {
+      refundCredit(1);
+      push({ who: "cogi", text: "답변 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 물어봐주세요." });
     } finally {
       setBusy(false);
     }
@@ -152,17 +182,26 @@ export default function Studio() {
 
   const onFile = async (f) => {
     if (!f || busy || reviewId !== null) return;
-    if (!spendCredit(1)) return;
+    if (!spendCredit(modelWeight(model))) return;
     push({ who: "me", text: `📁 ${f.name}` });
     setBusy(true);
     try {
-      const res = await api.uploadReview(f);
+      const res = await api.uploadReview(f, model);
       setReviewId(res.reviewId ?? 1);
-      cogiSays([
-        { text: `파일 잘 받았어요! 짚을 게 ${res.issues.length}건.` },
-        ...res.issues.map((it) => ({ issue: it })),
-      ]);
+      if (res.analyzable === false) {
+        refundCredit(modelWeight(model));
+        cogiSays([
+          { text: res.summary || "코드가 아니라서 분석할 수 없었어요. 크레딧은 안 깎였어요." },
+        ]);
+      } else {
+        cogiSays([
+          { text: `파일 잘 받았어요! 짚을 게 ${res.issues.length}건.` },
+          ...res.issues.map((it) => ({ issue: it })),
+        ]);
+      }
     } catch {
+      refundCredit(modelWeight(model));
+      push({ who: "cogi", text: "리뷰 처리 중 문제가 생겼어요. 크레딧은 안 깎였어요 — 다시 시도해주세요." });
       setBusy(false);
     }
   };
@@ -213,29 +252,28 @@ export default function Studio() {
               <p style={{ fontSize: 26 }}>🐕</p>
               <p style={{ marginBottom: 18 }}>
                 어떤 코드를 봐드릴까요? 백엔드든 프론트든 다 환영이에요.
+                <br />
+                GitHub PR을 가져오거나, 아래 입력창에 바로 코드를 붙여넣으세요.
               </p>
+              {insufficientCredit && (
+                <p className="model-hint" style={{ marginBottom: 12 }}>
+                  ⚡ 오늘 크레딧을 다 썼어요 · 자정에 초기화돼요
+                </p>
+              )}
               <div className="row" style={{ justifyContent: "center" }}>
-                <button className="btn co sm" onClick={openPicker}>
-                  🐙 GitHub PR 가져오기
-                </button>
                 <button
-                  className="btn wh sm"
-                  onClick={() =>
-                    document
-                      .querySelector<HTMLTextAreaElement>(
-                        ".chat-input textarea",
-                      )
-                      ?.focus()
-                  }
+                  className="btn co sm"
+                  onClick={openPicker}
+                  disabled={insufficientCredit}
                 >
-                  ✍️ 직접 붙여넣기·작성
+                  🐙 GitHub PR 가져오기
                 </button>
               </div>
             </div>
           )}
           {msgs.map((m, i) =>
             m.issue ? (
-              <div key={i} className="bubble cogi">
+              <div key={i} className="chat-bubble cogi">
                 <div className="row" style={{ gap: 8, marginBottom: 8 }}>
                   <SevChip sev={m.issue.severity} />
                   <span className="chip navy">{catKo(m.issue.category)}</span>
@@ -245,48 +283,21 @@ export default function Studio() {
                     {m.issue.codeSnippet.join("\n")}
                   </pre>
                 )}
-                <p>{m.issue.description}</p>
-                {/* #6 이슈 판정 — 의도한 코드인지 결정 */}
-                <p
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 13.5,
-                    margin: "12px 0 8px",
-                  }}
-                >
-                  이 지적, 의도한 코드인가요?
-                </p>
-                {verdicts[m.issue.id] ? (
+                <div className="issue-desc">{renderDescription(m.issue.description)}</div>
+                {/* #6 이슈 판정은 아래 고정 배너에서만 함 — 채팅창은 기록 보기 전용(읽기 전용) */}
+                {verdicts[m.issue.id] && (
                   <span
                     className={`chip ${verdicts[m.issue.id] === "RESOLVED" ? "low" : "mid"}`}
+                    style={{ marginTop: 10, display: "inline-block" }}
                   >
                     {verdicts[m.issue.id] === "RESOLVED"
                       ? "✔ 고치기로 함 (해결 요청)"
                       : "🙋 의도한 코드 (무시 요청)"}
                   </span>
-                ) : (
-                  <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                    <button
-                      className="btn wh sm"
-                      onClick={() =>
-                        setVerdicts((v) => ({ ...v, [m.issue.id]: "IGNORED" }))
-                      }
-                    >
-                      🙋 네, 의도했어요 → 무시 요청
-                    </button>
-                    <button
-                      className="btn co sm"
-                      onClick={() =>
-                        setVerdicts((v) => ({ ...v, [m.issue.id]: "RESOLVED" }))
-                      }
-                    >
-                      ✔ 아니요, 고쳤어요 → 해결 요청
-                    </button>
-                  </div>
                 )}
               </div>
             ) : (
-              <div key={i} className={`bubble ${m.who}`}>
+              <div key={i} className={`chat-bubble ${m.who}`}>
                 {m.isCode ? (
                   <pre>{m.text}</pre>
                 ) : (
@@ -296,8 +307,9 @@ export default function Studio() {
             ),
           )}
           {busy && (
-            <div className="bubble cogi typing">
-              코기가 생각하는 중<i>.</i>
+            <div className="chat-bubble cogi typing">
+              {reviewId === null ? "🔍 코드 분석 중" : "🤔 답변 작성 중"}
+              <i>.</i>
               <i>.</i>
               <i>.</i>
             </div>
@@ -314,7 +326,7 @@ export default function Studio() {
           return (
             <div className={`studio-done ${all ? "ready" : ""}`}>
               {all ? (
-                <span>{`✅ 지적 ${issues.length}건을 모두 확인했어요. 아래 버튼으로 리뷰를 마치면 결과가 PR 리뷰에 정리됩니다.`}</span>
+                <span>{`✅ 지적 ${issues.length}건을 모두 확인했어요. 아래 버튼으로 리뷰를 마치면 판정이 저장돼요.`}</span>
               ) : (
                 <div className="next-issue">
                   <div
@@ -328,12 +340,7 @@ export default function Studio() {
                       {next.filePath}:{next.lineNumber}
                     </span>
                   </div>
-                  {next.codeSnippet && (
-                    <pre className="codebox snippet">
-                      {next.codeSnippet.join("\n")}
-                    </pre>
-                  )}
-                  <p className="note sm">{next.description}</p>
+                  {/* 설명·코드는 위 채팅 기록에 이미 있음 — 여긴 빠른 결정용이라 슬림하게 유지 */}
                   <div className="row" style={{ gap: 8 }}>
                     <button
                       className="btn wh sm"
@@ -349,7 +356,7 @@ export default function Studio() {
                         setVerdicts((v) => ({ ...v, [next.id]: "RESOLVED" }))
                       }
                     >
-                      👀 무시하고 리뷰
+                      ✔ 고칠게요
                     </button>
                   </div>
                 </div>
@@ -365,16 +372,15 @@ export default function Studio() {
                         api.finalizeIssue(it.id, verdicts[it.id]),
                       ),
                     );
-                    notify(
-                      "리뷰를 완료했어요. PR 리뷰에서 정리된 결과를 확인하세요",
-                    );
-                    nav("/app/prs");
+                    // PR 가져오기로 만든 리뷰는 target_type=PR로 저장돼 "PR 리뷰"(/app/prs)에서도 보이지만,
+                    // 팀 결재(RDB-003)가 필요한 화면은 아니라서 강제로 이동시키지 않고 여기서 완료만 알린다
+                    notify("리뷰를 완료했어요. 판정이 저장됐어요.");
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                리뷰 완료 → PR 리뷰에서 확인
+                리뷰 완료
               </button>
             </div>
           );
@@ -386,8 +392,11 @@ export default function Studio() {
             rows={reviewId === null ? 4 : 2}
             value={input}
             spellCheck={false}
+            disabled={insufficientCredit}
             placeholder={
-              reviewId === null
+              insufficientCredit
+                ? "오늘 크레딧을 다 썼어요 · 자정에 초기화돼요"
+                : reviewId === null
                 ? "리뷰 받을 코드를 붙여넣으세요 (Ctrl+Enter 전송)"
                 : "후속 질문을 입력하세요 (Ctrl+Enter 전송)"
             }
@@ -398,25 +407,6 @@ export default function Studio() {
           />
 
           <div className="chat-tools">
-            {reviewId === null && (
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                aria-label="언어"
-              >
-                {[
-                  "TypeScript",
-                  "JavaScript",
-                  "Java",
-                  "Python",
-                  "Kotlin",
-                  "Go",
-                  "HTML",
-                ].map((l) => (
-                  <option key={l}>{l}</option>
-                ))}
-              </select>
-            )}
             {/* 모델: 시작 전 자유 선택(상위 티어는 잠금 표시) / 시작 후 통째 잠금 + 안내 */}
             <span className="model-wrap">
               <select
@@ -445,11 +435,17 @@ export default function Studio() {
               )}
             </span>
 
+            {insufficientCredit && (
+              <span className="model-hint">
+                오늘 크레딧 소진 · 자정 초기화
+              </span>
+            )}
             <span className="ml-auto" />
             {reviewId === null ? (
               <button
                 className="btn wh sm"
-                title="파일 업로드"
+                title={insufficientCredit ? "오늘 크레딧을 다 썼어요" : "파일 업로드"}
+                disabled={insufficientCredit}
                 onClick={() => fileRef.current?.click()}
               >
                 📁 파일
@@ -466,9 +462,9 @@ export default function Studio() {
             <button
               className="btn co sm"
               onClick={send}
-              disabled={busy || !input.trim()}
+              disabled={busy || !input.trim() || insufficientCredit}
             >
-              {reviewId === null ? "리뷰 시작 (⚡1)" : "질문 (⚡1)"}
+              {reviewId === null ? `리뷰 시작 (⚡${modelWeight(model)})` : "질문 (⚡1)"}
             </button>
           </div>
         </div>
@@ -486,71 +482,133 @@ export default function Studio() {
       {picker && (
         <div className="modal-mask" onClick={() => setPicker(null)}>
           <div
-            className="modal"
+            className="modal wide"
             role="dialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3>🐙 PR #42 — 가져올 파일 선택</h3>
-            <p className="note sm" style={{ marginBottom: 14 }}>
-              여러 개 선택할 수 있어요. 프론트 파일이 포함되면 미리보기도
-              열립니다.
-            </p>
-            <label
-              className="check-row"
-              style={{ fontWeight: 700, marginBottom: 10 }}
-            >
-              <input
-                type="checkbox"
-                checked={picker.checked.size === picker.files.length}
-                onChange={(e) =>
-                  setPicker((p) => ({
-                    ...p,
-                    checked: new Set(
-                      e.target.checked ? p.files.map((f) => f.path) : [],
-                    ),
-                  }))
-                }
-              />
-              전체 선택
-            </label>
-            {picker.files.map((f) => (
-              <label
-                key={f.path}
-                className="check-row"
-                style={{ marginBottom: 8 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={picker.checked.has(f.path)}
-                  onChange={() =>
-                    setPicker((p) => {
-                      const next = new Set(p.checked);
-                      next.has(f.path) ? next.delete(f.path) : next.add(f.path);
-                      return { ...p, checked: next };
-                    })
-                  }
-                />
-                <span className="mono" style={{ fontSize: 12.5 }}>
-                  {f.path}
-                </span>
-                <span className={`chip ${isFrontend(f) ? "low" : "navy"}`}>
-                  {isFrontend(f) ? "프론트" : "백엔드"}
-                </span>
-              </label>
-            ))}
-            <div className="row" style={{ marginTop: 20 }}>
-              <button className="btn wh sm" onClick={() => setPicker(null)}>
-                취소
-              </button>
-              <button
-                className="btn co sm ml-auto"
-                onClick={importFiles}
-                disabled={picker.checked.size === 0}
-              >
-                {picker.checked.size}개 가져와서 리뷰 (⚡1)
-              </button>
-            </div>
+            {/* 1단계: 레포 선택 */}
+            {picker.step === "repo" && (
+              <>
+                <h3>🐙 어느 레포의 PR을 가져올까요?</h3>
+                <p className="note sm" style={{ marginBottom: 14 }}>
+                  연동된 레포 목록이에요.
+                </p>
+                {picker.repos.map((r) => (
+                  <div
+                    key={r.repoId}
+                    className="check-row"
+                    style={{ marginBottom: 8 }}
+                    onClick={() => selectRepo(r)}
+                  >
+                    <span className="mono" style={{ fontSize: 12.5 }}>{r.repoName}</span>
+                  </div>
+                ))}
+                <div className="row" style={{ marginTop: 20 }}>
+                  <button className="btn wh sm" onClick={() => setPicker(null)}>취소</button>
+                </div>
+              </>
+            )}
+
+            {/* 2단계: PR 선택 */}
+            {picker.step === "pr" && (
+              <>
+                <h3>🐙 {picker.repo.repoName} — 가져올 PR 선택</h3>
+                <p className="note sm" style={{ marginBottom: 14 }}>
+                  {picker.prs.length === 0 ? "열린 PR이 없어요." : "열린 PR 목록이에요."}
+                </p>
+                {picker.prs.map((pr) => (
+                  <div
+                    key={pr.number}
+                    className="check-row"
+                    style={{ marginBottom: 8 }}
+                    onClick={() => selectPr(pr)}
+                  >
+                    <span className="mono xs">#{pr.number}</span>
+                    <span style={{ fontSize: 13 }}>{pr.title}</span>
+                    {pr.authorLogin && (
+                      <span className="chip navy">@{pr.authorLogin}</span>
+                    )}
+                  </div>
+                ))}
+                <div className="row" style={{ marginTop: 20 }}>
+                  <button className="btn wh sm" onClick={() => setPicker((p) => ({ step: "repo", repos: p.repos }))}>
+                    ← 레포 다시 선택
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* 3단계: 파일 선택 */}
+            {picker.step === "files" && (
+              <>
+                <h3>🐙 PR #{picker.pr.number} — 가져올 파일 선택</h3>
+                <p className="note sm" style={{ marginBottom: 14 }}>
+                  여러 개 선택할 수 있어요. 프론트 파일이 포함되면 미리보기도
+                  열립니다.
+                </p>
+                <label
+                  className="check-row"
+                  style={{ fontWeight: 700, marginBottom: 10 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={picker.checked.size === picker.files.length}
+                    onChange={(e) =>
+                      setPicker((p) => ({
+                        ...p,
+                        checked: new Set(
+                          e.target.checked ? p.files.map((f) => f.path) : [],
+                        ),
+                      }))
+                    }
+                  />
+                  전체 선택
+                </label>
+                {picker.files.map((f) => (
+                  <label
+                    key={f.path}
+                    className="check-row"
+                    style={{ marginBottom: 8 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={picker.checked.has(f.path)}
+                      onChange={() =>
+                        setPicker((p) => {
+                          const next = new Set(p.checked);
+                          next.has(f.path) ? next.delete(f.path) : next.add(f.path);
+                          return { ...p, checked: next };
+                        })
+                      }
+                    />
+                    <span className="mono" style={{ fontSize: 12.5 }}>
+                      {f.path}
+                    </span>
+                    <span className={`chip ${isFrontend(f) ? "low" : "navy"}`}>
+                      {isFrontend(f) ? "프론트" : "백엔드"}
+                    </span>
+                  </label>
+                ))}
+                {insufficientCredit && (
+                  <p className="model-hint" style={{ marginTop: 10 }}>
+                    ⚡ 오늘 크레딧을 다 썼어요 · 자정에 초기화돼요
+                  </p>
+                )}
+                <div className="row" style={{ marginTop: 20 }}>
+                  <button className="btn wh sm" onClick={() => setPicker(null)}>
+                    취소
+                  </button>
+                  <button
+                    className="btn co sm ml-auto"
+                    onClick={importFiles}
+                    disabled={picker.checked.size === 0 || insufficientCredit}
+                  >
+                    {picker.checked.size}개 가져와서 리뷰 (⚡{modelWeight(model)})
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

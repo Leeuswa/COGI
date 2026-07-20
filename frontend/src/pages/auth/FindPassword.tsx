@@ -6,6 +6,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
+import { useCountdown } from '../../hooks/useCountdown';
+import { isValidPassword, PW_HINT } from '../../utils/password';
+
+// 초 → "m:ss" (예: 125 → "2:05")
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export default function FindPassword() {
   const nav = useNavigate();
@@ -17,16 +22,38 @@ export default function FindPassword() {
   const [pw2, setPw2] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cooldown, startCooldown] = useCountdown(); // 재발송 쿨타임(초)
+  const [expiry, startExpiry] = useCountdown();     // 코드 유효시간(초)
 
-  const sendCode = async (e) => {
-    e.preventDefault();
+  // 코드 발송 + 두 타이머 시작 (최초 발송·재발송 공용)
+  const doSend = async () => {
     setBusy(true);
-    try { await api.sendEmailCode(email, 'RESET_PW'); setStep(2); setErr(''); }
-    finally { setBusy(false); }
+    try {
+      await api.sendEmailCode(email, 'RESET_PW');
+      setErr('');
+      startCooldown(60);   // 60초 뒤 재발송 가능
+      startExpiry(300);    // 코드 5분 유효
+      return true;
+    } catch {
+      setErr('인증코드 발송에 실패했어요. 잠시 후 다시 시도해주세요.');
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  const sendCode = async (e) => {   // step1: 이메일 → 코드 발송
+    e.preventDefault();
+    if (await doSend()) setStep(2);
+  };
+
+  const resend = async () => {      // step2: 재발송 (쿨타임 끝난 뒤에만)
+    if (cooldown > 0) return;
+    setCode('');
+    await doSend();
   };
 
   const verify = async (e) => {
     e.preventDefault();
+    if (expiry === 0) return setErr('코드가 만료됐어요. 다시 받아주세요.');
     setBusy(true);
     try {
       await api.verifyEmailCode(email, code);
@@ -34,18 +61,18 @@ export default function FindPassword() {
       setResetToken(res.resetToken);
       setStep(3);
       setErr('');
-    } catch { setErr('인증코드가 맞지 않아요. (목 모드 힌트: 000000)'); }
+    } catch (ex) { setErr(ex.message || '인증코드가 맞지 않아요.'); }
     finally { setBusy(false); }
   };
 
   const save = async (e) => {
     e.preventDefault();
-    if (pw.length < 8) return setErr('비밀번호는 8자 이상이어야 해요.');
+    if (!isValidPassword(pw)) return setErr(PW_HINT);
     if (pw !== pw2) return setErr('비밀번호 확인이 일치하지 않아요.');
     setBusy(true);
     try {
       await api.passwordReset(resetToken, pw);
-      nav('/login');
+      nav('/login', { state: { notice: '비밀번호가 재설정됐어요. 새 비밀번호로 로그인하세요.' } });
     } finally { setBusy(false); }
   };
 
@@ -77,15 +104,26 @@ export default function FindPassword() {
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 style={{ fontFamily: 'Silkscreen, monospace', letterSpacing: 6, textAlign: 'center' }} required />
             </div>
+            {/* 코드 유효시간(5분) 실시간 */}
+            <p className="note sm" style={{ marginTop: 4 }}>
+              {expiry > 0
+                ? <>남은 시간 <b style={{ fontFamily: 'Silkscreen, monospace' }}>{fmt(expiry)}</b></>
+                : <span style={{ color: 'crimson' }}>코드가 만료됐어요. 다시 받아주세요.</span>}
+            </p>
             {err && <p className="err">{err}</p>}
-            <button className="btn co" disabled={busy || code.length !== 6}>확인</button>
+            <button className="btn co" disabled={busy || code.length !== 6 || expiry === 0}>확인</button>
+            {/* 재발송(60초 쿨타임) 실시간 */}
+            <button type="button" className="btn wh sm" style={{ marginTop: 8 }}
+              onClick={resend} disabled={busy || cooldown > 0}>
+              {cooldown > 0 ? `재발송 (${cooldown}초)` : '인증코드 다시 받기'}
+            </button>
           </form>
         )}
 
         {step === 3 && (
           <form className="form" onSubmit={save}>
             <div>
-              <label>새 비밀번호 (8자 이상)</label>
+              <label>새 비밀번호 (영어·숫자·특수문자 포함 8자 이상)</label>
               <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required />
             </div>
             <div>

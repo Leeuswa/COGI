@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import InterestPicker from '../../components/InterestPicker';
+import { TermsDialog } from '../../components/ui';
 import { SPR } from '../../assets/sprites';
 
 const LEVELS = [
@@ -23,9 +24,13 @@ const LEVELS = [
 export default function Onboarding() {
   // (아래 useEffect) 서버 기준으로 이미 온보딩을 마친 계정이면 바로 대시보드로 —
   // 다른 기기에서 끝냈는데 이 기기 캐시가 낡은 경우를 잡는다 (API-011)
-  const { patchUser } = useAuth();
+  const { user, patchUser } = useAuth();
   const nav = useNavigate();
   const backTo = useLocation().state?.from; // 초대 링크에서 온 가입자는 완료 후 그 초대 화면으로
+
+  // 소셜(OAuth) 가입자는 가입 순간 약관 동의를 못 받음 → 최초 로그인(온보딩)에서 받는다.
+  // 이메일 가입자는 가입 때 이미 동의했으므로 여기선 약관 스텝을 띄우지 않는다.
+  const isSocial = user.provider === 'KAKAO' || user.provider === 'GITHUB';
 
   useEffect(() => {
     api.getOnboardingStatus().then((r) => { if (r.completed) nav('/app', { replace: true }); });
@@ -36,6 +41,18 @@ export default function Onboarding() {
   const [level, setLevel] = useState(null);
   const [interests, setInterests] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [terms, setTerms] = useState([]);
+  const [agreed, setAgreed] = useState([]); // 동의한 약관 id
+  const [viewTerm, setViewTerm] = useState(null); // 약관 본문 팝업
+
+  useEffect(() => {
+    if (isSocial) api.getTerms().then((all) => setTerms(all.filter((t) => t.type !== 'PAYMENT')));
+  }, [isSocial]);
+
+  const toggleTerm = (id) =>
+    setAgreed((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  // 필수 약관(SERVICE·PRIVACY)을 모두 체크해야 진행 가능
+  const requiredOk = terms.filter((t) => t.isRequired).every((t) => agreed.includes(t.id));
 
   const toggle = (t) =>
     setInterests((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -43,6 +60,8 @@ export default function Onboarding() {
   const finish = async () => {
     setBusy(true);
     try {
+      // 소셜 가입자는 온보딩에서 받은 약관 동의를 먼저 저장
+      if (isSocial) await api.submitAgreements(agreed.map((id) => ({ termId: id, agreed: true })));
       await api.submitOnboarding(level, interests, true);
       // 라우터 가드(RequireOnboarded)가 이 플래그를 본다
       patchUser({ onboardingCompleted: true, guideConfirmed: true, level, interests });
@@ -75,7 +94,29 @@ export default function Onboarding() {
             <input type="checkbox" checked={guideOk} onChange={(e) => setGuideOk(e.target.checked)} />
             이용 가이드를 확인했어요
           </label>
-          <button className="btn co mt18" disabled={!guideOk} onClick={() => setStep(2)}>
+
+          {/* 소셜 가입자 약관 동의 — 이메일 가입자는 가입 때 이미 동의해서 안 보임 */}
+          {isSocial && (
+            <div style={{ marginTop: 18, borderTop: '2px dotted var(--sub)', paddingTop: 16 }}>
+              <p style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>약관 동의</p>
+              {terms.map((t) => (
+                <label key={t.id} className="check-row" style={{ marginBottom: 8 }}>
+                  <input type="checkbox" checked={agreed.includes(t.id)} onChange={() => toggleTerm(t.id)} />
+                  <span>
+                    [{t.isRequired ? '필수' : '선택'}]{' '}
+                    {/* 제목 클릭 = 본문 팝업 (체크 토글과 분리) */}
+                    <button type="button" className="term-link"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setViewTerm(t); }}>
+                      {t.title}
+                    </button>{' '}
+                    (v{t.version})
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          <button className="btn co mt18" disabled={!guideOk || (isSocial && !requiredOk)} onClick={() => setStep(2)}>
             다음
           </button>
         </div>
@@ -120,6 +161,8 @@ export default function Onboarding() {
           </div>
         </div>
       )}
+
+      <TermsDialog term={viewTerm} onClose={() => setViewTerm(null)} />
     </main>
   );
 }
