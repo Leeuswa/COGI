@@ -6,6 +6,8 @@ import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.client.GithubPrFileDto;
 import idu.sba.backend.domain.repo.client.GithubPrSummaryDto;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
+import idu.sba.backend.domain.repo.entity.RepoMember;
+import idu.sba.backend.domain.repo.entity.RepoRole;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.entity.IssueCategory;
@@ -111,7 +113,7 @@ class PrServiceImplTest {
     void 호출자가_레포_팀원이_아니면_NOT_REPO_MEMBER() {
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getPrReview(USER_ID, PR_ID))
                 .isInstanceOf(BusinessException.class)
@@ -122,13 +124,27 @@ class PrServiceImplTest {
     void 아직_리뷰가_없으면_빈_이슈목록을_반환한다() {
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
 
         assertThat(result.getIssues()).isEmpty();
         assertThat(result.getPr().getStatus()).isEqualTo("OPEN");
+    }
+
+    @Test
+    void myRole은_호출자의_레포_역할을_그대로_반환한다() {
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.OWNER)));
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getPr().getMyRole()).isEqualTo("OWNER");
     }
 
     @Test
@@ -143,7 +159,8 @@ class PrServiceImplTest {
 
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.of(review));
         when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(issue));
         when(userRepository.findById(77L)).thenReturn(Optional.of(author));
@@ -158,7 +175,8 @@ class PrServiceImplTest {
     void authorId가_null이면_유저_조회_없이_authorName도_null() {
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr())); //authorId 없음
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
@@ -173,7 +191,8 @@ class PrServiceImplTest {
         setField(pr, "authorLogin", "outside-contributor"); //COGI 미가입자(webhook payload에만 있던 로그인명)
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
@@ -188,7 +207,8 @@ class PrServiceImplTest {
         setField(pr, "authorLogin", "author-gh");
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
         when(userRepository.findById(77L)).thenReturn(Optional.empty()); //탈퇴 등으로 사라진 케이스
 

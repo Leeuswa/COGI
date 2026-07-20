@@ -74,10 +74,28 @@ public class ReviewIssue {
     // 스튜디오 판정 확정(RESOLVED/IGNORED) — 팀장 승인 없이 바로 반영(요구 #7).
     // acknowledged(통계 제외)는 "의도한 코드"(IGNORED)일 때만 true — RESOLVED는 고치겠다는 뜻이라
     // 실제 약점 패턴이 맞으므로 통계에서 빼면 안 됨(예전엔 둘 다 true로 잘못 설정하던 버그)
-    // requestType/approvedBy는 안 건드림 — 승인 흐름(RDB-003)이 실제로 생기면 그때 채울 필드
+    // requestType/approvedBy는 안 건드림 — 여긴 승인이 필요 없는 경로라 그대로 null 유지
     public void finalizeAs(IssueStatus verdict){
         this.status = verdict;
         this.acknowledged = (verdict == IssueStatus.IGNORED);
+    }
+
+    // 이슈 승인 흐름(RDB-003 [설계 추론]) — PR 리뷰의 CRITICAL 이슈만 팀장 승인을 거친다.
+    // 아직 RESOLVED가 아니라 "고쳐달라는 요청" 단계라 acknowledged는 안 건드림(승인 나야 진짜 RESOLVED)
+    public void requestResolve(){
+        this.status = IssueStatus.PENDING;
+        this.requestType = "RESOLVE_REQUEST";
+    }
+
+    public void approve(Long approverId){
+        this.status = IssueStatus.RESOLVED;
+        this.approvedBy = approverId;
+    }
+
+    // 반려 — 다시 미해결로 돌려서 팀원이 고치거나 판정을 다시 하게 한다
+    public void reject(){
+        this.status = IssueStatus.OPEN;
+        this.requestType = null;
     }
 
 }

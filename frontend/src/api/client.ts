@@ -285,9 +285,14 @@ export const getRepoReviewedPrs = (repoId) =>
   USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/repos/${repoId}/prs/reviewed`);
 
 // API-031 PATCH /api/issues/{issueId}/acknowledge — 의도한 코드 응답 (FR-40)
-// [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)/고침(RESOLVED)을 팀장 승인 없이 바로 반영 (요구 #7)
+// [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)는 바로 반영. 고침(RESOLVED)은 PR 리뷰의 CRITICAL
+// 이슈면 서버가 승인 대기(PENDING)로 돌려놓는다(요구 #7 + RDB-003)
 export const finalizeIssue = (issueId, verdict) =>
   USE_MOCK ? mock({ ok: true, status: verdict }) : http('PATCH', `/api/issues/${issueId}/finalize`, { verdict });
+
+// [설계 추론] 이슈 승인 흐름(RDB-003, API-034) — 팀장만 호출 가능. approve=false면 반려(OPEN으로 되돌림)
+export const decideResolveRequest = (issueId, approve) =>
+  USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/issues/${issueId}/decision`, { approve });
 
 // API-035 GET /api/prs/{prId}/export — MD/TXT 내보내기. 목 모드는 프론트에서 파일을 만들어 내려준다
 export const exportReview = (prId, format) =>
