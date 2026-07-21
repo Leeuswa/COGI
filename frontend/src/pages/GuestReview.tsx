@@ -20,9 +20,10 @@ const WINDOW_MS = 24 * 60 * 60 * 1000; // 서버 TRIAL_WINDOW(24h)와 동일 —
 // 옛 형식(숫자만)은 ts가 없어 리셋이 안 됐던 버그 → 파싱 실패 시 0으로 간주.
 function readUsed(): number {
   try {
-    const { count, ts } = JSON.parse(localStorage.getItem(KEY) || '');
-    if (Date.now() - ts >= WINDOW_MS) { localStorage.removeItem(KEY); return 0; }
-    return count;
+    const v = JSON.parse(localStorage.getItem(KEY) || '');
+    if (typeof v?.count !== 'number') return 0;   // 옛 숫자 형식/깨진 값 방어 → NaN 차단
+    if (Date.now() - v.ts >= WINDOW_MS) { localStorage.removeItem(KEY); return 0; }
+    return v.count;
   } catch { return 0; }
 }
 function writeUsed(count: number) {
