@@ -147,6 +147,16 @@ public class User {
         this.planId = planId;
     }
 
+    // 관리자 회원관리 계정 상태(ACTIVE/SUSPENDED) 즉시 변경
+    public void changeStatus(UserStatus status) {
+        this.status = status;
+    }
+
+    // 관리자 회원관리 권한(USER/ADMIN) 즉시 변경
+    public void changeRole(Role role) {
+        this.role = role;
+    }
+
 
     //GitHub 재로그인 시 토큰 갱신(스코프 재동의로 토큰이 바뀔 수 있음)
     public void updateGithubAccessToken(String githubAccessToken){
