@@ -47,6 +47,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/plans").permitAll()
                         // GitHub Webhook 수신(API-024) — JWT가 아니라 X-Hub-Signature-256 서명으로 자체 인증
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/github").permitAll()
+                        // 관리자 전용 — JwtAuthenticationFilter가 ROLE_ADMIN 권한을 심으므로 hasRole로 막는다(비관리자 403)
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // 나머지 모든 요청은 토큰 필요, 없으면 401에러
                         .anyRequest().authenticated()
                 )

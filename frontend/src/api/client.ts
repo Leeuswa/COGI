@@ -12,7 +12,7 @@
 import * as M from '../data/mock';
 import { MODEL_TIERS } from '../data/constants';
 
-const USE_MOCK = false; // 목 데이터 → 실제 백엔드
+const USE_MOCK = true; // 목 데이터 → 실제 백엔드
 const BASE = ''; // 프록시 쓰면 '' 그대로, 직접 붙이면 'http://localhost:8080'
 
 // 목 응답 헬퍼. structuredClone으로 원본 오염 방지

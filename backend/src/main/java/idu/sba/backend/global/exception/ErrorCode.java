@@ -96,7 +96,12 @@ public enum ErrorCode {
 
     //리뷰 히스토리 [설계 추론]
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 리뷰입니다."),
-    REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰만 조회할 수 있습니다.");
+    REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰만 조회할 수 있습니다."),
+
+    //관리자 본인 권한수정
+    CANNOT_CHANGE_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 권한은 변경할 수 없습니다."),
+    //관리자 본인 상태수정
+    CANNOT_STATUS_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 상태는 수정할 수 없습니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지

@@ -52,7 +52,8 @@ public class UserServiceImpl implements UserService{
             Boolean.TRUE.equals(user.getOnboardingCompleted()),
                 Boolean.TRUE.equals(user.getGuideConfirmed()),
                 user.getProvider(),
-                user.getGithubUsername());
+                user.getGithubUsername(),
+                user.getRole());
     }
 
     //프로필 수정

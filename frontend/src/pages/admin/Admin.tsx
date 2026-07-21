@@ -44,18 +44,27 @@ export default function Admin() {
   if (!isAdmin) return <Navigate to="/app" replace />;
 
   // 상태/권한은 저장 즉시 반영이 요구사항 (FR-21)
+  // 본인 정지/권한회수는 서버가 403으로 막는다 — 실패 메시지를 그대로 보여준다(락아웃 방지 안내)
   const changeStatus = async (m) => {
     const next = m.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    await api.adminChangeStatus(m.id, next);
-    setMembers((ms) => ms.map((x) => (x.id === m.id ? { ...x, status: next } : x)));
-    notify(`${m.email} → ${next} (즉시 반영)`);
+    try {
+      await api.adminChangeStatus(m.id, next);
+      setMembers((ms) => ms.map((x) => (x.id === m.id ? { ...x, status: next } : x)));
+      notify(`${m.email} → ${next} (즉시 반영)`);
+    } catch (e) {
+      notify(e?.message || '상태 변경에 실패했어요.');
+    }
   };
 
   const changeRole = async (m) => {
     const next = m.role === 'ADMIN' ? 'USER' : 'ADMIN';
-    await api.adminChangeRole(m.id, next);
-    setMembers((ms) => ms.map((x) => (x.id === m.id ? { ...x, role: next } : x)));
-    notify(`${m.email} 권한 → ${next}`);
+    try {
+      await api.adminChangeRole(m.id, next);
+      setMembers((ms) => ms.map((x) => (x.id === m.id ? { ...x, role: next } : x)));
+      notify(`${m.email} 권한 → ${next}`);
+    } catch (e) {
+      notify(e?.message || '권한 변경에 실패했어요.');
+    }
   };
 
   const sendNotice = async () => {
@@ -80,7 +89,7 @@ export default function Admin() {
       <Tabs items={[['usage', 'AI 사용량'], ['members', '회원 관리'], ['logs', '활동 로그 · 공지'], ['guides', '리뷰 지침']]} value={tab} onChange={setTab} />
 
       {tab === 'usage' && <UsageTab usage={usage} range={range} setRange={setRange} latency={latency} />}
-      {tab === 'members' && <MembersTab members={members} onStatus={changeStatus} onRole={changeRole} />}
+      {tab === 'members' && <MembersTab members={members} onStatus={changeStatus} onRole={changeRole} me={user.email} />}
       {tab === 'logs' && <LogsTab logs={logs} notice={notice} setNotice={setNotice} onSend={sendNotice} busy={busy} />}
       {tab === 'guides' && guides && <GuidesTab guides={guides} setGuides={setGuides} onSave={saveGuide} />}
     </main>
