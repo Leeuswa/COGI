@@ -2,6 +2,7 @@ package idu.sba.backend.domain.repo.service;
 
 import idu.sba.backend.domain.repo.dto.MyLinkedRepoResponseDTO;
 import idu.sba.backend.domain.repo.dto.MyRepoInvitationResponseDTO;
+import idu.sba.backend.domain.repo.dto.RepoInvitationLookupResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInvitationResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInviteRequestDTO;
 import idu.sba.backend.domain.repo.dto.RepoMemberResponseDTO;
@@ -115,6 +116,20 @@ public class RepoMemberServiceImpl implements RepoMemberService {
         return repoInvitationRepository.findByInvitedUserIdAndStatus(currentUserId, RepoInvitationStatus.PENDING).stream()
                 .map(invitation -> MyRepoInvitationResponseDTO.of(invitation, repoNameOf(invitation.getRepoId())))
                 .toList();
+    }
+
+    @Override
+    public RepoInvitationLookupResponseDTO lookupInvitationByToken(String token) {
+        RepoInvitation invitation = repoInvitationRepository.findByInviteToken(token)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVITATION_NOT_FOUND));
+        if (invitation.getStatus() != RepoInvitationStatus.PENDING) {
+            throw new BusinessException(ErrorCode.INVITATION_ALREADY_RESPONDED);
+        }
+        if (invitation.isExpired()) {
+            throw new BusinessException(ErrorCode.INVITATION_EXPIRED);
+        }
+        boolean emailHasAccount = userRepository.existsByEmail(invitation.getInviteeEmail());
+        return RepoInvitationLookupResponseDTO.of(repoNameOf(invitation.getRepoId()), emailHasAccount);
     }
 
     @Override

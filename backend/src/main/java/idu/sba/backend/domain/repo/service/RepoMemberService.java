@@ -2,6 +2,7 @@ package idu.sba.backend.domain.repo.service;
 
 import idu.sba.backend.domain.repo.dto.MyLinkedRepoResponseDTO;
 import idu.sba.backend.domain.repo.dto.MyRepoInvitationResponseDTO;
+import idu.sba.backend.domain.repo.dto.RepoInvitationLookupResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInvitationResponseDTO;
 import idu.sba.backend.domain.repo.dto.RepoInviteRequestDTO;
 import idu.sba.backend.domain.repo.dto.RepoMemberResponseDTO;
@@ -22,6 +23,9 @@ public interface RepoMemberService {
 
     //내가 받은 대기 중인 초대 목록(인앱 알림)
     List<MyRepoInvitationResponseDTO> listMyInvitations(Long currentUserId);
+
+    //이메일 초대 링크 클릭 시 토큰으로 조회(비로그인, 케이스②·③ 랜딩페이지) — 그 이메일로 기존 계정 존재 여부까지 반환
+    RepoInvitationLookupResponseDTO lookupInvitationByToken(String token);
 
     //GitHub 가입/연동 완료 시 대기 중인 초대를 자동으로 매칭·수락 처리(케이스③ 훅)
     void autoMatchPendingInvitations(User newUser);

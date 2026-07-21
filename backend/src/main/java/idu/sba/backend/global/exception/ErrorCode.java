@@ -72,6 +72,7 @@ public enum ErrorCode {
     CANNOT_ACT_ON_SELF(HttpStatus.BAD_REQUEST, "본인에게는 사용할 수 없는 기능이에요."),
     INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다."),
     GITHUB_USER_NOT_FOUND(HttpStatus.BAD_REQUEST,"GitHub를 연동하지 않았거나 사이트에 가입하지 않은 사용자입니다."),
+    INVITATION_EXPIRED(HttpStatus.GONE,"초대 링크가 만료되었습니다. 팀장에게 재초대를 요청해주세요."),
 
     //GitHub 레포 연동(API-022/023)
     GITHUB_NOT_LINKED(HttpStatus.BAD_REQUEST,"GitHub 계정이 연동되어 있지 않습니다."),

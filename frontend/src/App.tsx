@@ -25,6 +25,7 @@ import FindPassword from './pages/auth/FindPassword';
 import Otp from './pages/auth/Otp';
 import Onboarding from './pages/auth/Onboarding';
 import OAuthCallback from './pages/auth/OAuthCallback';
+import InviteAccept from './pages/auth/InviteAccept';
 
 import Dashboard from './pages/Dashboard';
 import Repos from './pages/review/Repos';
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="/find-password" element={<FindPassword />} />
         <Route path="/otp" element={<Otp />} />
         <Route path="/oauth/callback" element={<OAuthCallback />} />
+        <Route path="/repo-invites/accept" element={<InviteAccept />} />
 
         <Route element={<RequireAuth />}>
           {/* 온보딩은 로그인만 필요 (완료 전 유일하게 갈 수 있는 곳) */}
