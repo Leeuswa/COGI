@@ -265,6 +265,10 @@ export const respondInvite = (repoId, inviteId, accept) =>
 export const getMyInvitations = () =>
   USE_MOCK ? mock(M.mockInvitations) : http('GET', '/api/me/repo-invitations');
 
+// 이메일 초대 링크(/repo-invites/accept?token=...) 랜딩페이지 전용 — 비로그인 상태에서 호출
+export const lookupInvitationByToken = (token) =>
+  USE_MOCK ? mock({ repoName: 'COGI', emailHasAccount: false }) : http('GET', `/api/repo-invitations/by-token/${encodeURIComponent(token)}`);
+
 // 팀원이 스스로 팀 나가기 — 팀장은 먼저 위임해야 함(OWNER_CANNOT_LEAVE)
 export const leaveRepo = (repoId) =>
   USE_MOCK ? mock({ ok: true }) : http('POST', `/api/repos/${repoId}/members/leave`);
@@ -285,9 +289,14 @@ export const getRepoReviewedPrs = (repoId) =>
   USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/repos/${repoId}/prs/reviewed`);
 
 // API-031 PATCH /api/issues/{issueId}/acknowledge — 의도한 코드 응답 (FR-40)
-// [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)/고침(RESOLVED)을 팀장 승인 없이 바로 반영 (요구 #7)
+// [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)는 바로 반영. 고침(RESOLVED)은 PR 리뷰의 CRITICAL
+// 이슈면 서버가 승인 대기(PENDING)로 돌려놓는다(요구 #7 + RDB-003)
 export const finalizeIssue = (issueId, verdict) =>
   USE_MOCK ? mock({ ok: true, status: verdict }) : http('PATCH', `/api/issues/${issueId}/finalize`, { verdict });
+
+// [설계 추론] 이슈 승인 흐름(RDB-003, API-034) — 팀장만 호출 가능. approve=false면 반려(OPEN으로 되돌림)
+export const decideResolveRequest = (issueId, approve) =>
+  USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/issues/${issueId}/decision`, { approve });
 
 // API-035 GET /api/prs/{prId}/export — MD/TXT 내보내기. 목 모드는 프론트에서 파일을 만들어 내려준다
 export const exportReview = (prId, format) =>
@@ -323,8 +332,8 @@ export const reviewImportedPr = (repoId, prNumber, code, modelName, title, autho
 // API-039 POST /api/guest/local-review — 비로그인 즉시 리뷰(쿠키 3회 제한, FR-50~52)
 // 목 모드의 3회 카운트는 GuestReview 페이지에서 localStorage로 처리한다.
 // level: 게스트가 고른 코딩 수준 — 관리자 지침(ADM-004)에 맞춰 설명 깊이가 달라진다
-export const guestReview = (code, language, level = 'BEGINNER') => {
-  if (!USE_MOCK) return http('POST', '/api/guest/local-review', { code, language, level });
+export const guestReview = (code, level = 'BEGINNER') => {
+  if (!USE_MOCK) return http('POST', '/api/guest/local-review', { code, level });
   // 수준별 설명 — 관리자 지침(ADM-004)이 실제로 하는 일을 목으로 재현
   const DESC = {
     BEGINNER: 'user 가 비어있을 수 있어요. 비어있는 상자에서 물건(name)을 꺼내려 하면 앱이 멈춥니다. user?.name 처럼 물음표를 붙이면 "상자가 비었으면 그냥 넘어가"라는 뜻이 돼요.',
@@ -558,6 +567,12 @@ export const adminGetGuidelines = () =>
   USE_MOCK ? mock(M.mockGuidelines) : http('GET', '/api/admin/review-guidelines');
 export const adminSaveGuideline = (level, promptGuideline) =>
   USE_MOCK ? mock({ ok: true }) : http('PUT', `/api/admin/review-guidelines/${level}`, { promptGuideline });
+
+// 관리자 약관 관리 — 목록(본문 포함) 조회 / 본문 수정
+export const adminGetTerms = () =>
+  USE_MOCK ? mock(M.mockTerms) : http('GET', '/api/admin/terms');
+export const adminUpdateTerm = (termId, content) =>
+  USE_MOCK ? mock({ ok: true }) : http('PUT', `/api/admin/terms/${termId}`, { content });
 
 /* ══════════ 캘린더 연동 (요구사항 8 — 학습카드 → 일정 등록) ══════════ */
 // 구글/애플은 백엔드 없이도 진짜로 동작한다. 카카오만 서버 연동 대기.

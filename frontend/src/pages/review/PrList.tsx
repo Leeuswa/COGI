@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../../api/client';
 import { PageHead, SevChip } from '../../components/ui';
-import { SEVERITIES, sevKo, PR_STATUS_KO } from '../../data/constants';
+import { SEVERITIES, sevKo, PROCESS_STATUS_KO } from '../../data/constants';
 import { SPR } from '../../assets/sprites';
 
 export default function PrList() {
@@ -87,11 +87,13 @@ export default function PrList() {
                   {shown.map((pr) => (
                     <tr key={pr.id}>
                       <td className="mono">#{pr.githubPrNumber}</td>
-                      <td><Link to={`/app/prs/${pr.id}`} style={{ borderBottom: '2px solid var(--coral)' }}>{pr.title}</Link></td>
+                      <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Link to={`/app/prs/${pr.id}`} title={pr.title}>{pr.title}</Link>
+                      </td>
                       <td style={{ fontSize: 12.5 }}>{pr.authorName ?? '-'}</td>
                       <td className="mono">{pr.issueCount}</td>
                       <td>{pr.topSeverity ? <SevChip sev={pr.topSeverity} /> : <span className="note sm">-</span>}</td>
-                      <td><span className={`chip ${pr.status === 'REVIEWED' ? 'low' : pr.status === 'FAILED' ? 'hi' : 'gray'}`}>{PR_STATUS_KO[pr.status] ?? pr.status}</span></td>
+                      <td><span className={`chip ${pr.status === 'REVIEWED' ? 'low' : pr.status === 'FAILED' ? 'hi' : 'gray'}`}>{PROCESS_STATUS_KO[pr.status] ?? pr.status}</span></td>
                       <td className="mono xs">{pr.createdAt.slice(0, 10)}</td>
                     </tr>
                   ))}

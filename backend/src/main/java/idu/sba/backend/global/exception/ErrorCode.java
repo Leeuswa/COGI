@@ -59,6 +59,7 @@ public enum ErrorCode {
     PAYMENT_METHOD_FORBIDDEN(HttpStatus.FORBIDDEN, "본인의 결제수단만 사용할 수 있습니다."), // 403
     DOWNGRADE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "다운그레이드는 지원하지 않습니다. 해지 후 다시 구독해주세요."), // 400
     INVALID_TERMS(HttpStatus.BAD_REQUEST, "유효하지 않은 약관이 포함되어 있습니다."),
+    TERM_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 약관입니다."),
 
     //레포 팀원 초대(REV-006)
     REPO_NOT_FOUND(HttpStatus.NOT_FOUND,"레포지토리를 찾을 수 없습니다."),
@@ -72,6 +73,7 @@ public enum ErrorCode {
     CANNOT_ACT_ON_SELF(HttpStatus.BAD_REQUEST, "본인에게는 사용할 수 없는 기능이에요."),
     INVITATION_GITHUB_USERNAME_MISMATCH(HttpStatus.FORBIDDEN,"초대받은 GitHub 계정으로만 응답할 수 있습니다."),
     GITHUB_USER_NOT_FOUND(HttpStatus.BAD_REQUEST,"GitHub를 연동하지 않았거나 사이트에 가입하지 않은 사용자입니다."),
+    INVITATION_EXPIRED(HttpStatus.GONE,"초대 링크가 만료되었습니다. 팀장에게 재초대를 요청해주세요."),
 
     //GitHub 레포 연동(API-022/023)
     GITHUB_NOT_LINKED(HttpStatus.BAD_REQUEST,"GitHub 계정이 연동되어 있지 않습니다."),
@@ -91,9 +93,17 @@ public enum ErrorCode {
     ISSUE_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 이슈입니다."),
     ISSUE_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰 이슈만 처리할 수 있습니다."),
 
+    //이슈 승인 흐름(RDB-003 [설계 추론])
+    NOT_REPO_OWNER(HttpStatus.FORBIDDEN,"팀장만 처리할 수 있습니다."),
+
     //리뷰 히스토리 [설계 추론]
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 리뷰입니다."),
-    REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰만 조회할 수 있습니다.");
+    REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰만 조회할 수 있습니다."),
+
+    //관리자 본인 권한수정
+    CANNOT_CHANGE_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 권한은 변경할 수 없습니다."),
+    //관리자 본인 상태수정
+    CANNOT_STATUS_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 상태는 수정할 수 없습니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지

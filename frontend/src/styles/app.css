@@ -84,7 +84,7 @@
 .chip {
   display: inline-block; font-weight: 700; font-size: 12.5px;
   padding: 4px 10px; letter-spacing: 0; line-height: 1.5; color: var(--white); background: var(--sub);
-  border: 2px solid var(--navy);
+  border: 2px solid var(--navy); white-space: nowrap; /* 좁은 테이블 셀에서 "검토 완료"처럼 공백 있는 라벨이 줄바꿈되던 문제 */
 }
 .chip.hi { background: var(--coral); }
 .chip.mid { background: #c9862e; }

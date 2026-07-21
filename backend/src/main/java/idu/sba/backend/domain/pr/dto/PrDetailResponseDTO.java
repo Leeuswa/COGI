@@ -16,9 +16,11 @@ public class PrDetailResponseDTO {
     private final String selectedModel; //nullable — API-028(모델 선택) 이번 범위 밖이라 항상 null
     private final String status;
     private final LocalDateTime createdAt; //프론트 PrDetail.tsx가 헤더에 표시(pr.createdAt)
+    private final String myRole; //OWNER/MEMBER — 이슈 승인 버튼 노출 여부 판단용(mock에서 이미 쓰던 필드, API-034)
 
     private PrDetailResponseDTO(Long id, Long repoId, Integer githubPrNumber, String title,
-                                 String authorName, String selectedModel, String status, LocalDateTime createdAt) {
+                                 String authorName, String selectedModel, String status,
+                                 LocalDateTime createdAt, String myRole) {
         this.id = id;
         this.repoId = repoId;
         this.githubPrNumber = githubPrNumber;
@@ -27,11 +29,12 @@ public class PrDetailResponseDTO {
         this.selectedModel = selectedModel;
         this.status = status;
         this.createdAt = createdAt;
+        this.myRole = myRole;
     }
 
-    public static PrDetailResponseDTO of(PullRequest pr, String authorName) {
+    public static PrDetailResponseDTO of(PullRequest pr, String authorName, String myRole) {
         return new PrDetailResponseDTO(pr.getId(), pr.getRepoId(), pr.getGithubPrNumber(), pr.getTitle(),
-                authorName, pr.getSelectedModel(), pr.getStatus().name(), pr.getCreatedAt());
+                authorName, pr.getSelectedModel(), pr.getStatus().name(), pr.getCreatedAt(), myRole);
     }
 
 }

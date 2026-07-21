@@ -7,12 +7,12 @@ import idu.sba.backend.domain.guest.dto.GuestReviewRecord;
 import idu.sba.backend.domain.guest.dto.GuestReviewRequest;
 import idu.sba.backend.domain.guest.dto.GuestReviewResponse;
 import idu.sba.backend.domain.guest.dto.ReviewComment;
-import idu.sba.backend.domain.review.entity.IssueCategory;
-import idu.sba.backend.domain.review.entity.IssueSeverity;
-import idu.sba.backend.domain.review.entity.Review;
-import idu.sba.backend.domain.review.entity.ReviewIssue;
+import idu.sba.backend.domain.review.entity.*;
+import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
+import idu.sba.backend.domain.review.service.PromptBuilder;
+import idu.sba.backend.domain.user.entity.Level;
 import idu.sba.backend.global.ai.AiInputType;
 import idu.sba.backend.global.ai.AiModel;
 import idu.sba.backend.global.ai.AiReviewClient;
@@ -48,6 +48,9 @@ public class GuestReviewService {
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
 
+    // 로그인 리뷰와 동일한 프롬프트 로더 재사용 — resources/prompts 의 레벨/플랜별 지침을 조합
+    private final PromptBuilder promptBuilder;
+
     // 비로그인 체험 제한 횟수(3회). 한 곳에서만 관리하려고 상수로.
     private static final int TRIAL_LIMIT = 3;
 
@@ -57,9 +60,12 @@ public class GuestReviewService {
     // 체험 횟수 유지 창. 첫 리뷰 시점부터 24시간 뒤 카운터가 만료돼 3회가 리셋된다.
     private static final Duration TRIAL_WINDOW = Duration.ofHours(24);
 
-    public enum ReviewLevel {
-        BEGINNER, INTERMEDIATE, ADVANCED
-    }
+    // 게스트는 항상 무료 등급 — prompt_plan_free.txt 를 쓴다.
+    private static final String GUEST_PLAN = "FREE";
+
+
+    //Admin관리자 창에서 Ai사용량을 표기해야
+    private final AiUsageLogRepository aiUsageLogRepository;
 
     public GuestReviewResponse createReview(GuestReviewRequest request, String guestToken) {
 
@@ -84,18 +90,26 @@ public class GuestReviewService {
         }
 
 
-        ReviewLevel level = ReviewLevel.BEGINNER;
+        Level level = parseLevel(request.getLevel());
 
         String summary;
         List<ReviewComment> comments;
         try {
-            String systemPrompt = buildPrompt(request.getLanguage(), level);
+            String systemPrompt = promptBuilder.build(level, GUEST_PLAN);
             AiReviewResult result = aiReviewClient.review(
-                    GUEST_MODEL, systemPrompt, request.getCode(), request.getLanguage(), AiInputType.PASTED_CODE);
+                    GUEST_MODEL, systemPrompt, request.getCode(), null, AiInputType.PASTED_CODE);
             summary = result.summary();
             comments = result.issues().stream()
                     .map(i -> new ReviewComment(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))
                     .toList();
+            //게스트 AI 사용량 기록 — userId=null(비로그인), 통계는 부차적이라 실패해도 리뷰는 계속
+            try {
+                aiUsageLogRepository.save(AiUsageLog.of(
+                        null, GUEST_MODEL.id(), result.inputTokens(), result.outputTokens(),
+                        result.cost(), "GUEST_REVIEW"));
+            } catch (Exception logEx) {
+                // 로깅만 하고 삼킴 — 회계 저장 실패가 게스트 리뷰를 막으면 안 됨
+            }
         } catch (BusinessException e) {
             // AI 호출 실패 시 방금 올린 체험 횟수를 롤백하고, 에러코드(AI_MODEL_CALL_FAILED)는 그대로 유지한 채 재던짐
             // — GlobalExceptionHandler가 502로 통일 응답하도록(예전처럼 500 RuntimeException으로 뭉개지 않음)
@@ -107,9 +121,9 @@ public class GuestReviewService {
         GuestReviewResponse response = new GuestReviewResponse(reviewId, summary, comments);
 
         // Redis에 저장 (24시간 보관). 회원가입 claim 때 reviews 행을 복원하려고
-        // 프론트 응답과 달리 원본 code/language/model 까지 함께 담는다.
+        // 프론트 응답과 달리 원본 code/model 까지 함께 담는다. (게스트는 언어를 받지 않아 language는 null)
         GuestReviewRecord record = new GuestReviewRecord(
-                reviewId, summary, comments, request.getCode(), request.getLanguage(), GUEST_MODEL.id());
+                reviewId, summary, comments, request.getCode(), null, GUEST_MODEL.id());
         String reviewKey = "guest:review:" + guestToken + ":" + reviewId;
         try {
             String json = objectMapper.writeValueAsString(record);   // 객체 → JSON 문자열
@@ -168,19 +182,13 @@ public class GuestReviewService {
         }
     }
 
-    // 시스템 프롬프트만 만든다 — 코드 본문은 AiReviewClient가 별도 user 메시지로 넣는다.
-    // "issues" 키/필드명은 AiReviewClientImpl의 공용 파싱 계약과 반드시 일치해야 함.
-    private String buildPrompt(String language, ReviewLevel level) {
-        return """
-                당신은 %s 수준 개발자를 위한 코드 리뷰어입니다.
-                이어지는 %s 코드를 리뷰하고, 다른 텍스트 없이 반드시 다음 JSON 형식으로만 답하세요:
-                {"summary":"전체 요약 한두 문장",
-                 "issues":[{"category":"BUG|PERFORMANCE|CODE_SMELL|CONVENTION|SECURITY",
-                            "severity":"CRITICAL|MAJOR|MINOR",
-                            "filePath":"파일명(모르면 input)",
-                            "lineNumber":1,
-                            "description":"문제와 개선 방법"}]}
-                """.formatted(level.name(), language);
+    // 프론트가 보낸 레벨 문자열 → Level. null이거나 스키마 밖 값이면 BEGINNER로 안전 폴백.
+    private Level parseLevel(String raw) {
+        try {
+            return Level.valueOf(raw);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return Level.BEGINNER;
+        }
     }
 
     // 3회 초과 시 던지는 예외. Controller가 잡아 403으로 응답.

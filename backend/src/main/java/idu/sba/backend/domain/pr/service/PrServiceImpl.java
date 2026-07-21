@@ -9,6 +9,7 @@ import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
 import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
+import idu.sba.backend.domain.repo.entity.RepoMember;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
@@ -44,10 +45,9 @@ public class PrServiceImpl implements PrService {
         GithubRepository repo = githubRepositoryRepository.findById(pr.getRepoId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.REPO_NOT_FOUND));
 
-        //이 레포의 팀원만 조회 가능(RepoMemberServiceImpl의 멤버십 체크와 동일 패턴, 역할 무관)
-        if (!repoMemberRepository.existsByRepoIdAndUserId(repo.getId(), currentUserId)) {
-            throw new BusinessException(ErrorCode.NOT_REPO_MEMBER);
-        }
+        //이 레포의 팀원만 조회 가능 — role도 같이 가져와서 myRole(승인 버튼 노출 여부)에 씀
+        RepoMember member = repoMemberRepository.findByRepoIdAndUserId(repo.getId(), currentUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REPO_MEMBER));
 
         List<ReviewIssueResponseDTO> issues = reviewRepository.findByPrId(prId)
                 .map(Review::getId)
@@ -55,7 +55,7 @@ public class PrServiceImpl implements PrService {
                 .map(list -> list.stream().map(ReviewIssueResponseDTO::of).toList())
                 .orElse(List.of()); //아직 리뷰가 없으면(PR이 OPEN) 빈 목록 — 예외 아님
 
-        return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, resolveAuthorName(pr)), issues);
+        return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, resolveAuthorName(pr), member.getRole().name()), issues);
     }
 
     @Override
