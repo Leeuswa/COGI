@@ -451,6 +451,18 @@ export const recommendSkill = (weaknessOrRequirement) =>
 export const getGrowthTrend = (teamId, params = {}) =>
   USE_MOCK ? mock(M.mockGrowth) : http('GET', `/api/teams/${teamId}/growth-trend?` + new URLSearchParams(params));
 
+// GET /api/teams/{teamId}/growth-trend/compare — 팀장 전용, 팀원별 발생 수 겹쳐보기 (멀티시리즈)
+export const getGrowthCompare = (teamId, params = {}) =>
+  USE_MOCK
+    ? mock({
+        labels: M.mockGrowth.map((w) => w.label),
+        series: [
+          { member: '@fable-dev', issues: M.mockGrowth.map((w) => w.issueCount) },
+          { member: '@corgi-junior', issues: M.mockGrowth.map((w) => Math.round(w.issueCount * 0.6)) },
+        ],
+      })
+    : http('GET', `/api/teams/${teamId}/growth-trend/compare?` + new URLSearchParams(params));
+
 // API-051 GET /api/users/me/retention-status — streak/오늘 제출 여부
 // 목 모드에선 GameContext(localStorage)가 원천이라 이 API는 실서버 전환용 자리만 잡아둠
 export const getRetentionStatus = () =>

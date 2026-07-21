@@ -1,28 +1,62 @@
 /*
  * 성장 추이 (GRW-001, API-050, FR-71~72)
- * 주 단위 이슈 발생/해결 빈도. 차트 라이브러리 대신 픽셀 셀을 쌓아 그린다
- * (.pix-chart) — 도트 감성 유지 + 번들 가벼움, 일석이조.
- * 셀 1칸 = 이슈 1건. 산호색=발생, 민트=그중 해결.
+ * 주 단위 이슈 발생/해결 빈도. 차트 라이브러리 대신 SVG로 직접 그린다(도트 무드 + 번들 경량).
+ * - 개별/팀총합 → 단일선(발생 영역 + 해결률 라인)
+ * - 팀장이 "팀 전체" → 팀원별 발생 수 멀티라인 겹쳐보기(compare)
  */
 import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
 import { useGame } from '../../context/GameContext';
+import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { PageHead } from '../../components/ui';
 
+const COMPARE_COLORS = ['#ff6b57', '#4ec9a4', '#1b2a4a', '#c9862e', '#8b96b5', '#e06fae'];
+
 export default function Growth() {
   const { S } = useGame();
+  const { user } = useAuth();
   const [trend, setTrend] = useState(null);
+  const [compare, setCompare] = useState(null); // { labels, series }
   const [period, setPeriod] = useState('4W');
   const [memberId, setMemberId] = useState('ALL'); // 팀 전체 또는 특정 팀원 (FR-72)
   const [members, setMembers] = useState([]);
+  const [repos, setRepos] = useState([]);
+  const [repoId, setRepoId] = useState(null); // 선택한 레포(팀)
 
-  useEffect(() => { api.getTeamMembers(1).then(setMembers); }, []);
+  // 내가 속한 레포 목록 → 첫 레포를 기본 선택
   useEffect(() => {
-    // 팀원 선택 시 memberId 쿼리로 좁혀서 조회 — 서버가 그 사람 이슈만 집계해서 준다
-    api.getGrowthTrend(1, { period, ...(memberId !== 'ALL' && { memberId }) }).then(setTrend);
-  }, [period, memberId]);
+    api.getMyLinkedRepos().then((list) => {
+      setRepos(list);
+      if (list.length > 0) setRepoId(list[0].repoId);
+    });
+  }, []);
 
+  // 선택한 레포의 팀원 목록. 레포 바뀌면 팀원 필터는 '팀 전체'로 초기화
+  useEffect(() => {
+    if (repoId == null) return;
+    setMemberId('ALL');
+    api.getTeamMembers(repoId).then(setMembers);
+  }, [repoId]);
+
+  // 팀원 목록에서 "나"인지 판별 (userId 우선, 없으면 githubUsername)
+  const isMe = (m) =>
+    (user?.userId != null && String(m.userId) === String(user.userId)) ||
+    (!!user?.githubUsername && m.githubUsername === user.githubUsername);
+  const myRole = members.find(isMe)?.role;
+  // 팀장은 전원 개별 조회 가능, 팀원은 본인만 (남은 드롭다운에 안 보임 = 서버 403과 별개로 UX에서도 차단)
+  const selectableMembers = myRole === 'OWNER' ? members : members.filter(isMe);
+  const compareMode = memberId === 'ALL' && myRole === 'OWNER';
+
+  useEffect(() => {
+    if (repoId == null) return;
+    // 항상 발생/해결 추이(trend)를 받고, 팀장 팀전체면 겹쳐보기(compare)도 추가로 받는다
+    api.getGrowthTrend(repoId, { period, ...(memberId !== 'ALL' && { memberId }) }).then(setTrend);
+    if (compareMode) api.getGrowthCompare(repoId, { period }).then(setCompare);
+    else setCompare(null);
+  }, [repoId, period, memberId, compareMode]);
+
+  // 단일선 요약 지표 (compare 모드에선 안 쓰임)
   const total = (trend || []).reduce((a, w) => a + w.issueCount, 0);
   const solved = (trend || []).reduce((a, w) => a + w.resolved, 0);
   const first = trend?.[0]?.issueCount ?? 0;
@@ -34,14 +68,22 @@ export default function Growth() {
       <PageHead
         badge="GROWTH" badgeCls="co"
         title="성장 추이"
-        lead={"같은 실수가 줄어드는 게 진짜 성장이에요.\n막대가 낮아지고 해결률이 올라갈수록 코기가 기뻐합니다."}
+        lead={"반복하던 실수가 줄어드는 게 진짜 성장이에요.\n발생 그래프가 내려가고 해결이 늘수록 코기도 기뻐해요."}
       />
 
       <div className="filter-bar">
+        {/* 레포(팀) 선택 — 1개여도 항상 노출(어느 레포 기준인지 보이게) */}
+        {repos.length > 0 && (
+          <select value={repoId ?? ''} onChange={(e) => setRepoId(Number(e.target.value))}>
+            {repos.map((r) => <option key={r.repoId} value={r.repoId}>{r.repoName}</option>)}
+          </select>
+        )}
         {/* 팀원별 필터 (FR-72) — 팀장이 특정 팀원의 추이만 떼어 본다 */}
         <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
           <option value="ALL">팀 전체</option>
-          {members.map((m) => <option key={m.userId} value={m.userId}>@{m.githubUsername}</option>)}
+          {selectableMembers.map((m) => (
+            <option key={m.userId} value={m.userId}>@{m.githubUsername}{isMe(m) ? ' (나)' : ''}</option>
+          ))}
         </select>
         <select value={period} onChange={(e) => setPeriod(e.target.value)}>
           <option value="4W">최근 4주</option>
@@ -65,69 +107,126 @@ export default function Growth() {
               )}
             </div>
             {(() => {
-              /* 영역 + 라인 차트 — "발전"이 선의 방향으로 바로 읽히게.
-                 아래(옅은 산호 영역) = 미해결 이슈가 줄어드는 모양,
-                 위(민트 라인 + 사각 마커) = 해결률이 올라가는 모양. 픽셀 무드는 직각 스텝으로 유지 */
+              /* 모던 그라데이션 영역 차트: 발생 곡선(그라데이션) + 해결 곡선. 두 곡선 간격=미해결. */
               const W = 720, H = 250, PAD = 48;
               const max = Math.max(...trend.map((w) => w.issueCount), 4);
-              const x = (i) => PAD + ((W - PAD * 2) / (trend.length - 1)) * i;
-              const yIss = (v) => H - 40 - ((H - 96) * v) / max;           // 이슈 수 (아래 영역)
-              const yRate = (r) => 36 + (H - 116) * (1 - r);               // 해결률 0~1 (위 라인)
-              // 계단형 경로 (직각 스텝 = 도트 무드)
-              const step = (pts) => pts.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `H${p[0]} V${p[1]}`)).join(' ');
-              const issPts = trend.map((w, i) => [x(i), yIss(w.issueCount - w.resolved)]);
-              const areaPath = `${step(issPts)} H${x(trend.length - 1)} V${yIss(0)} H${issPts[0][0]} Z`;
-              const rate = trend.map((w, i) => ({ cx: x(i), cy: yRate(w.resolved / w.issueCount), pct: Math.round((w.resolved / w.issueCount) * 100) }));
+              const n = trend.length;
+              const x = (i) => PAD + ((W - PAD * 2) / (n - 1)) * i;
+              const y = (v) => H - 44 - ((H - 96) * v) / max;
+              // Catmull-Rom → 베지어 곡선(부드럽게)
+              const smooth = (pts) => {
+                if (pts.length < 2) return pts.map((p) => `${p[0]},${p[1]}`).join(' ');
+                let d = `M${pts[0][0]},${pts[0][1]}`;
+                for (let i = 0; i < pts.length - 1; i++) {
+                  const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+                  d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
+                }
+                return d;
+              };
+              const issPts = trend.map((w, i) => [x(i), y(w.issueCount)]);
+              const resPts = trend.map((w, i) => [x(i), y(w.resolved)]);
+              const issLine = smooth(issPts);
+              const issArea = `${issLine} L${issPts[n - 1][0]},${y(0)} L${issPts[0][0]},${y(0)} Z`;
               return (
-                <svg className="gchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="주간 성장 차트">
-                  {/* 배경 눈금 */}
+                <svg className="gchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="주간 발생/해결 추이">
+                  <defs>
+                    <linearGradient id="issGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ff6b57" stopOpacity="0.45" />
+                      <stop offset="100%" stopColor="#ff6b57" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
                   {[0.25, 0.5, 0.75, 1].map((t) => (
-                    <line key={t} x1={PAD} x2={W - PAD} y1={yIss(max * t)} y2={yIss(max * t)} className="grid" />
+                    <line key={t} x1={PAD} x2={W - PAD} y1={y(max * t)} y2={y(max * t)} className="grid" />
                   ))}
-                  {/* 미해결 이슈 영역 (계단형, 줄어드는 모양) */}
-                  <path d={areaPath} className="iss-area" />
-                  <path d={step(issPts)} className="iss-line" />
-                  {issPts.map(([cx, cy], i) => (
-                    <text key={'i' + i} x={cx} y={cy - 8} textAnchor="middle" className="ilab">
-                      {trend[i].issueCount - trend[i].resolved}
-                    </text>
-                  ))}
-                  {/* 해결률 상승 라인 — 이 페이지의 주인공 */}
-                  <polyline className="rate-line" points={rate.map((p) => `${p.cx},${p.cy}`).join(' ')} />
-                  {rate.map((p, i) => (
-                    <g key={'r' + i}>
-                      <rect x={p.cx - 6} y={p.cy - 6} width="12" height="12" className="rate-dot" />
-                      <text x={p.cx} y={p.cy - 13} textAnchor="middle" className="rlab">{p.pct}%</text>
+                  {/* 발생 영역 + 곡선 */}
+                  <path d={issArea} fill="url(#issGrad)" />
+                  <path d={issLine} className="area-line-open" />
+                  {/* 해결 곡선 */}
+                  <path d={smooth(resPts)} className="area-line-resolved" />
+                  {/* 마커 + 발생 수 라벨 */}
+                  {trend.map((w, i) => (
+                    <g key={'m' + i}>
+                      <circle cx={x(i)} cy={y(w.resolved)} r="5" className="dot-resolved" />
+                      <circle cx={x(i)} cy={y(w.issueCount)} r="6" className="dot-open" />
+                      <text x={x(i)} y={y(w.issueCount) - 12} textAnchor="middle" className="ilab">{w.issueCount}</text>
                     </g>
                   ))}
-                  {/* x축 라벨 + 바닥선 */}
                   {trend.map((w, i) => (
-                    <text key={'x' + i} x={x(i)} y={H - 14} textAnchor="middle" className="xlab2">{w.label}</text>
+                    <text key={'x' + i} x={x(i)} y={H - 12} textAnchor="middle" className="xlab2">{w.label}</text>
                   ))}
-                  <line x1={PAD} x2={W - PAD} y1={yIss(0)} y2={yIss(0)} className="axis" />
+                  <line x1={PAD} x2={W - PAD} y1={y(0)} y2={y(0)} className="axis" />
                 </svg>
               );
             })()}
             <div className="chart-legend">
-              <span><i style={{ background: 'var(--mint)' }} />해결률 (오를수록 성장 ↗)</span>
-              <span><i style={{ background: '#ffb3a8' }} />미해결 이슈 (줄어들수록 성장 ↘)</span>
+              <span><i style={{ background: 'var(--coral)' }} />발생 (줄어들수록 성장 ↘)</span>
+              <span><i style={{ background: 'var(--mint)' }} />해결 (많을수록 성장 ↗)</span>
             </div>
           </div>
 
-          <div className="panel-grid c3" style={{ marginTop: 22 }}>
+          {/* 팀장이 "팀 전체" 볼 때만: 팀원별 발생 수 겹쳐보기 (총합 차트 아래) */}
+          {compareMode && compare && (
+            <div className="panel" style={{ marginTop: 18 }}>
+              <div className="row" style={{ marginBottom: 6 }}>
+                <h3 style={{ marginBottom: 0 }}>팀원별 주간 이슈 발생 (겹쳐보기)</h3>
+                <span className="note sm ml-auto">선이 내려갈수록 그 팀원의 실수가 줄어드는 거예요</span>
+              </div>
+              {(() => {
+                const W = 720, H = 250, PAD = 48;
+                const labels = compare.labels;
+                const series = compare.series;
+                const n = Math.max(1, labels.length);
+                const max = Math.max(1, ...series.flatMap((s) => s.issues));
+                const x = (i) => PAD + ((W - PAD * 2) / Math.max(1, n - 1)) * i;
+                const y = (v) => H - 40 - ((H - 96) * v) / max;
+                return (
+                  <svg className="gchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="팀원별 주간 이슈 겹쳐보기">
+                    {[0.25, 0.5, 0.75, 1].map((t) => (
+                      <line key={t} x1={PAD} x2={W - PAD} y1={y(max * t)} y2={y(max * t)} className="grid" />
+                    ))}
+                    {series.map((s, si) => {
+                      const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+                      const pts = s.issues.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+                      return (
+                        <g key={s.member}>
+                          <polyline points={pts} fill="none" stroke={color} strokeWidth="3" />
+                          {s.issues.map((v, i) => (
+                            <g key={i}>
+                              <rect x={x(i) - 4} y={y(v) - 4} width="8" height="8" fill={color} />
+                              <text x={x(i)} y={y(v) - 11} textAnchor="middle" className="xlab2" style={{ fill: color }}>{v}</text>
+                            </g>
+                          ))}
+                        </g>
+                      );
+                    })}
+                    {labels.map((lb, i) => (
+                      <text key={i} x={x(i)} y={H - 14} textAnchor="middle" className="xlab2">{lb}</text>
+                    ))}
+                    <line x1={PAD} x2={W - PAD} y1={y(0)} y2={y(0)} className="axis" />
+                  </svg>
+                );
+              })()}
+              <div className="chart-legend">
+                {compare.series.map((s, si) => (
+                  <span key={s.member}>
+                    <i style={{ background: COMPARE_COLORS[si % COMPARE_COLORS.length] }} />{s.member}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="panel-grid c3 stat-grid" style={{ marginTop: 22 }}>
             <div className="panel stat-card">
-              <span style={{ fontSize: 20 }}>🐛</span>
-              <b className="stat-num">{total}</b>
+              <span className="stat-num">{total}</span>
               <p className="note xs">기간 내 이슈</p>
             </div>
             <div className="panel stat-card">
-              <span style={{ fontSize: 20 }}>✅</span>
-              <b className="stat-num" style={{ color: 'var(--mint)' }}>{solved}</b>
+              <span className="stat-num" style={{ color: 'var(--mint)' }}>{solved}</span>
               <p className="note xs">해결 완료</p>
             </div>
             <div className="panel stat-card">
-              <span style={{ fontSize: 20 }}>🔥</span>
-              <b className="stat-num" style={{ color: 'var(--coral)' }}>{S.streak}일</b>
+              <span className="stat-num" style={{ color: 'var(--coral)' }}>{S.streak}일</span>
               <p className="note xs">연속 학습</p>
             </div>
           </div>

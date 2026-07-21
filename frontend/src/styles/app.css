@@ -112,6 +112,7 @@
 .pix-chart .cell { width: 26px; height: 12px; background: var(--coral); border: 2px solid var(--navy); }
 .pix-chart .cell.ok { background: var(--mint); }
 .pix-chart .xlab { font-family: 'GalmuriMono11', monospace; font-size: 12px; color: var(--sub); }
+.pix-chart .pix-cnt { font-family: 'Silkscreen', monospace; font-size: 13px; color: var(--coral); }
 
 /* streak 달력 점 */
 .streak-dots { display: flex; gap: 7px; flex-wrap: wrap; }
@@ -249,7 +250,7 @@
 .chart-legend i { width: 12px; height: 12px; border: 2px solid var(--navy); display: inline-block; margin-right: 6px; vertical-align: -2px; }
 .trend-badge { font-family: 'Silkscreen', monospace; font-size: 12px; padding: 5px 10px; border: 3px solid var(--navy); background: var(--mint); color: var(--white); box-shadow: 3px 3px 0 var(--navy); }
 .stat-num { font-size: 26px; font-family: 'Silkscreen', monospace; }
-.stat-card { display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 20px 12px; }
+.stat-card { display: flex; flex-direction: column; gap: 6px; align-items: center; justify-content: center; padding: 20px 12px; min-height: 118px; }
 
 /* ───── 주간 리포트 리스트 + 팝업 ───── */
 .report-row { display: flex; gap: 14px; align-items: center; width: 100%; cursor: pointer; text-align: left; font: inherit; color: inherit; }
@@ -466,7 +467,14 @@
 .itabs .pick-cnt { margin-left: 7px; }
 
 /* 성장 차트 v3: 영역 + 상승 라인 */
+.gchart .area-line-open { fill: none; stroke: var(--coral); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.gchart .area-line-resolved { fill: none; stroke: var(--mint); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.gchart .dot-open { fill: #fff; stroke: var(--coral); stroke-width: 3; }
+.gchart .dot-resolved { fill: var(--mint); stroke: #fff; stroke-width: 2; }
 .gchart .iss-area { fill: #ffb3a8; opacity: .45; }
+.gchart .iss-bar { fill: #ffb3a8; stroke: var(--navy); stroke-width: 2; }
+.gchart .bar-resolved { fill: var(--mint); stroke: var(--navy); stroke-width: 2; }
+.gchart .bar-open { fill: #ffb3a8; stroke: var(--navy); stroke-width: 2; }
 .gchart .iss-line { fill: none; stroke: var(--coral); stroke-width: 3; }
 .gchart .ilab { font-family: 'Silkscreen', monospace; font-size: 12px; fill: var(--coral); }
 .gchart .rate-line { fill: none; stroke: var(--mint); stroke-width: 4.5; }
@@ -524,6 +532,10 @@
 
 /* 요금제 카드 — 기본은 모두 같은 높이·크기, 현재 플랜만 확대·강조 */
 .panel-grid.c3 { align-items: stretch; }         /* 모든 카드 같은 높이 */
+/* stat 카드 3개 — 라벨 길이 무관하게 칸 너비 완전 균등 (1fr=minmax(auto,1fr)라 긴 라벨 칸이 커지는 것 방지) */
+.stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* grid 안 2·3번째 카드에 .panel + .panel 마진이 붙어 높이/정렬이 틀어지는 것 제거 */
+.stat-grid > .panel { margin-top: 0; }
 /* 현재 카드가 위로 떠오르고(-10px·확대) 그 위에 '현재 이용 중' 플래그까지 얹히므로,
    세 카드를 통째로 내려 위 안내 문구가 가려지지 않게 여유를 확보 */
 .panel-grid.c3:has(> .plan-card) { margin-top: 32px; }
