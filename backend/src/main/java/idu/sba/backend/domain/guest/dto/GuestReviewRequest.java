@@ -8,5 +8,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class GuestReviewRequest {
     private String code; //리뷰받을 코드
-    private String language; //무슨 언어를 사용하는지에 대하여
+    private String level; //설명 수준 BEGINNER/INTERMEDIATE/ADVANCED (없거나 이상하면 BEGINNER)
 }
