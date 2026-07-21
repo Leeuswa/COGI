@@ -27,7 +27,7 @@ export default function UsageTab({ usage, range, setRange, latency }) {
             {usage.map((u) => (
               <tr key={u.id}>
                 <td className="mono xs">{u.createdAt.slice(0, 16).replace('T', ' ')}</td>
-                <td className="mono">#{u.userId}</td>
+              <td className="mono">{u.userId == null ? '비로그인' : `#${u.userId}`}</td>
                 <td className="mono xs">{u.modelName}</td>
                 <td><span className="chip navy">{u.requestType}</span></td>
                 <td className="mono">{u.inputTokens.toLocaleString()}</td>

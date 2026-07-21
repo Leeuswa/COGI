@@ -7,10 +7,8 @@ import idu.sba.backend.domain.guest.dto.GuestReviewRecord;
 import idu.sba.backend.domain.guest.dto.GuestReviewRequest;
 import idu.sba.backend.domain.guest.dto.GuestReviewResponse;
 import idu.sba.backend.domain.guest.dto.ReviewComment;
-import idu.sba.backend.domain.review.entity.IssueCategory;
-import idu.sba.backend.domain.review.entity.IssueSeverity;
-import idu.sba.backend.domain.review.entity.Review;
-import idu.sba.backend.domain.review.entity.ReviewIssue;
+import idu.sba.backend.domain.review.entity.*;
+import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.review.service.PromptBuilder;
@@ -65,6 +63,10 @@ public class GuestReviewService {
     // 게스트는 항상 무료 등급 — prompt_plan_free.txt 를 쓴다.
     private static final String GUEST_PLAN = "FREE";
 
+
+    //Admin관리자 창에서 Ai사용량을 표기해야
+    private final AiUsageLogRepository aiUsageLogRepository;
+
     public GuestReviewResponse createReview(GuestReviewRequest request, String guestToken) {
 
         // "guest:count:토큰" 이름표로 카운터 생성
@@ -100,6 +102,14 @@ public class GuestReviewService {
             comments = result.issues().stream()
                     .map(i -> new ReviewComment(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))
                     .toList();
+            //게스트 AI 사용량 기록 — userId=null(비로그인), 통계는 부차적이라 실패해도 리뷰는 계속
+            try {
+                aiUsageLogRepository.save(AiUsageLog.of(
+                        null, GUEST_MODEL.id(), result.inputTokens(), result.outputTokens(),
+                        result.cost(), "GUEST_REVIEW"));
+            } catch (Exception logEx) {
+                // 로깅만 하고 삼킴 — 회계 저장 실패가 게스트 리뷰를 막으면 안 됨
+            }
         } catch (BusinessException e) {
             // AI 호출 실패 시 방금 올린 체험 횟수를 롤백하고, 에러코드(AI_MODEL_CALL_FAILED)는 그대로 유지한 채 재던짐
             // — GlobalExceptionHandler가 502로 통일 응답하도록(예전처럼 500 RuntimeException으로 뭉개지 않음)
