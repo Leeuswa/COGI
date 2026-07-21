@@ -309,8 +309,8 @@ export const getPrFiles = (prId) =>
 // API-039 POST /api/guest/local-review — 비로그인 즉시 리뷰(쿠키 3회 제한, FR-50~52)
 // 목 모드의 3회 카운트는 GuestReview 페이지에서 localStorage로 처리한다.
 // level: 게스트가 고른 코딩 수준 — 관리자 지침(ADM-004)에 맞춰 설명 깊이가 달라진다
-export const guestReview = (code, language, level = 'BEGINNER') => {
-  if (!USE_MOCK) return http('POST', '/api/guest/local-review', { code, language, level });
+export const guestReview = (code, level = 'BEGINNER') => {
+  if (!USE_MOCK) return http('POST', '/api/guest/local-review', { code, level });
   // 수준별 설명 — 관리자 지침(ADM-004)이 실제로 하는 일을 목으로 재현
   const DESC = {
     BEGINNER: 'user 가 비어있을 수 있어요. 비어있는 상자에서 물건(name)을 꺼내려 하면 앱이 멈춥니다. user?.name 처럼 물음표를 붙이면 "상자가 비었으면 그냥 넘어가"라는 뜻이 돼요.',

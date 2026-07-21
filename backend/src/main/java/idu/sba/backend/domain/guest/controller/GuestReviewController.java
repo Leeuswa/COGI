@@ -33,7 +33,7 @@ public class GuestReviewController {
 
     @PostMapping("/api/guest/local-review")
     public ResponseEntity<?> createGuestReview(
-            @RequestBody GuestReviewRequest request, //프론트가 보낸 JSON(code ,language)이 여기에 담김
+            @RequestBody GuestReviewRequest request, //프론트가 보낸 JSON(code, level)이 여기에 담김
             HttpServletRequest httpRequest, //브라우저가 보낸 요청 전체(쿠키 읽을 때)
             HttpServletResponse httpResponse // 브라우저에게 보낼 응답 (쿠키 심을 때)
     ) {
