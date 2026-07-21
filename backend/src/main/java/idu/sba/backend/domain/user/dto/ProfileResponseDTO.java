@@ -10,6 +10,7 @@ import java.util.List;
 @Getter
 public class ProfileResponseDTO {
 
+    private final Long userId;
     private final String nickname;
     private final String githubUsername; // GitHub 연동 탭 표시용
     private final String email;
@@ -21,8 +22,9 @@ public class ProfileResponseDTO {
     private final Provider provider;             // 가입 방식 (마이페이지 표시/분기용)
     private final Role role;                      // 프론트 관리자 화면(/app/admin) 진입 가드용
 
-    private ProfileResponseDTO(String nickname, String email, Level level, List<String> interests,
-                               Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider,String githubUsername, Role role) {
+    private ProfileResponseDTO(Long userId, String nickname, String email, Level level, List<String> interests,
+                               Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role) {
+        this.userId = userId;
         this.nickname = nickname;
         this.email = email;
         this.level = level;
@@ -35,9 +37,9 @@ public class ProfileResponseDTO {
         this.role = role;
     }
 
-    public static ProfileResponseDTO of(String nickname, String email, Level level, List<String> interests,
-                                        Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider,String githubUsername, Role role) {
-        return new ProfileResponseDTO(nickname, email, level, interests, planId, onboardingCompleted, guideConfirmed, provider,githubUsername, role);
+    public static ProfileResponseDTO of(Long userId, String nickname, String email, Level level, List<String> interests,
+                                        Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role) {
+        return new ProfileResponseDTO(userId, nickname, email, level, interests, planId, onboardingCompleted, guideConfirmed, provider, githubUsername, role);
     }
 
 }

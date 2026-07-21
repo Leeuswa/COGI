@@ -44,6 +44,7 @@ public class UserServiceImpl implements UserService{
     public ProfileResponseDTO getProfile(Long userId) {
         User user = findUser(userId);
         return ProfileResponseDTO.of(
+                user.getId(),
                 user.getNickname(),
                 user.getEmail(),
                 user.getLevel(),
