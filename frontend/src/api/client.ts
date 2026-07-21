@@ -265,6 +265,10 @@ export const respondInvite = (repoId, inviteId, accept) =>
 export const getMyInvitations = () =>
   USE_MOCK ? mock(M.mockInvitations) : http('GET', '/api/me/repo-invitations');
 
+// 이메일 초대 링크(/repo-invites/accept?token=...) 랜딩페이지 전용 — 비로그인 상태에서 호출
+export const lookupInvitationByToken = (token) =>
+  USE_MOCK ? mock({ repoName: 'COGI', emailHasAccount: false }) : http('GET', `/api/repo-invitations/by-token/${encodeURIComponent(token)}`);
+
 // 팀원이 스스로 팀 나가기 — 팀장은 먼저 위임해야 함(OWNER_CANNOT_LEAVE)
 export const leaveRepo = (repoId) =>
   USE_MOCK ? mock({ ok: true }) : http('POST', `/api/repos/${repoId}/members/leave`);
