@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useGame } from '../../context/GameContext';
-import { PageHead, SevChip } from '../../components/ui';
+import { PageHead, SevChip, renderDescription } from '../../components/ui';
 import { catKo, ISSUE_STATUS_KO } from '../../data/constants';
 
 // MD/TXT 내보내기는 백엔드 없이 프론트에서 파일을 만들어 내려준다 (FR-45~46)
@@ -54,6 +54,17 @@ export default function PrDetail() {
   const resolved = issues.filter((it) => it.status === 'RESOLVED').length;
   const ignored = issues.filter((it) => it.status === 'IGNORED').length;
   const open_ = issues.filter((it) => it.status === 'OPEN').length;
+  const pending = issues.filter((it) => it.status === 'PENDING').length; // 팀장 승인 대기(CRITICAL만 여기로 옴)
+
+  // 이슈 승인 흐름(RDB-003) — 팀장(pr.myRole==='OWNER')만 버튼이 보인다
+  const decide = async (issueId, approve) => {
+    await api.decideResolveRequest(issueId, approve);
+    setData((d) => ({
+      ...d,
+      issues: d.issues.map((it) => (it.id === issueId ? { ...it, status: approve ? 'RESOLVED' : 'OPEN' } : it)),
+    }));
+    notify(approve ? '승인했어요. 해결됨으로 반영됐어요.' : '반려했어요. 다시 미해결로 돌아갔어요.');
+  };
 
   // 내보내기 본문 조립. 마크다운 하나 만들어두고 TXT는 기호만 벗긴다
   const buildMd = () =>
@@ -65,7 +76,7 @@ export default function PrDetail() {
         `## [${it.severity}] ${it.category} — ${it.filePath}:${it.lineNumber}`,
         `- 상태: ${it.status}${it.acknowledged ? ' (의도한 코드 — 통계 제외)' : ''}`,
         '', it.description, '',
-        '```', ...it.codeSnippet, '```', '',
+        ...(it.codeSnippet ? ['```', ...it.codeSnippet, '```', ''] : []),
       ]),
     ].join('\n');
 
@@ -93,6 +104,7 @@ export default function PrDetail() {
           <b style={{ fontSize: 15 }}>최종 검토 결과</b>
           <span className="chip low">해결 {resolved}</span>
           <span className="chip gray">무시 {ignored}</span>
+          {pending > 0 && <span className="chip mid">승인 대기 {pending}</span>}
           {open_ > 0 && <span className="chip hi">미판정 {open_}</span>}
           <span className="ml-auto" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {open_ > 0 && (
@@ -119,30 +131,43 @@ export default function PrDetail() {
             <SevChip sev={it.severity} />
             <span className="chip navy">{catKo(it.category)}</span>
             <span className={`chip ${statusChip(it.status)}`}>{ISSUE_STATUS_KO[it.status] ?? it.status}</span>
-            {it.acknowledged && <span className="chip gray">통계 제외</span>}
+            {/* acknowledged는 항상 IGNORED와 같이 감(무시됨=통계 제외) — 같은 회색 칩을 또 붙이면 중복돼 보여서 텍스트로만 부연 */}
+            {it.acknowledged && <span className="note xs">(통계 제외)</span>}
             <span className="mono" style={{ fontSize: 12, color: 'var(--sub)', marginLeft: 'auto' }}>
               {it.filePath}:{it.lineNumber}
             </span>
           </div>
 
-          {/* 코드 스니펫 — 문제 라인만 배경 하이라이트 */}
-          <pre className="codebox">
-            {it.codeSnippet.map((line, i) => {
-              const isHit = line.trimStart().startsWith(String(it.lineNumber) + ' ');
-              return <span key={i} className={isHit ? 'hl-line' : undefined}>{line + '\n'}</span>;
-            })}
-          </pre>
+          {/* 코드 스니펫 — 문제 라인만 배경 하이라이트. PR diff 기반 리뷰는 스니펫을 따로 안 남겨서 없을 수 있음 */}
+          {it.codeSnippet && (
+            <pre className="codebox">
+              {it.codeSnippet.map((line, i) => {
+                const isHit = line.trimStart().startsWith(String(it.lineNumber) + ' ');
+                return <span key={i} className={isHit ? 'hl-line' : undefined}>{line + '\n'}</span>;
+              })}
+            </pre>
+          )}
 
-          <p style={{ fontSize: 13.5, lineHeight: 1.95, margin: '14px 0' }}>{it.description}</p>
+          <div style={{ fontSize: 13.5, lineHeight: 1.95, margin: '14px 0' }}>{renderDescription(it.description)}</div>
 
-          {/* 스튜디오에서 내린 판정을 '확인만' 한다 — 결정은 스튜디오에서 끝났다 (#5/#7) */}
+          {/* 스튜디오에서 내린 판정을 '확인만' 한다 — 결정은 스튜디오에서 끝났다 (#5/#7).
+              단, PENDING(팀장 승인 대기)은 여기서 팀장이 직접 승인/반려한다 (FR-44, RDB-003) */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <span className="note sm">
               {it.status === 'RESOLVED' ? '✔ 고치기로 확정한 지적이에요'
                 : it.status === 'IGNORED' ? '🙋 의도한 코드로 확인했어요 (통계 제외)'
+                : it.status === 'PENDING' ? '⏳ 심각도 높은 이슈라 팀장 승인을 기다리는 중이에요'
                 : '스튜디오에서 아직 판정하지 않은 지적이에요'}
             </span>
-            <Link className="btn wh sm ml-auto" to="/app/weakness">이 유형 약점 보기 →</Link>
+            {it.status === 'PENDING' && pr.myRole === 'OWNER' && (
+              <span className="row ml-auto" style={{ gap: 8 }}>
+                <button className="btn wh sm" onClick={() => decide(it.id, false)}>반려</button>
+                <button className="btn co sm" onClick={() => decide(it.id, true)}>승인</button>
+              </span>
+            )}
+            {!(it.status === 'PENDING' && pr.myRole === 'OWNER') && (
+              <Link className="btn wh sm ml-auto" to="/app/weakness">이 유형 약점 보기 →</Link>
+            )}
           </div>
         </div>
       ))}

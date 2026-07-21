@@ -43,14 +43,15 @@ public class GithubWebhookServiceImpl implements GithubWebhookService {
         }
 
         Long authorId = resolveAuthorId(payload);
+        String authorLogin = payload.pullRequest().user() == null ? null : payload.pullRequest().user().login();
 
         PullRequest pr = pullRequestRepository
                 .findByRepoIdAndGithubPrNumber(repo.getId(), payload.number())
                 .map(existing -> {
-                    existing.reopenForReview(payload.pullRequest().title(), authorId);
+                    existing.reopenForReview(payload.pullRequest().title(), authorId, authorLogin);
                     return existing;
                 })
-                .orElseGet(() -> PullRequest.open(repo.getId(), payload.number(), payload.pullRequest().title(), authorId));
+                .orElseGet(() -> PullRequest.open(repo.getId(), payload.number(), payload.pullRequest().title(), authorId, authorLogin));
         pullRequestRepository.save(pr);
 
         reviewService.createFromPr(pr.getId()); //@Async — 이 시점엔 위 저장이 이미 커밋된 상태

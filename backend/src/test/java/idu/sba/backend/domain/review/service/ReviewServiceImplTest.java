@@ -3,6 +3,7 @@ package idu.sba.backend.domain.review.service;
 import idu.sba.backend.domain.payment.entity.Plan;
 import idu.sba.backend.domain.payment.service.CreditUsageService;
 import idu.sba.backend.domain.payment.service.SubscriptionService;
+import idu.sba.backend.domain.pr.dto.PrReviewImportRequestDTO;
 import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.entity.PullRequestStatus;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
@@ -10,7 +11,12 @@ import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.client.GithubPrFileDto;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
+import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
+import idu.sba.backend.domain.review.entity.IssueCategory;
+import idu.sba.backend.domain.review.entity.IssueSeverity;
+import idu.sba.backend.domain.review.entity.Review;
+import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.entity.ReviewStatus;
 import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
@@ -35,6 +41,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,6 +58,7 @@ class ReviewServiceImplTest {
     @Mock private PullRequestRepository pullRequestRepository;
     @Mock private GithubRepositoryRepository githubRepositoryRepository;
     @Mock private GithubApiClient githubApiClient;
+    @Mock private RepoMemberRepository repoMemberRepository;
 
     @InjectMocks
     private ReviewServiceImpl service;
@@ -93,6 +101,15 @@ class ReviewServiceImplTest {
         return request;
     }
 
+    private PrReviewImportRequestDTO prImportRequest(String code, String modelName, String title, String authorLogin) {
+        PrReviewImportRequestDTO request = new PrReviewImportRequestDTO();
+        setField(request, "code", code);
+        setField(request, "modelName", modelName);
+        setField(request, "title", title);
+        setField(request, "authorLogin", authorLogin);
+        return request;
+    }
+
     private User ownerUser(String accessToken) {
         User user = User.createByGithub("gh-owner", "owner-gh", "owner@test.com", accessToken);
         setField(user, "id", OWNER_ID);
@@ -106,7 +123,7 @@ class ReviewServiceImplTest {
     }
 
     private PullRequest pr() {
-        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null);
+        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null, null);
         setField(pr, "id", PR_ID);
         return pr;
     }
@@ -321,6 +338,150 @@ class ReviewServiceImplTest {
         assertThat(pr.getStatus()).isEqualTo(PullRequestStatus.FAILED);
         verify(subscriptionService, never()).getCurrentPlanEntity(any());
         verify(creditUsageService, never()).refund(any(), any()); //modelName조차 안 정해졌으니 환불 대상 아님
+    }
+
+    // ---------- 리뷰 히스토리 [설계 추론] ----------
+
+    private Review review(Long id, Long userId) {
+        Review review = Review.createPaste(userId, "code", "java", "claude-haiku-4-5");
+        setField(review, "id", id);
+        review.markCompleted();
+        return review;
+    }
+
+    @Test
+    void getHistory_리뷰가_없으면_빈_목록을_반환한다() {
+        when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
+        when(reviewIssueRepository.findByReviewIdIn(List.of())).thenReturn(List.of());
+
+        assertThat(service.getHistory(USER_ID)).isEmpty();
+    }
+
+    @Test
+    void getHistory_이슈_개수와_최고_심각도를_계산한다() {
+        Review review = review(10L, USER_ID);
+        when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
+        when(reviewIssueRepository.findByReviewIdIn(List.of(10L))).thenReturn(List.of(
+                ReviewIssue.of(10L, IssueCategory.BUG, IssueSeverity.MINOR, "Foo.java", 1, "설명1"),
+                ReviewIssue.of(10L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 2, "설명2")));
+
+        var result = service.getHistory(USER_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getIssueCount()).isEqualTo(2);
+        assertThat(result.get(0).getTopSeverity()).isEqualTo("CRITICAL"); //MINOR보다 CRITICAL이 더 심각
+    }
+
+    @Test
+    void getHistoryDetail_존재하지_않으면_REVIEW_NOT_FOUND() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getHistoryDetail(USER_ID, 10L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    void getHistoryDetail_본인_리뷰가_아니면_REVIEW_ACCESS_DENIED() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, OWNER_ID)));
+
+        assertThatThrownBy(() -> service.getHistoryDetail(USER_ID, 10L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_ACCESS_DENIED);
+    }
+
+    @Test
+    void getHistoryDetail_정상_케이스면_이슈목록을_반환한다() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, USER_ID)));
+        when(reviewIssueRepository.findByReviewId(10L)).thenReturn(List.of(
+                ReviewIssue.of(10L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 1, "설명")));
+
+        var result = service.getHistoryDetail(USER_ID, 10L);
+
+        assertThat(result.getReviewId()).isEqualTo(10L);
+        assertThat(result.getIssues()).hasSize(1);
+    }
+
+    // ---------- createFromPrImport (Studio "PR 가져오기" 리뷰 [설계 추론]) ----------
+
+    @Test
+    void createFromPrImport_레포가_없으면_REPO_NOT_FOUND() {
+        when(githubRepositoryRepository.existsById(REPO_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.createFromPrImport(USER_ID, REPO_ID, 77,
+                prImportRequest("diff", null, "title", "author-gh")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REPO_NOT_FOUND);
+
+        verify(creditUsageService, never()).checkAndConsume(any(), any());
+    }
+
+    @Test
+    void createFromPrImport_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(githubRepositoryRepository.existsById(REPO_ID)).thenReturn(true);
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.createFromPrImport(USER_ID, REPO_ID, 77,
+                prImportRequest("diff", null, "title", "author-gh")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+
+        verify(creditUsageService, never()).checkAndConsume(any(), any());
+    }
+
+    @Test
+    void createFromPrImport_기존_PR가_없으면_새로_만들고_target_type_PR로_저장한다() {
+        when(githubRepositoryRepository.existsById(REPO_ID)).thenReturn(true);
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
+        when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan());
+        when(promptBuilder.build(any(), eq("FREE"))).thenReturn("system-prompt");
+        when(pullRequestRepository.findByRepoIdAndGithubPrNumber(REPO_ID, 77)).thenReturn(Optional.empty());
+        when(pullRequestRepository.save(any())).thenAnswer(inv -> {
+            PullRequest pr = inv.getArgument(0);
+            setField(pr, "id", 900L);
+            return pr;
+        });
+        when(userRepository.findByGithubUsername("author-gh")).thenReturn(Optional.empty());
+        when(aiReviewClient.review(any(), any(), any(), any(), any())).thenReturn(new AiReviewResult(
+                "요약", List.of(new AiReviewIssue("BUG", "CRITICAL", "Foo.java", 10, "설명")),
+                100, 50, 0.01, true));
+        var reviewCaptor = org.mockito.ArgumentCaptor.forClass(Review.class);
+        when(reviewRepository.save(reviewCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = service.createFromPrImport(USER_ID, REPO_ID, 77,
+                prImportRequest("diff-text", null, "PR 제목", "author-gh"));
+
+        assertThat(result.getIssues()).hasSize(1);
+        assertThat(reviewCaptor.getValue().getPrId()).isEqualTo(900L);
+        verify(creditUsageService).checkAndConsume(USER_ID, "claude-haiku-4-5");
+        var prCaptor = org.mockito.ArgumentCaptor.forClass(PullRequest.class);
+        verify(pullRequestRepository, atLeastOnce()).save(prCaptor.capture());
+        assertThat(prCaptor.getValue().getStatus()).isEqualTo(PullRequestStatus.REVIEWED);
+    }
+
+    @Test
+    void createFromPrImport_기존_PR가_있으면_재사용한다() {
+        PullRequest existing = PullRequest.open(REPO_ID, 77, "old title", null, "old-author-gh");
+        setField(existing, "id", 901L);
+        existing.markReviewed(); //예전에 이미 리뷰됐던 PR을 다시 리뷰하는 케이스
+
+        when(githubRepositoryRepository.existsById(REPO_ID)).thenReturn(true);
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
+        when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(freePlan());
+        when(promptBuilder.build(any(), eq("FREE"))).thenReturn("system-prompt");
+        when(pullRequestRepository.findByRepoIdAndGithubPrNumber(REPO_ID, 77)).thenReturn(Optional.of(existing));
+        when(pullRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(aiReviewClient.review(any(), any(), any(), any(), any())).thenReturn(new AiReviewResult(
+                "요약", List.of(), 100, 50, 0.01, true));
+        when(reviewRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.createFromPrImport(USER_ID, REPO_ID, 77, prImportRequest("diff-text", null, "새 제목", null));
+
+        assertThat(existing.getTitle()).isEqualTo("새 제목"); //reopenForReview로 갱신됨
+        assertThat(existing.getStatus()).isEqualTo(PullRequestStatus.REVIEWED); //재리뷰 후 다시 REVIEWED
+        verify(pullRequestRepository, never()).save(argThat(pr -> pr.getId() == null)); //새로 만들지 않고 기존 row를 재사용
     }
 
 }

@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -143,6 +145,24 @@ public class UserServiceImpl implements UserService{
             throw new BusinessException(ErrorCode.TOTP_CODE_INVALID);
         }
         user.enableTotp(); // 검증 통과 → 활성화
+    }
+
+    @Override
+    @Transactional
+    public void submitAgreements(Long userId, AgreementSubmitDTO req) {
+        // 이미 동의한 약관 id → 중복 insert 방지
+        Set<Long> already = userAgreementRepository.findByUserIdAndAgreedTrue(userId).stream()
+                .map(UserAgreement::getTermId)
+                .collect(Collectors.toSet());
+
+        List<UserAgreement> toSave = req.getAgreements().stream()
+                .filter(a -> Boolean.TRUE.equals(a.getAgreed()))   // 동의한 것만
+                .map(AgreementSubmitDTO.Item::getTermId)
+                .filter(termId -> !already.contains(termId))       // 이미 있으면 스킵
+                .map(termId -> UserAgreement.of(userId, termId))
+                .toList();
+
+        userAgreementRepository.saveAll(toSave);
     }
 
     private User findUser(Long userId){

@@ -31,6 +31,7 @@ import Repos from './pages/review/Repos';
 import PrList from './pages/review/PrList';
 import PrDetail from './pages/review/PrDetail';
 import Studio from './pages/review/Studio';
+import ReviewHistory from './pages/review/ReviewHistory';
 import Weakness from './pages/learn/Weakness';
 import Cards from './pages/learn/Cards';
 import CardDetail from './pages/learn/CardDetail';
@@ -96,6 +97,7 @@ export default function App() {
             <Route path="/app/prs" element={<PrList />} />
             <Route path="/app/prs/:prId" element={<PrDetail />} />
             <Route path="/app/paste" element={<Studio />} />
+            <Route path="/app/history" element={<ReviewHistory />} />
             <Route path="/app/preview" element={<Navigate to="/app/paste" replace />} /> {/* 스튜디오로 흡수 */}
             <Route path="/app/weakness" element={<Weakness />} />
             <Route path="/app/cards" element={<Cards />} />

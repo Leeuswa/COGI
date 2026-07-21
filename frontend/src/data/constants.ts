@@ -42,6 +42,16 @@ export const SEVERITIES = ['CRITICAL', 'MAJOR', 'MINOR'];
 export const CATEGORY_KO = { BUG: '버그', PERFORMANCE: '성능', CODE_SMELL: '코드 냄새', CONVENTION: '컨벤션', SECURITY: '보안' };
 export const SEVERITY_KO = { CRITICAL: '심각', MAJOR: '주의', MINOR: '경미' };
 export const ISSUE_STATUS_KO = { OPEN: '미해결', PENDING: '승인 대기', RESOLVED: '해결됨', IGNORED: '무시됨' };
-export const PR_STATUS_KO = { REVIEWED: '검토 완료', REVIEWING: '검토 중', FAILED: '검토 실패' };
+// 리뷰 히스토리(REVIEW_TARGET_TYPE) 표기용 — PR은 웹훅 경로, 나머지는 리뷰 스튜디오에서 만든 리뷰
+export const REVIEW_TARGET_KO = { PASTE: '붙여넣기', UPLOAD: '파일 업로드', PR: 'PR', GUEST: '체험 리뷰' };
+// "PR 리뷰 현황"(PullRequestStatus)과 "리뷰 히스토리"(ReviewStatus)는 서로 다른 엔티티의 상태값이지만
+// 둘 다 "이 리뷰 처리가 끝났는지"를 보여주는 자리라 같은 문구를 쓴다(따로 두면 "검토 완료"/"완료"처럼 갈려 보임)
+export const PROCESS_STATUS_KO = {
+  OPEN: '검토 대기',     // PullRequestStatus — 아직 리뷰 전
+  PENDING: '검토 중',    // ReviewStatus — AI 처리 중
+  REVIEWED: '검토 완료', // PullRequestStatus
+  COMPLETED: '검토 완료', // ReviewStatus
+  FAILED: '검토 실패',   // 공용
+};
 export const catKo = (v) => CATEGORY_KO[v] ?? v;
 export const sevKo = (v) => SEVERITY_KO[v] ?? v;

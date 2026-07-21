@@ -2,7 +2,12 @@ package idu.sba.backend.domain.pr.service;
 
 import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
+import idu.sba.backend.domain.repo.client.GithubApiClient;
+import idu.sba.backend.domain.repo.client.GithubPrFileDto;
+import idu.sba.backend.domain.repo.client.GithubPrSummaryDto;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
+import idu.sba.backend.domain.repo.entity.RepoMember;
+import idu.sba.backend.domain.repo.entity.RepoRole;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.entity.IssueCategory;
@@ -39,6 +44,7 @@ class PrServiceImplTest {
     @Mock private ReviewRepository reviewRepository;
     @Mock private ReviewIssueRepository reviewIssueRepository;
     @Mock private UserRepository userRepository;
+    @Mock private GithubApiClient githubApiClient;
 
     @InjectMocks
     private PrServiceImpl service;
@@ -58,7 +64,7 @@ class PrServiceImplTest {
     }
 
     private PullRequest pr() {
-        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null);
+        PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null, null);
         setField(pr, "id", PR_ID);
         return pr;
     }
@@ -67,6 +73,31 @@ class PrServiceImplTest {
         GithubRepository repo = GithubRepository.link(USER_ID, "999", "repo-name", false, "owner/repo-name");
         setField(repo, "id", REPO_ID);
         return repo;
+    }
+
+    private User userWithToken(String token) {
+        User user = User.createByGithub("gh-" + USER_ID, "user-gh", "user@test.com", token);
+        setField(user, "id", USER_ID);
+        return user;
+    }
+
+    private GithubPrSummaryDto prSummary(Integer number, String title, String authorLogin) {
+        GithubPrSummaryDto dto = new GithubPrSummaryDto();
+        setField(dto, "number", number);
+        setField(dto, "title", title);
+        if (authorLogin != null) {
+            GithubPrSummaryDto.GithubPrUserDto user = new GithubPrSummaryDto.GithubPrUserDto();
+            setField(user, "login", authorLogin);
+            setField(dto, "user", user);
+        }
+        return dto;
+    }
+
+    private GithubPrFileDto prFile(String filename, String patch) {
+        GithubPrFileDto dto = new GithubPrFileDto();
+        setField(dto, "filename", filename);
+        setField(dto, "patch", patch);
+        return dto;
     }
 
     @Test
@@ -82,7 +113,7 @@ class PrServiceImplTest {
     void 호출자가_레포_팀원이_아니면_NOT_REPO_MEMBER() {
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getPrReview(USER_ID, PR_ID))
                 .isInstanceOf(BusinessException.class)
@@ -93,13 +124,27 @@ class PrServiceImplTest {
     void 아직_리뷰가_없으면_빈_이슈목록을_반환한다() {
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
 
         assertThat(result.getIssues()).isEmpty();
         assertThat(result.getPr().getStatus()).isEqualTo("OPEN");
+    }
+
+    @Test
+    void myRole은_호출자의_레포_역할을_그대로_반환한다() {
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.OWNER)));
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getPr().getMyRole()).isEqualTo("OWNER");
     }
 
     @Test
@@ -114,7 +159,8 @@ class PrServiceImplTest {
 
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.of(review));
         when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(issue));
         when(userRepository.findById(77L)).thenReturn(Optional.of(author));
@@ -129,13 +175,144 @@ class PrServiceImplTest {
     void authorId가_null이면_유저_조회_없이_authorName도_null() {
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr())); //authorId 없음
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
-        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
         when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
 
         assertThat(result.getPr().getAuthorName()).isNull();
         org.mockito.Mockito.verify(userRepository, org.mockito.Mockito.never()).findById(any());
+    }
+
+    @Test
+    void authorId가_없어도_authorLogin이_있으면_그걸_작성자명으로_보여준다() {
+        PullRequest pr = pr();
+        setField(pr, "authorLogin", "outside-contributor"); //COGI 미가입자(webhook payload에만 있던 로그인명)
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getPr().getAuthorName()).isEqualTo("outside-contributor");
+    }
+
+    @Test
+    void authorId가_있어도_유저가_안_남아있으면_authorLogin으로_폴백한다() {
+        PullRequest pr = pr();
+        setField(pr, "authorId", 77L);
+        setField(pr, "authorLogin", "author-gh");
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+        when(userRepository.findById(77L)).thenReturn(Optional.empty()); //탈퇴 등으로 사라진 케이스
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getPr().getAuthorName()).isEqualTo("author-gh");
+    }
+
+    // ---------- listOpenPrs ----------
+
+    @Test
+    void listOpenPrs_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.listOpenPrs(USER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void listOpenPrs_GitHub_미연동이면_GITHUB_NOT_LINKED() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken(null)));
+
+        assertThatThrownBy(() -> service.listOpenPrs(USER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.GITHUB_NOT_LINKED);
+    }
+
+    @Test
+    void listOpenPrs_정상_케이스면_GithubApiClient_결과를_DTO로_변환한다() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("caller-token")));
+        when(githubApiClient.listPullRequests("caller-token", "owner/repo-name"))
+                .thenReturn(List.of(prSummary(42, "제목", "author-gh")));
+
+        var result = service.listOpenPrs(USER_ID, REPO_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getNumber()).isEqualTo(42);
+        assertThat(result.get(0).getTitle()).isEqualTo("제목");
+        assertThat(result.get(0).getAuthorLogin()).isEqualTo("author-gh");
+    }
+
+    // ---------- listPrFiles ----------
+
+    @Test
+    void listPrFiles_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.listPrFiles(USER_ID, REPO_ID, 42))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void listPrFiles_patch가_없는_파일은_제외된다() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("caller-token")));
+        when(githubApiClient.listPrFiles("caller-token", "owner/repo-name", 42)).thenReturn(List.of(
+                prFile("Foo.java", "@@ -1 +1 @@\n-old\n+new"),
+                prFile("image.png", null))); //바이너리 — patch 없음
+
+        var result = service.listPrFiles(USER_ID, REPO_ID, 42);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getPath()).isEqualTo("Foo.java");
+        assertThat(result.get(0).getCode()).contains("+new");
+    }
+
+    // ---------- listReviewedPrs (API-032, 팀 대신 레포 기준 [설계 추론]) ----------
+
+    @Test
+    void listReviewedPrs_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.listReviewedPrs(USER_ID, REPO_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void listReviewedPrs_이슈개수와_최고심각도를_포함해_반환한다() {
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(REPO_ID)).thenReturn(List.of(pr()));
+        Review review = Review.createFromPr(USER_ID, PR_ID, "claude-haiku-4-5");
+        setField(review, "id", 900L);
+        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.of(review));
+        when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(
+                ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.MINOR, "Foo.java", 1, "설명1"),
+                ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 2, "설명2")));
+
+        var result = service.listReviewedPrs(USER_ID, REPO_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getIssueCount()).isEqualTo(2);
+        assertThat(result.get(0).getTopSeverity()).isEqualTo("CRITICAL");
     }
 
 }

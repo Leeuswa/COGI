@@ -79,6 +79,14 @@ public class Review {
         return review;
     }
 
+    // Studio "PR 가져오기"로 수동 리뷰(웹훅과 달리 사용자가 파일을 골라 부분 diff만 볼 수 있어서,
+    // GitHub에서 그대로 재조회하면 안 맞을 수 있다 — 그때 실제로 리뷰한 내용을 스냅샷으로 남겨둔다)
+    public static Review createFromPrImport(Long userId, Long prId, String modelName, String sourceCode){
+        Review review = new Review(ReviewTargetType.PR, userId, modelName, null, sourceCode, null);
+        review.prId = prId;
+        return review;
+    }
+
     public void markCompleted(){
         this.status = ReviewStatus.COMPLETED;
     }

@@ -6,6 +6,9 @@ import { useState } from 'react';
 
 export default function SecurityTab({ user, totp, onSetup, onEnable, busy }) {
   const [code, setCode] = useState('');
+  // 소셜 계정은 인증을 제공자에 위임 — 앱 자체 TOTP는 이메일 계정에만 연다
+  const isSocial = user.provider === 'KAKAO' || user.provider === 'GITHUB';
+  const providerName = user.provider === 'KAKAO' ? '카카오' : 'GitHub';
 
   return (
     <div className="panel">
@@ -14,7 +17,14 @@ export default function SecurityTab({ user, totp, onSetup, onEnable, busy }) {
         이메일 로그인에만 적용돼요. (GitHub/카카오 로그인은 소셜 쪽 보안을 따릅니다)
       </p>
 
-      {user.totpEnabled ? (
+      {isSocial ? (
+        <>
+          <button className="btn co" disabled>OTP 설정하기</button>
+          <p className="note sm" style={{ marginTop: 12, color: 'var(--sub)', lineHeight: 1.9 }}>
+            {providerName} 로그인 계정은 앱 자체 2단계 인증 대신 <b>{providerName} 계정의 2단계 인증</b>을 이용하세요.
+          </p>
+        </>
+      ) : user.totpEnabled ? (
         <p style={{ fontSize: 13.5 }}><span className="chip low">활성</span> 2차 인증이 켜져 있어요.</p>
       ) : totp ? (
         // setup 완료, 아직 미활성 — 앱 등록 후 코드로 확정

@@ -279,14 +279,20 @@ export const transferOwnership = (repoId, targetUserId) =>
 
 /* ══════════ 리뷰 대시보드 (RDB) ══════════ */
 
-// API-032 GET /api/teams/{teamId}/prs — 팀 PR 목록 + 필터 (FR-41~42)
-export const getTeamPrs = (teamId, filters = {}) =>
-  USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/teams/${teamId}/prs?` + new URLSearchParams(filters));
+// API-032 GET /api/repos/{repoId}/prs/reviewed — PR 리뷰 대시보드(팀 대신 레포 기준으로 축소) [설계 추론]
+// 원래 명세는 팀 단위(teamId)였지만 백엔드에 "팀" 개념이 따로 없어(레포+팀원이 곧 팀) 레포 기준으로 구현
+export const getRepoReviewedPrs = (repoId) =>
+  USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/repos/${repoId}/prs/reviewed`);
 
 // API-031 PATCH /api/issues/{issueId}/acknowledge — 의도한 코드 응답 (FR-40)
-// [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)/고침(RESOLVED)을 팀장 승인 없이 바로 반영 (요구 #7)
+// [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)는 바로 반영. 고침(RESOLVED)은 PR 리뷰의 CRITICAL
+// 이슈면 서버가 승인 대기(PENDING)로 돌려놓는다(요구 #7 + RDB-003)
 export const finalizeIssue = (issueId, verdict) =>
   USE_MOCK ? mock({ ok: true, status: verdict }) : http('PATCH', `/api/issues/${issueId}/finalize`, { verdict });
+
+// [설계 추론] 이슈 승인 흐름(RDB-003, API-034) — 팀장만 호출 가능. approve=false면 반려(OPEN으로 되돌림)
+export const decideResolveRequest = (issueId, approve) =>
+  USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/issues/${issueId}/decision`, { approve });
 
 // API-035 GET /api/prs/{prId}/export — MD/TXT 내보내기. 목 모드는 프론트에서 파일을 만들어 내려준다
 export const exportReview = (prId, format) =>
@@ -300,9 +306,22 @@ export const exportPdf = (prId) =>
 
 // API-038 GET /api/prs/{prId}/preview — 프론트엔드 변경 실시간 미리보기 (FR-47~49)
 // ponytail: 명세상 [불확실]·MVP 제외 후보라 404 응답(미지원 사유)만 다루는 스텁. WebContainer 붙일 때 확장
-// PR 변경 파일 목록 — 스튜디오 'PR 가져오기'가 쓴다 (FR-38 데이터, 파일 다중 선택용)
-export const getPrFiles = (prId) =>
-  USE_MOCK ? mock(M.mockPrFiles) : http('GET', `/api/prs/${prId}/files`);
+
+// 스튜디오 'PR 가져오기' 피커 1단계 — 레포의 열린 PR 목록(GitHub 실시간 조회)
+export const getRepoPrs = (repoId) =>
+  USE_MOCK ? mock([{ number: 42, title: '샘플 PR', authorLogin: 'octocat' }])
+    : http('GET', `/api/repos/${repoId}/prs`);
+
+// 스튜디오 'PR 가져오기' 피커 2단계 — 특정 PR의 변경 파일 목록(코드는 diff 근사치)
+export const getRepoPrFiles = (repoId, prNumber) =>
+  USE_MOCK ? mock(M.mockPrFiles) : http('GET', `/api/repos/${repoId}/prs/${prNumber}/files`);
+
+// 스튜디오 'PR 가져오기' 피커 3단계(리뷰 실행) [설계 추론] — target_type=PR로 저장돼 PR 리뷰 목록에도 뜬다
+export const reviewImportedPr = (repoId, prNumber, code, modelName, title, authorLogin) =>
+  USE_MOCK
+    ? mock({ reviewId: 4, modelName: modelName || 'claude-haiku-4-5', status: 'COMPLETED',
+        summary: null, analyzable: true, issues: [{ ...M.mockIssue, id: 4 }] }, 900)
+    : http('POST', `/api/repos/${repoId}/prs/${prNumber}/review`, { code, modelName, title, authorLogin });
 
 /* ══════════ 비로그인 / 직접 업로드 (LOC) ══════════ */
 
@@ -355,6 +374,21 @@ export const uploadReview = (file, modelName?: string) => {
 // API-027 GET /api/reviews/model-options — 내 요금제에서 선택 가능한 모델 이름 목록
 export const getModelOptions = () =>
   USE_MOCK ? mock(MODEL_TIERS.map((m) => m.name)) : http('GET', '/api/reviews/model-options');
+
+// [설계 추론] GET /api/reviews/history — 붙여넣기/업로드/PR가져오기로 만든 개별 리뷰 목록(최신순)
+// "약점 통계"는 3회 이상 반복된 카테고리만 집계해서 보여주는 화면이라, 리뷰 1건 단위로 다시 찾아보려면 이게 필요하다.
+export const getReviewHistory = () =>
+  USE_MOCK
+    ? mock([{ reviewId: 2, targetType: 'PASTE', modelName: 'claude-haiku-4-5', status: 'COMPLETED',
+        originalFilename: null, createdAt: '2026-07-18T10:00:00', issueCount: 1, topSeverity: 'CRITICAL' }])
+    : http('GET', '/api/reviews/history');
+
+// [설계 추론] GET /api/reviews/history/{reviewId} — 히스토리 상세(이슈 목록)
+export const getReviewHistoryDetail = (reviewId) =>
+  USE_MOCK
+    ? mock({ reviewId, targetType: 'PASTE', modelName: 'claude-haiku-4-5', status: 'COMPLETED',
+        originalFilename: null, createdAt: '2026-07-18T10:00:00', issues: [M.mockIssue] })
+    : http('GET', `/api/reviews/history/${reviewId}`);
 
 /* ══════════ 맞춤 학습 (LRN) ══════════ */
 

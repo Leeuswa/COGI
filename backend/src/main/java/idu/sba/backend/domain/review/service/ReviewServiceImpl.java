@@ -3,11 +3,15 @@ package idu.sba.backend.domain.review.service;
 import idu.sba.backend.domain.payment.entity.Plan;
 import idu.sba.backend.domain.payment.service.CreditUsageService;
 import idu.sba.backend.domain.payment.service.SubscriptionService;
+import idu.sba.backend.domain.pr.dto.PrReviewImportRequestDTO;
 import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
 import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
+import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
+import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
+import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewResultResponseDTO;
@@ -38,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -58,6 +63,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final PullRequestRepository pullRequestRepository;
     private final GithubRepositoryRepository githubRepositoryRepository;
     private final GithubApiClient githubApiClient;
+    private final RepoMemberRepository repoMemberRepository;
 
     @Override
     @Transactional
@@ -236,6 +242,76 @@ public class ReviewServiceImpl implements ReviewService {
     private ReviewResultResponseDTO toResponse(Review review, ReviewOutcome outcome) {
         return ReviewResultResponseDTO.of(review, outcome.issues().stream().map(ReviewIssueResponseDTO::of).toList(),
                 outcome.summary(), outcome.analyzable());
+    }
+
+    @Override
+    public List<ReviewHistoryItemResponseDTO> getHistory(Long userId) {
+        List<Review> reviews = reviewRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<Long> reviewIds = reviews.stream().map(Review::getId).toList();
+        Map<Long, List<ReviewIssue>> issuesByReviewId = reviewIssueRepository.findByReviewIdIn(reviewIds).stream()
+                .collect(Collectors.groupingBy(ReviewIssue::getReviewId));
+
+        return reviews.stream()
+                .map(review -> ReviewHistoryItemResponseDTO.of(review,
+                        issuesByReviewId.getOrDefault(review.getId(), List.of())))
+                .toList();
+    }
+
+    @Override
+    public ReviewHistoryDetailResponseDTO getHistoryDetail(Long userId, Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
+        if (!userId.equals(review.getUserId())) {
+            throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
+        }
+        List<ReviewIssueResponseDTO> issues = reviewIssueRepository.findByReviewId(reviewId).stream()
+                .map(ReviewIssueResponseDTO::of)
+                .toList();
+        return ReviewHistoryDetailResponseDTO.of(review, issues);
+    }
+
+    // Studio "PR 가져오기" 리뷰 [설계 추론] — 웹훅 경로(createFromPr)와 달리 실제 로그인 사용자가 호출하므로
+    // 항상 호출자 본인 크레딧으로 소모하고, 동기 응답으로 결과를 바로 돌려준다(paste/upload와 동일한 성격).
+    // 프론트가 이미 골라온 파일 텍스트를 그대로 리뷰하므로 GitHub를 다시 호출하지 않는다.
+    @Override
+    @Transactional
+    public ReviewResultResponseDTO createFromPrImport(Long callerId, Long repoId, Integer prNumber,
+                                                        PrReviewImportRequestDTO request) {
+        if (!githubRepositoryRepository.existsById(repoId)) {
+            throw new BusinessException(ErrorCode.REPO_NOT_FOUND);
+        }
+        if (!repoMemberRepository.existsByRepoIdAndUserId(repoId, callerId)) {
+            throw new BusinessException(ErrorCode.NOT_REPO_MEMBER);
+        }
+
+        User user = requireUser(callerId);
+        Plan plan = subscriptionService.getCurrentPlanEntity(callerId);
+        String modelName = resolveModelName(request.getModelName(), plan);
+
+        creditUsageService.checkAndConsume(callerId, modelName);
+
+        Long authorId = resolveAuthorId(request.getAuthorLogin());
+        PullRequest pr = pullRequestRepository.findByRepoIdAndGithubPrNumber(repoId, prNumber)
+                .map(existing -> {
+                    existing.reopenForReview(request.getTitle(), authorId, request.getAuthorLogin());
+                    return existing;
+                })
+                .orElseGet(() -> PullRequest.open(repoId, prNumber, request.getTitle(), authorId, request.getAuthorLogin()));
+        pullRequestRepository.save(pr);
+
+        Review review = Review.createFromPrImport(callerId, pr.getId(), modelName, request.getCode());
+        reviewRepository.save(review);
+
+        ReviewOutcome outcome = runReview(review, user, plan, modelName, request.getCode(), null, AiInputType.PR_DIFF);
+        pr.markReviewed();
+        return toResponse(review, outcome);
+    }
+
+    private Long resolveAuthorId(String authorLogin) {
+        if (authorLogin == null) {
+            return null;
+        }
+        return userRepository.findByGithubUsername(authorLogin).map(User::getId).orElse(null);
     }
 
 }
