@@ -26,7 +26,9 @@ export default function GuidesTab({ guides, setGuides, onSave }) {
       <h3>{LEVEL_KO[level]?.[0] ?? level} <span className="chip navy">{level}</span></h3>
       <p className="note sm" style={{ marginBottom: 12 }}>{LEVEL_KO[level]?.[1]}</p>
       <div className="form">
-        <textarea value={text as string} style={{ minHeight: 90 }}
+        {/* 지침이 프롬프트 전체라 길다 — 충분히 크게 + 세로 리사이즈 허용 */}
+        <textarea value={text as string}
+          style={{ minHeight: 320, resize: 'vertical', fontSize: 13, lineHeight: 1.6 }}
           onChange={(e) => setGuides((g) => ({ ...g, [level]: e.target.value }))} />
         <button className="btn wh sm" style={{ alignSelf: 'flex-start' }} onClick={() => onSave(level)}>
           저장 (다음 리뷰부터 반영)

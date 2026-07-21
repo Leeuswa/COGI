@@ -552,6 +552,12 @@ export const adminGetGuidelines = () =>
 export const adminSaveGuideline = (level, promptGuideline) =>
   USE_MOCK ? mock({ ok: true }) : http('PUT', `/api/admin/review-guidelines/${level}`, { promptGuideline });
 
+// 관리자 약관 관리 — 목록(본문 포함) 조회 / 본문 수정
+export const adminGetTerms = () =>
+  USE_MOCK ? mock(M.mockTerms) : http('GET', '/api/admin/terms');
+export const adminUpdateTerm = (termId, content) =>
+  USE_MOCK ? mock({ ok: true }) : http('PUT', `/api/admin/terms/${termId}`, { content });
+
 /* ══════════ 캘린더 연동 (요구사항 8 — 학습카드 → 일정 등록) ══════════ */
 // 구글/애플은 백엔드 없이도 진짜로 동작한다. 카카오만 서버 연동 대기.
 
