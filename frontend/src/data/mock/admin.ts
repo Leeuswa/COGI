@@ -11,16 +11,6 @@ export const mockUsageLog = {
   createdAt: '2026-07-10T02:48:11',
 };
 
-// ── user_activity_logs (ADM-003) ──
-export const mockActivityLog = {
-  id: 1,
-  userId: 1,
-  userEmail: 'dev@fable.dev',
-  action: 'REVIEW_REQUEST',
-  detail: 'PR #42 리뷰 요청 (claude-haiku-4-5)',
-  createdAt: '2026-07-10T02:47:59',
-};
-
 // ── review_guidelines (ADM-004, 수준별 프롬프트 지침) ──
 export const mockGuidelines = {
   BEGINNER: '용어를 풀어서 설명하고, 왜 문제인지 → 어떻게 고치는지 순서로. 예제는 5줄 이내.',

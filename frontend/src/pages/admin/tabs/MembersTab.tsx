@@ -6,7 +6,7 @@ export default function MembersTab({ members, onStatus, onRole, me }) {
   return (
     <div className="panel flush">
       <table className="tbl">
-        <thead><tr><th>이메일</th><th>플랜</th><th>권한</th><th>상태</th><th>액션</th></tr></thead>
+        <thead><tr><th>이메일</th><th>플랜</th><th>권한</th><th>상태</th><th>가입일</th><th>액션</th></tr></thead>
         <tbody>
           {/* 본인 행을 항상 최상단으로 (원본 훼손 방지 위해 복사본 정렬) */}
           {[...members].sort((a, b) => (b.email === me ? 1 : 0) - (a.email === me ? 1 : 0)).map((m) => {
@@ -20,6 +20,7 @@ export default function MembersTab({ members, onStatus, onRole, me }) {
               <td className="mono">{m.planName}</td>
               <td><span className={`chip ${m.role === 'ADMIN' ? 'hi' : 'gray'}`}>{m.role}</span></td>
               <td><span className={`chip ${m.status === 'ACTIVE' ? 'low' : 'gray'}`}>{m.status}</span></td>
+              <td className="mono xs">{m.createdAt?.slice(0, 10)}</td>
               <td style={{ display: 'flex', gap: 6 }}>
                 <button className="btn wh sm" disabled={isMe} onClick={() => onStatus(m)}>{m.status === 'ACTIVE' ? '정지' : '해제'}</button>
                 <button className="btn wh sm" disabled={isMe} onClick={() => onRole(m)}>{m.role === 'ADMIN' ? '권한 회수' : '관리자로'}</button>
