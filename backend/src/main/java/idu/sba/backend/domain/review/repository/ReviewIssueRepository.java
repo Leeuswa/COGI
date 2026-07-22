@@ -46,4 +46,32 @@ public interface ReviewIssueRepository extends JpaRepository<ReviewIssue, Long> 
     List<Object[]> aggregateWeeklyByMember(@Param("userIds") List<Long> userIds,
                                            @Param("fromDate") LocalDateTime fromDate);
 
+    // 주간 리포트용 — 한 사용자의 기간 내 발생/해결 수 (한 행)
+    @Query(value = """
+    SELECT COUNT(*) AS issueCount,
+           SUM(CASE WHEN i.status = 'RESOLVED' THEN 1 ELSE 0 END) AS resolvedCount
+    FROM review_issues i
+    JOIN reviews r ON r.id = i.review_id
+    WHERE r.user_id = :userId AND r.target_type = 'PR'
+      AND i.created_at >= :from AND i.created_at < :to
+    """, nativeQuery = true)
+    List<Object[]> weeklySummary(@Param("userId") Long userId,
+                                 @Param("from") LocalDateTime from,
+                                 @Param("to") LocalDateTime to);
+
+
+    // 카테고리별 발생 수 (주간 리포트의 최다 카테고리 / 분포 바 용). count 많은 순
+    @Query(value = """
+    SELECT i.category AS category, COUNT(*) AS cnt
+    FROM review_issues i
+    JOIN reviews r ON r.id = i.review_id
+    WHERE r.user_id = :userId AND r.target_type = 'PR'
+      AND i.created_at >= :from AND i.created_at < :to
+    GROUP BY i.category
+    ORDER BY cnt DESC
+    """, nativeQuery = true)
+    List<Object[]> categoryBreakdown(@Param("userId") Long userId,
+                                     @Param("from") LocalDateTime from,
+                                     @Param("to") LocalDateTime to);
+
 }
