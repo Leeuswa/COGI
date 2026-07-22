@@ -554,13 +554,13 @@ export const adminChangeStatus = (userId, status) =>
 export const adminChangeRole = (userId, role) =>
   USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/admin/members/${userId}/role`, { role });
 
-// API-018 GET /api/admin/activity-logs
-export const adminActivityLogs = () =>
-  USE_MOCK ? mock([M.mockActivityLog]) : http('GET', '/api/admin/activity-logs');
-
-// API-019 POST /api/admin/notices/email — 전체 공지 발송
+// API-019 POST /api/admin/notices/email — 전체 공지 발송(비동기 시작). 결과는 이력 목록에서 확인
 export const adminSendNotice = (subject, content) =>
-  USE_MOCK ? mock({ successCount: 1, failCount: 0 }) : http('POST', '/api/admin/notices/email', { subject, content });
+  USE_MOCK ? mock({ noticeId: 1, recipientCount: 1 }) : http('POST', '/api/admin/notices/email', { subject, content });
+
+// GET /api/admin/notices — 공지 발송 이력(최신순)
+export const adminNotices = () =>
+  USE_MOCK ? mock([]) : http('GET', '/api/admin/notices');
 
 // API-020 / API-021 — 수준별 리뷰 지침 조회/저장 (FR-24~25)
 export const adminGetGuidelines = () =>

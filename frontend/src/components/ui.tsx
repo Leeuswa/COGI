@@ -145,8 +145,14 @@ import * as api from '../api/client';
 function Bell({ loginId }) {
   const [list, setList] = useState([]);
   const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState(null); // 클릭한 알림 → 내용 팝업
   const boxRef = useRef(null);
   const nav = useNavigate();
+
+  // 마지막으로 열어본 알림 id — 이보다 새 알림만 배지로 센다(열어보면 사라지고, 새로고침해도 유지)
+  const seenKey = `cogi-noti-seen-${loginId}`;
+  const [seenId, setSeenId] = useState(() => Number(localStorage.getItem(seenKey)) || 0);
+  const unseen = list.filter((n) => n.id > seenId).length;
 
   useEffect(() => { api.getNotifications(loginId).then(setList); }, [loginId]);
   useEffect(() => { // 바깥 클릭으로 닫기
@@ -155,17 +161,26 @@ function Bell({ loginId }) {
     return () => document.removeEventListener('mousedown', close);
   }, []);
 
+  const toggle = () => setOpen((o) => {
+    if (!o && list.length) { // 여는 순간 모두 본 것으로 표시 → 배지 제거
+      const maxId = Math.max(...list.map((n) => n.id));
+      setSeenId(maxId);
+      localStorage.setItem(seenKey, String(maxId));
+    }
+    return !o;
+  });
+
   const dismiss = (e, n) => {
     e.stopPropagation(); // 항목 클릭(이동)과 분리
     api.dismissNotification(n.id);
     setList((l) => l.filter((x) => x.id !== n.id));
   };
-  const go = (n) => { setOpen(false); nav(n.link); };
+  const go = (n) => { setOpen(false); setPicked(n); }; // 이동 대신 내용 팝업
 
   return (
     <span className="bell-wrap" ref={boxRef}>
-      <button className="bell" title="알림" onClick={() => setOpen((o) => !o)}>
-        🔔{list.length > 0 && <i className="bell-badge">{list.length}</i>}
+      <button className="bell" title="알림" onClick={toggle}>
+        🔔{unseen > 0 && <i className="bell-badge">{unseen}</i>}
       </button>
       {open && (
         <div className="bell-drop">
@@ -183,6 +198,20 @@ function Bell({ loginId }) {
               </div>
             ))
           )}
+        </div>
+      )}
+      {picked && (
+        <div className="modal-mask" onClick={() => setPicked(null)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3>{picked.icon} {picked.title}</h3>
+            <p style={{ fontSize: 13.5, lineHeight: 1.9, margin: '14px 0 22px', whiteSpace: 'pre-wrap' }}>{picked.text}</p>
+            <div className="row" style={{ gap: 8 }}>
+              {picked.link && picked.link !== '/app' && (
+                <button className="btn co sm" onClick={() => { nav(picked.link); setPicked(null); }}>바로가기</button>
+              )}
+              <button className="btn wh sm" onClick={() => setPicked(null)}>닫기</button>
+            </div>
+          </div>
         </div>
       )}
     </span>
