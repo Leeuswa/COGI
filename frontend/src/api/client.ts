@@ -523,8 +523,7 @@ export const getSubHistory = () =>
 // '탭에서 조회 + 원할 때 메일 발송'으로 변경. 배치는 리포트 생성까지만 담당한다.
 export const getWeeklyReports = () =>
   USE_MOCK ? mock(M.mockWeeklyReports) : http('GET', '/api/users/me/weekly-reports');
-export const sendWeeklyReportMail = (reportId) =>
-  USE_MOCK ? mock({ sent: true }) : http('POST', `/api/users/me/weekly-reports/${reportId}/send-mail`);
+// 리포트는 매주 월요일 자동 메일 발송 → 수동 발송 API 없음
 
 // 내가 이미 연동해둔 레포 목록 — 팀 화면(TeamPage)이 "내 팀 = 내가 연동한 레포"를 보여줄 때 씀
 export const getMyLinkedRepos = () =>

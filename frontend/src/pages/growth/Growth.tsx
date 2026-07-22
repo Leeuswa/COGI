@@ -218,15 +218,15 @@ export default function Growth() {
 
           <div className="panel-grid c3 stat-grid" style={{ marginTop: 22 }}>
             <div className="panel stat-card">
-              <span className="stat-num">{total}</span>
+              <span className="stat-num">{total}<span className="unit">건</span></span>
               <p className="note xs">기간 내 이슈</p>
             </div>
             <div className="panel stat-card">
-              <span className="stat-num" style={{ color: 'var(--mint)' }}>{solved}</span>
+              <span className="stat-num" style={{ color: 'var(--mint)' }}>{solved}<span className="unit">건</span></span>
               <p className="note xs">해결 완료</p>
             </div>
             <div className="panel stat-card">
-              <span className="stat-num" style={{ color: 'var(--coral)' }}>{S.streak}일</span>
+              <span className="stat-num" style={{ color: 'var(--coral)' }}>{S.streak}<span className="unit">일</span></span>
               <p className="note xs">연속 학습</p>
             </div>
           </div>

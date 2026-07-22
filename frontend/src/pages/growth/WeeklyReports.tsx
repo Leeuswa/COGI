@@ -1,39 +1,29 @@
 /*
- * 주간 리포트 (RET-002 변경분)
- * [설계 변경] 원안은 "매주 월요일 10시 자동 메일"(FR-75)이었지만,
- * 네비의 주간리포트 탭에서 기간별 리스트를 보고 → 팝업으로 상세를 읽고 →
- * 팝업 맨 아래 오른쪽 [메일로 보내기]를 눌러야 발송되는 방식으로 바꿨다.
- * 백엔드: 월요일 배치는 리포트 '생성'까지만, 발송은 사용자 요청 API로 분리.
+ * 주간 리포트 (RET-002 / FR-75)
+ * 매주 월요일 오전 배치가 지난 한 주의 리포트를 '생성 + 메일 자동 발송'까지 처리한다.
+ * 이 화면은 쌓인 리포트를 기간별로 보고 → 팝업으로 상세를 읽는 '조회 전용'.
+ * (수동 재발송 API는 뒀지만 UI에선 안 씀 — 나중에 재발송 기능 붙일 때 재사용)
  */
 import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
-import { useGame } from '../../context/GameContext';
 import { PageHead } from '../../components/ui';
 import { catKo } from '../../data/constants';
 
 const fmt = (d) => d.slice(5).replace('-', '/'); // '2026-07-06' → '07/06'
 
+// 3칸 stat 카드 공통 스타일 — margin-top 0(형제 margin 상쇄) + 높이 통일 + 세로 중앙
+const sc = { marginTop: 0, minHeight: 120, display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', gap: 6 };
+
 export default function WeeklyReports() {
-  const { notify } = useGame();
   const [reports, setReports] = useState([]);
   const [open, setOpen] = useState(null);   // 팝업에 띄운 리포트
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => { api.getWeeklyReports().then(setReports); }, []);
-
-  const sendMail = async () => {
-    setBusy(true);
-    try {
-      await api.sendWeeklyReportMail(open.id);
-      notify(`${fmt(open.periodStart)}~${fmt(open.periodEnd)} 리포트를 메일로 보냈어요 📮`);
-      setOpen(null);
-    } finally { setBusy(false); }
-  };
 
   return (
     <main className="app-main">
       <PageHead badge="WEEKLY" title="주간 리포트"
-        lead={"매주 월요일 오전, 지난 한 주의 리포트가 만들어져요.\n열어보고 필요하면 메일로도 보관하세요."} />
+        lead={"매주 월요일 오전, 지난 한 주의 리포트가 만들어져 메일로도 자동 발송돼요.\n여기서 지난 리포트를 다시 볼 수 있어요."} />
 
       {reports.length === 0 ? (
         <div className="empty"><p>아직 리포트가 없어요. 첫 주가 지나면 여기에 쌓입니다.</p></div>
@@ -43,7 +33,7 @@ export default function WeeklyReports() {
             <b className="mono">{fmt(r.periodStart)} ~ {fmt(r.periodEnd)}</b>
             <span className="chip navy">{catKo(r.topCategory)}</span>
             <span className="note">{r.summary}</span>
-            <span className="ml-auto note sm">이슈 {r.issueCount} · 해결 {r.resolvedCount} →</span>
+            <span className="ml-auto note sm" style={{ fontWeight: 700 }}>이슈 {r.issueCount} · 해결 {r.resolvedCount} →</span>
           </button>
         ))
       )}
@@ -52,28 +42,29 @@ export default function WeeklyReports() {
       {open && (
         <div className="modal-mask" onClick={() => setOpen(null)}>
           <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h3>📊 {fmt(open.periodStart)} ~ {fmt(open.periodEnd)} 주간 리포트</h3>
+            <h3>{fmt(open.periodStart)} ~ {fmt(open.periodEnd)} 주간 리포트</h3>
 
             <p className="note" style={{ lineHeight: 2, marginBottom: 16 }}>{open.summary}</p>
 
             {/* 핵심 수치 3종 + 전주 대비 */}
-            <div className="panel-grid c3" style={{ marginBottom: 20 }}>
-              <div className="panel tc">
+            {/* 3칸 균등: margin 0으로 세로 어긋남 제거 + minHeight로 높이 통일, 내용 세로 중앙 정렬 */}
+            <div className="panel-grid c3" style={{ marginBottom: 20, gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
+              <div className="panel tc" style={sc}>
                 <p className="note xs">발생 이슈</p>
-                <b className="stat-num">{open.issueCount}</b>
+                <b className="stat-num">{open.issueCount}<span className="unit">건</span></b>
                 {open.prevIssueCount != null && (
                   <p className={`note xs ${open.issueCount <= open.prevIssueCount ? 'ok' : 'err'}`}>
-                    전주 {open.prevIssueCount} → {open.issueCount <= open.prevIssueCount ? '▼' : '▲'}
-                    {Math.abs(Math.round((1 - open.issueCount / open.prevIssueCount) * 100))}%
+                    전주 {open.prevIssueCount} → {Math.abs(Math.round((1 - open.issueCount / open.prevIssueCount) * 100))}%
+                    {open.issueCount <= open.prevIssueCount ? ' 감소' : ' 증가'}
                   </p>
                 )}
               </div>
-              <div className="panel tc">
+              <div className="panel tc" style={sc}>
                 <p className="note xs">해결</p>
-                <b className="stat-num" style={{ color: 'var(--mint)' }}>{open.resolvedCount}</b>
+                <b className="stat-num" style={{ color: 'var(--mint)' }}>{open.resolvedCount}<span className="unit">건</span></b>
                 <p className="note xs">해결률 {Math.round((open.resolvedCount / open.issueCount) * 100)}%</p>
               </div>
-              <div className="panel tc">
+              <div className="panel tc" style={sc}>
                 <p className="note xs">최다 카테고리</p>
                 <b style={{ fontSize: 13, fontFamily: 'Silkscreen, monospace' }}>{catKo(open.topCategory)}</b>
               </div>
@@ -105,11 +96,10 @@ export default function WeeklyReports() {
             </ol>
 
             {/* 하단 액션 바 — 오른쪽 끝이 메일 발송 */}
+            {/* 발송은 매주 월 자동 → 수동 버튼 없이 확인용 팝업 */}
             <div className="row" style={{ marginTop: 24 }}>
-              <button className="btn wh sm" onClick={() => setOpen(null)}>닫기</button>
-              <button className="btn co sm ml-auto" onClick={sendMail} disabled={busy}>
-                {busy ? '발송 중…' : '📮 메일로 보내기'}
-              </button>
+              <span className="note sm">매주 월요일 아침 9시에 이 리포트가 이메일로 자동 발송돼요.</span>
+              <button className="btn co sm ml-auto" onClick={() => setOpen(null)}>닫기</button>
             </div>
           </div>
         </div>
