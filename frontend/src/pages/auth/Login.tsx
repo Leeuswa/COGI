@@ -30,6 +30,7 @@ export default function Login() {
     if (params.get('expired')) return '세션이 만료됐어요. 다시 로그인해주세요.';
     const e = params.get('error');
     if (e === 'email_exists') return '이미 존재하는 이메일입니다.';
+    if (e === 'suspended') return '정지된 계정입니다. 관리자에게 문의해주세요.';
     return e ? '소셜 로그인에 실패했어요. 다시 시도해주세요.' : '';
   });
   const [busy, setBusy] = useState(false);
