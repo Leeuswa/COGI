@@ -17,6 +17,17 @@ export const mockWeaknessList = [
 ];
 export const mockWeakness = mockWeaknessList[0]; // 단건 참조 호환용
 
+// ── course recommendations (LRN-003~004) — 약점별 인프런/Udemy 검색 딥링크 ──
+// 백엔드 CourseRecommendationResponseDTO 모양 그대로 (query + links는 서버가 조립)
+const deeplinks = (q) => [
+  { platform: 'INFLEARN', label: '인프런에서 찾기', url: `https://www.inflearn.com/ko/courses?s=${encodeURIComponent(q)}` },
+  { platform: 'UDEMY', label: 'Udemy에서 찾기', url: `https://www.udemy.com/courses/search/?q=${encodeURIComponent(q)}&lang=ko` },
+];
+export const mockCourseRecommendations = [
+  { category: 'BUG', categoryLabel: '버그', language: 'TypeScript', occurrenceCount: 3, query: 'TypeScript 버그', links: deeplinks('TypeScript 버그') },
+  { category: 'BUG', categoryLabel: '버그', language: 'Java', occurrenceCount: 4, query: 'Java 버그', links: deeplinks('Java 버그') },
+];
+
 // ── learning_cards (LRN-002) — 신호등 등급 RED 상태로 시작 ──
 export const mockCard = {
   id: 1,
@@ -80,15 +91,3 @@ export const mockQuizzes = [
     answer: '?.',
   },
 ];
-
-// ── courses (LRN-003/004, 크롤링 배치 저장분) ──
-export const mockCourse = {
-  id: 1,
-  platform: 'INFLEARN',          // INFLEARN / UDEMY / OFFICIAL
-  title: '타입스크립트 방어적 코딩: null과 싸우지 않는 법',
-  price: 33000,
-  duration: 260,                 // 분
-  level: 'BEGINNER',
-  category: 'null 안전성',
-  url: 'https://www.inflearn.com',
-};

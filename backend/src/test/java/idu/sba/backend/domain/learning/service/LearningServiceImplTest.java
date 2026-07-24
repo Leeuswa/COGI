@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.learning.service;
 
+import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
 import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
 import idu.sba.backend.domain.learning.entity.WeaknessStat;
 import idu.sba.backend.domain.learning.repository.WeaknessStatRepository;
@@ -136,6 +137,33 @@ class LearningServiceImplTest {
         assertThat(result).hasSize(2);
         assertThat(result).extracting(WeaknessStatResponseDTO::getLanguage)
                 .containsExactlyInAnyOrder("Java", "Python");
+    }
+
+    @Test
+    void 강의추천은_약점별로_한글검색어와_딥링크를_만든다() {
+        stubSaveEcho();
+        Review review = review(10L, "Java");
+        when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
+        when(reviewIssueRepository.findByReviewIdIn(any())).thenReturn(List.of(
+                issue(10L, IssueCategory.SECURITY),
+                issue(10L, IssueCategory.SECURITY),
+                issue(10L, IssueCategory.SECURITY)));
+
+        List<CourseRecommendationResponseDTO> result = service.getCourseRecommendations(USER_ID);
+
+        assertThat(result).hasSize(1);
+        CourseRecommendationResponseDTO rec = result.get(0);
+        assertThat(rec.getCategoryLabel()).isEqualTo("보안");
+        assertThat(rec.getQuery()).isEqualTo("Java 보안"); // 언어 + 한글 라벨
+        assertThat(rec.getLinks()).extracting(CourseRecommendationResponseDTO.Link::getPlatform)
+                .containsExactly("INFLEARN", "UDEMY");
+        // 한글 검색어는 URL 인코딩되어 담긴다
+        assertThat(rec.getLinks().get(0).getUrl())
+                .startsWith("https://www.inflearn.com/ko/courses?s=")
+                .contains("Java").doesNotContain("보안");
+        assertThat(rec.getLinks().get(1).getUrl())
+                .startsWith("https://www.udemy.com/courses/search/?q=")
+                .endsWith("&lang=ko");
     }
 
     @Test
