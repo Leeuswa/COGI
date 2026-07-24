@@ -114,6 +114,7 @@ public class LearningServiceImpl implements LearningService {
     }
 
     @Override
+    @Transactional
     public List<CourseRecommendationResponseDTO> getCourseRecommendations(Long userId) {
         // 약점 집계를 그대로 재사용 → 약점별 딥링크로 변환 (약점 없으면 빈 목록)
         return getWeaknessStats(userId).stream()
