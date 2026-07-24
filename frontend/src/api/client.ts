@@ -246,6 +246,10 @@ export const linkRepo = (repoId) =>
 export const getPrReview = (prId) =>
   USE_MOCK ? mock({ pr: { ...M.mockPr, myRole: 'OWNER' /* 팀장. 명세 API-034 표기 그대로 (FR-37/44) */ }, issues: [M.mockIssue] }) : http('GET', `/api/prs/${prId}/review`);
 
+// API-028 POST /api/reviews/{prId}/model-select — PR 리뷰에 사용할 AI 모델 선택(FR-34/35). 다음 웹훅 리뷰부터 적용
+export const selectPrModel = (prId, modelName) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/reviews/${prId}/model-select`, { modelName });
+
 
 // API-029 POST /api/repos/{repoId}/members/invite — GitHub 아이디로 팀원 초대 (FR-36)
 // githubUsername으로 못 찾으면(GITHUB_USER_NOT_FOUND) email을 채워 재요청 — 그때만 이메일 초대장이 발송된다
@@ -400,6 +404,10 @@ export const getReviewHistoryDetail = (reviewId) =>
 export const getWeaknessStats = () =>
   USE_MOCK ? mock(M.mockWeaknessList) : http('GET', '/api/users/me/weakness-stats');
 
+// LRN-003~004 GET /api/users/me/course-recommendations — 약점별 강의 추천(딥링크)
+export const getCourseRecommendations = () =>
+  USE_MOCK ? mock(M.mockCourseRecommendations) : http('GET', '/api/users/me/course-recommendations');
+
 // API-043 POST /api/learning-cards — 카드 생성(개념+예제+퀴즈, 수준/언어 반영)
 export const createLearningCard = (category, level, language) =>
   USE_MOCK ? mock({ ...M.mockCard, category, level, language }, 900) : http('POST', '/api/learning-cards', { category, level, language });
@@ -437,6 +445,7 @@ export const submitQuiz = (cardId, quizId, answer) => {
 // API-047 GET .../history — 승급 히스토리 (FR-63)
 export const getCardHistory = (cardId) =>
   USE_MOCK ? mock(M.mockCard.history) : http('GET', `/api/learning-cards/${cardId}/history`);
+
 
 // 지난 문제 보기 — 내가 푼 문제 + 내 답 + 정답 + 해설 (복습용)
 export const getCardSubmissions = (cardId) =>
@@ -557,13 +566,13 @@ export const adminChangeStatus = (userId, status) =>
 export const adminChangeRole = (userId, role) =>
   USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/admin/members/${userId}/role`, { role });
 
-// API-018 GET /api/admin/activity-logs
-export const adminActivityLogs = () =>
-  USE_MOCK ? mock([M.mockActivityLog]) : http('GET', '/api/admin/activity-logs');
-
-// API-019 POST /api/admin/notices/email — 전체 공지 발송
+// API-019 POST /api/admin/notices/email — 전체 공지 발송(비동기 시작). 결과는 이력 목록에서 확인
 export const adminSendNotice = (subject, content) =>
-  USE_MOCK ? mock({ successCount: 1, failCount: 0 }) : http('POST', '/api/admin/notices/email', { subject, content });
+  USE_MOCK ? mock({ noticeId: 1, recipientCount: 1 }) : http('POST', '/api/admin/notices/email', { subject, content });
+
+// GET /api/admin/notices — 공지 발송 이력(최신순)
+export const adminNotices = () =>
+  USE_MOCK ? mock([]) : http('GET', '/api/admin/notices');
 
 // API-020 / API-021 — 수준별 리뷰 지침 조회/저장 (FR-24~25)
 export const adminGetGuidelines = () =>
