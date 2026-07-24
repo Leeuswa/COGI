@@ -187,6 +187,28 @@
 .pick:hover { background: var(--sky); }
 .pick.on { background: var(--mint); color: var(--white); }
 .pick.on:hover { background: var(--mint); }
+/* 제출 후: 내가 고른 오답 표시 (정답은 .pick.on 초록으로 표시됨) */
+.pick.miss { background: var(--coral); color: var(--white); }
+.pick.miss:hover { background: var(--coral); }
+
+/* 퀴즈 해설 박스 — 정답이어도 항상 보여주는 학습 포인트 */
+.explain-box {
+  margin-top: 10px; padding: 11px 13px; font-size: 13px; line-height: 1.85;
+  background: #fff8dd; border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy);
+}
+
+/* 정답 칩 (오답은 .chip.hi 코랄) */
+.chip.ok-chip { background: var(--mint); }
+
+/* 지난 문제 한 건 */
+.q-log { border: 3px solid var(--navy); background: #fff; padding: 13px 15px; margin-top: 12px; box-shadow: 3px 3px 0 var(--navy); }
+.q-log .q { font-size: 13.5px; line-height: 1.8; margin-bottom: 8px; }
+.q-log .a { font-size: 12.5px; font-family: 'GalmuriMono11', monospace; line-height: 1.7; }
+.q-log .a.expl { margin-top: 6px; color: var(--sub); }
+
+/* 캘린더 학습 일정 한 줄 */
+.sched-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 3px solid var(--navy); background: #fff; padding: 10px 13px; margin-top: 10px; }
+.sched-row .d { font-family: 'Silkscreen', monospace; font-size: 12px; background: var(--yellow); border: 2px solid var(--navy); padding: 2px 7px; }
 
 /* ───── 대화형 리뷰 (채팅) ───── */
 .chat-panel { display: flex; flex-direction: column; height: 720px; }

@@ -7,4 +7,8 @@ public interface AiReviewClient {
 
     AiReviewResult review(AiModel model, String systemPrompt, String code, String language, AiInputType inputType);
 
+    // 리뷰가 아닌 범용 생성 호출 — 응답을 {summary,issues} 스키마로 파싱하지 않고 원문(코드펜스 제거)만 돌려준다.
+    // 학습카드 생성처럼 review()의 스키마가 안 맞는 도메인이 쓴다. 파싱은 호출부가 맡는다.
+    AiGenerationResult generate(AiModel model, String systemPrompt, String userContent);
+
 }

@@ -100,6 +100,11 @@ public enum ErrorCode {
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 리뷰입니다."),
     REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 리뷰만 조회할 수 있습니다."),
 
+    //학습카드(LRN-002)
+    LEARNING_CARD_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 학습카드입니다."),
+    LEARNING_CARD_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 학습카드만 접근할 수 있습니다."),
+    LEARNING_QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 퀴즈입니다."),
+
     //관리자 본인 권한수정
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 권한은 변경할 수 없습니다."),
     //관리자 본인 상태수정

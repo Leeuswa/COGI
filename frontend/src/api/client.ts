@@ -438,6 +438,10 @@ export const submitQuiz = (cardId, quizId, answer) => {
 export const getCardHistory = (cardId) =>
   USE_MOCK ? mock(M.mockCard.history) : http('GET', `/api/learning-cards/${cardId}/history`);
 
+// 지난 문제 보기 — 내가 푼 문제 + 내 답 + 정답 + 해설 (복습용)
+export const getCardSubmissions = (cardId) =>
+  USE_MOCK ? mock([]) : http('GET', `/api/learning-cards/${cardId}/submissions`);
+
 // API-048 GET /api/courses/recommendations — 강의 추천 + 필터 (FR-66~69)
 export const getCourses = (filters = {}) =>
   USE_MOCK ? mock([M.mockCourse]) : http('GET', '/api/courses/recommendations?' + new URLSearchParams(filters));
