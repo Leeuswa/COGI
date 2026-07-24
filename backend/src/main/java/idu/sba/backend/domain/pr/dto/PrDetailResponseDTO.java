@@ -13,7 +13,7 @@ public class PrDetailResponseDTO {
     private final Integer githubPrNumber;
     private final String title;
     private final String authorName; //nullable — PR 작성자가 COGI 미가입자면 null
-    private final String selectedModel; //nullable — API-028(모델 선택) 이번 범위 밖이라 항상 null
+    private final String selectedModel; //nullable — null이면 기본 모델(API-028)
     private final String status;
     private final LocalDateTime createdAt; //프론트 PrDetail.tsx가 헤더에 표시(pr.createdAt)
     private final String myRole; //OWNER/MEMBER — 이슈 승인 버튼 노출 여부 판단용(mock에서 이미 쓰던 필드, API-034)

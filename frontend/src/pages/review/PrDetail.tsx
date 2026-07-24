@@ -13,7 +13,7 @@ import { useParams, Link } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useGame } from '../../context/GameContext';
 import { PageHead, SevChip, renderDescription } from '../../components/ui';
-import { catKo, ISSUE_STATUS_KO } from '../../data/constants';
+import { catKo, ISSUE_STATUS_KO, MODEL_TIERS } from '../../data/constants';
 
 // MD/TXT 내보내기는 백엔드 없이 프론트에서 파일을 만들어 내려준다 (FR-45~46)
 function download(text, filename) {
@@ -28,6 +28,8 @@ export default function PrDetail() {
   const { notify } = useGame();
 
   const [data, setData] = useState(null);       // { pr, issues }
+  const [modelChoice, setModelChoice] = useState(MODEL_TIERS[0].name);
+  const [savingModel, setSavingModel] = useState(false);
 
   useEffect(() => {
     api.getPrReview(prId).then((res) => {
@@ -39,8 +41,23 @@ export default function PrDetail() {
         return v ? { ...it, status: v, acknowledged: v === 'IGNORED' } : it;
       });
       setData({ ...res, issues });
+      setModelChoice(res.pr.selectedModel || MODEL_TIERS[0].name);
     });
   }, [prId]);
+
+  // 모델 선택(API-028) — 지금 보이는 결과는 이미 끝난 리뷰라 그대로고, PR에 새 커밋이 올라와
+  // 다시 리뷰될 때(webhook synchronize)부터 여기서 고른 모델이 적용된다
+  const saveModel = async () => {
+    setSavingModel(true);
+    try {
+      await api.selectPrModel(data.pr.id, modelChoice);
+      notify('다음 리뷰부터 이 모델을 쓸게요.');
+    } catch (ex) {
+      notify(ex.message || '모델 선택에 실패했어요.');
+    } finally {
+      setSavingModel(false);
+    }
+  };
 
   if (!data) {
     return (
@@ -97,6 +114,23 @@ export default function PrDetail() {
         title={pr.title}
         lead={`${pr.authorName} · ${pr.createdAt.replace('T', ' ')} · 스튜디오에서 검토를 마친 결과를 확인하는 곳이에요`}
       />
+
+      {/* 다음 리뷰에 쓸 모델 선택 (API-028, FR-34/35) — 지금 보이는 결과엔 영향 없고,
+          PR에 새 커밋이 올라와 웹훅이 다시 리뷰를 돌릴 때부터 적용된다 */}
+      <div className="panel" style={{ marginBottom: 18 }}>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <b style={{ fontSize: 14 }}>다음 리뷰에 쓸 모델</b>
+          <select value={modelChoice} onChange={(e) => setModelChoice(e.target.value)}>
+            {MODEL_TIERS.map((m) => (
+              <option key={m.name} value={m.name}>{m.label}</option>
+            ))}
+          </select>
+          <button className="btn co sm" disabled={savingModel} onClick={saveModel}>
+            {savingModel ? '저장 중…' : '저장'}
+          </button>
+          <span className="note xs">새 커밋으로 다시 리뷰될 때부터 적용돼요. 지금 결과는 그대로예요.</span>
+        </div>
+      </div>
 
       {/* 최종 확인 요약 — 판정과 리뷰는 스튜디오에서 끝났고, 여기선 정리된 결과를 본다 (#5~7) */}
       <div className="panel" style={{ marginBottom: 18 }}>
