@@ -1,6 +1,7 @@
 package idu.sba.backend.domain.review.service;
 
 import idu.sba.backend.domain.pr.dto.PrReviewImportRequestDTO;
+import idu.sba.backend.domain.review.dto.ModelSelectRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
@@ -33,5 +34,8 @@ public interface ReviewService {
     // Studio "PR 가져오기"로 고른 파일을 리뷰 [설계 추론] — 웹훅 경로와 달리 호출자 본인 크레딧/동기 응답.
     // target_type=PR로 저장돼 API-025(GET /api/prs/{prId}/review)에서도 조회 가능해진다.
     ReviewResultResponseDTO createFromPrImport(Long callerId, Long repoId, Integer prNumber, PrReviewImportRequestDTO request);
+
+    // API-028: PR 리뷰에 사용할 AI 모델 선택 — 레포 팀원만 가능. 다음 웹훅 리뷰(synchronize 등)부터 적용됨
+    void selectPrModel(Long callerId, Long prId, ModelSelectRequestDTO request);
 
 }

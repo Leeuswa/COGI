@@ -10,6 +10,7 @@ import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
+import idu.sba.backend.domain.review.dto.ModelSelectRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
@@ -305,6 +306,25 @@ public class ReviewServiceImpl implements ReviewService {
         ReviewOutcome outcome = runReview(review, user, plan, modelName, request.getCode(), null, AiInputType.PR_DIFF);
         pr.markReviewed();
         return toResponse(review, outcome);
+    }
+
+    // API-028: PR 리뷰에 사용할 AI 모델 선택. 웹훅 경로(createFromPr)가 항상 레포 팀장 크레딧으로 실행되므로,
+    // "선택 가능한 모델"도 호출자 본인이 아니라 레포 팀장의 요금제 기준으로 검증해야 한다.
+    @Override
+    @Transactional
+    public void selectPrModel(Long callerId, Long prId, ModelSelectRequestDTO request) {
+        PullRequest pr = pullRequestRepository.findById(prId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PR_NOT_FOUND));
+        if (!repoMemberRepository.existsByRepoIdAndUserId(pr.getRepoId(), callerId)) {
+            throw new BusinessException(ErrorCode.NOT_REPO_MEMBER);
+        }
+        GithubRepository repo = githubRepositoryRepository.findById(pr.getRepoId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.REPO_NOT_FOUND));
+
+        Plan ownerPlan = subscriptionService.getCurrentPlanEntity(repo.getUserId());
+        String modelName = resolveModelName(request.getModelName(), ownerPlan);
+
+        pr.selectModel(modelName);
     }
 
     private Long resolveAuthorId(String authorLogin) {

@@ -246,6 +246,10 @@ export const linkRepo = (repoId) =>
 export const getPrReview = (prId) =>
   USE_MOCK ? mock({ pr: { ...M.mockPr, myRole: 'OWNER' /* 팀장. 명세 API-034 표기 그대로 (FR-37/44) */ }, issues: [M.mockIssue] }) : http('GET', `/api/prs/${prId}/review`);
 
+// API-028 POST /api/reviews/{prId}/model-select — PR 리뷰에 사용할 AI 모델 선택(FR-34/35). 다음 웹훅 리뷰부터 적용
+export const selectPrModel = (prId, modelName) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/reviews/${prId}/model-select`, { modelName });
+
 
 // API-029 POST /api/repos/{repoId}/members/invite — GitHub 아이디로 팀원 초대 (FR-36)
 // githubUsername으로 못 찾으면(GITHUB_USER_NOT_FOUND) email을 채워 재요청 — 그때만 이메일 초대장이 발송된다

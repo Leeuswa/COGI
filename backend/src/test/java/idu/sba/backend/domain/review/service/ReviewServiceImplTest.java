@@ -12,6 +12,7 @@ import idu.sba.backend.domain.repo.client.GithubPrFileDto;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
+import idu.sba.backend.domain.review.dto.ModelSelectRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
 import idu.sba.backend.domain.review.entity.IssueCategory;
 import idu.sba.backend.domain.review.entity.IssueSeverity;
@@ -126,6 +127,12 @@ class ReviewServiceImplTest {
         PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null, null);
         setField(pr, "id", PR_ID);
         return pr;
+    }
+
+    private ModelSelectRequestDTO modelSelectRequest(String modelName) {
+        ModelSelectRequestDTO request = new ModelSelectRequestDTO();
+        setField(request, "modelName", modelName);
+        return request;
     }
 
     private GithubPrFileDto prFile(String filename, String patch) {
@@ -482,6 +489,52 @@ class ReviewServiceImplTest {
         assertThat(existing.getTitle()).isEqualTo("새 제목"); //reopenForReview로 갱신됨
         assertThat(existing.getStatus()).isEqualTo(PullRequestStatus.REVIEWED); //재리뷰 후 다시 REVIEWED
         verify(pullRequestRepository, never()).save(argThat(pr -> pr.getId() == null)); //새로 만들지 않고 기존 row를 재사용
+    }
+
+    // ---------- selectPrModel (API-028: PR 리뷰 모델 선택) ----------
+
+    @Test
+    void selectPrModel_PR가_없으면_PR_NOT_FOUND() {
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.selectPrModel(USER_ID, PR_ID, modelSelectRequest("claude-haiku-4-5")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PR_NOT_FOUND);
+    }
+
+    @Test
+    void selectPrModel_레포_팀원이_아니면_NOT_REPO_MEMBER() {
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.selectPrModel(USER_ID, PR_ID, modelSelectRequest("claude-haiku-4-5")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
+    }
+
+    @Test
+    void selectPrModel_레포_팀장의_요금제에서_허용하지_않는_모델이면_예외() {
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(subscriptionService.getCurrentPlanEntity(OWNER_ID)).thenReturn(freePlan()); //레포 팀장(OWNER_ID) 기준 검증
+
+        assertThatThrownBy(() -> service.selectPrModel(USER_ID, PR_ID, modelSelectRequest("claude-opus-4-8")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.MODEL_NOT_ALLOWED_FOR_PLAN);
+    }
+
+    @Test
+    void selectPrModel_정상_선택시_PR에_저장된다() {
+        PullRequest pr = pr();
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true); //호출자는 팀장이 아닌 팀원이어도 됨
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(subscriptionService.getCurrentPlanEntity(OWNER_ID)).thenReturn(freePlan());
+
+        service.selectPrModel(USER_ID, PR_ID, modelSelectRequest("gpt-5.6-luna"));
+
+        assertThat(pr.getSelectedModel()).isEqualTo("gpt-5.6-luna");
     }
 
 }

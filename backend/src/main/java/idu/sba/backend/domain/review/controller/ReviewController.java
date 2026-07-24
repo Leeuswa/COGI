@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.review.controller;
 
+import idu.sba.backend.domain.review.dto.ModelSelectRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewPasteRequestDTO;
@@ -64,6 +65,16 @@ public class ReviewController {
     public ApiResponse<ReviewHistoryDetailResponseDTO> getHistoryDetail(
             @AuthenticationPrincipal Long userId, @PathVariable Long reviewId) {
         return ApiResponse.ok(reviewService.getHistoryDetail(userId, reviewId));
+    }
+
+    //API-028: PR 리뷰에 사용할 AI 모델 선택(레포 팀원만, 다음 웹훅 리뷰부터 적용)
+    @PostMapping("/{prId}/model-select")
+    public ApiResponse<Void> selectPrModel(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long prId,
+            @Valid @RequestBody ModelSelectRequestDTO request) {
+        reviewService.selectPrModel(userId, prId, request);
+        return ApiResponse.ok("리뷰에 사용할 모델을 선택했어요.");
     }
 
     private String readFileContent(MultipartFile file) {
