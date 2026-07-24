@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.learning.service;
 
+import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
 import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
 import idu.sba.backend.domain.learning.entity.WeaknessStat;
 import idu.sba.backend.domain.learning.repository.WeaknessStatRepository;
@@ -68,5 +69,14 @@ public class LearningServiceImpl implements LearningService {
 
         // 콜드스타트면 빈 목록 → 프론트가 안내문/버튼 처리
         return saved.stream().map(WeaknessStatResponseDTO::of).toList();
+    }
+
+    @Override
+    @Transactional
+    public List<CourseRecommendationResponseDTO> getCourseRecommendations(Long userId) {
+        // 약점 집계를 그대로 재사용 → 약점별 딥링크로 변환 (약점 없으면 빈 목록)
+        return getWeaknessStats(userId).stream()
+                .map(CourseRecommendationResponseDTO::of)
+                .toList();
     }
 }

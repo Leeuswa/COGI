@@ -400,6 +400,10 @@ export const getReviewHistoryDetail = (reviewId) =>
 export const getWeaknessStats = () =>
   USE_MOCK ? mock(M.mockWeaknessList) : http('GET', '/api/users/me/weakness-stats');
 
+// LRN-003~004 GET /api/users/me/course-recommendations — 약점별 강의 추천(딥링크)
+export const getCourseRecommendations = () =>
+  USE_MOCK ? mock(M.mockCourseRecommendations) : http('GET', '/api/users/me/course-recommendations');
+
 // API-043 POST /api/learning-cards — 카드 생성(개념+예제+퀴즈, 수준/언어 반영)
 export const createLearningCard = (category, level, language) =>
   USE_MOCK ? mock({ ...M.mockCard, category, level, language }, 900) : http('POST', '/api/learning-cards', { category, level, language });
@@ -437,10 +441,6 @@ export const submitQuiz = (cardId, quizId, answer) => {
 // API-047 GET .../history — 승급 히스토리 (FR-63)
 export const getCardHistory = (cardId) =>
   USE_MOCK ? mock(M.mockCard.history) : http('GET', `/api/learning-cards/${cardId}/history`);
-
-// API-048 GET /api/courses/recommendations — 강의 추천 + 필터 (FR-66~69)
-export const getCourses = (filters = {}) =>
-  USE_MOCK ? mock([M.mockCourse]) : http('GET', '/api/courses/recommendations?' + new URLSearchParams(filters));
 
 // API-049 POST /api/ai-skill-recommendations — AI 스킬 추천 (FR-70, 크레딧 소모)
 export const recommendSkill = (weaknessOrRequirement) =>
