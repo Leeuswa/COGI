@@ -81,6 +81,28 @@ public class AiReviewClientImpl implements AiReviewClient {
         }
     }
 
+    // 범용 생성 호출 — review()와 벤더 호출 경로(callAnthropic/callOpenAiCompatible)·코드펜스 제거를 그대로 재사용하되,
+    // 응답을 리뷰 스키마로 파싱하지 않고 원문만 돌려준다. 파싱은 학습카드 등 호출 도메인이 맡는다.
+    @Override
+    public AiGenerationResult generate(AiModel model, String systemPrompt, String userContent) {
+        try {
+            AiProvider provider = model.provider();
+            VendorCallResult result = provider.anthropicStyle()
+                    ? callAnthropic(provider, model.id(), systemPrompt, userContent)
+                    : callOpenAiCompatible(provider, model.id(), systemPrompt, userContent);
+
+            double cost = model.calculateCost(result.inputTokens(), result.outputTokens());
+            return new AiGenerationResult(stripCodeFence(result.content()), result.inputTokens(), result.outputTokens(), cost);
+        } catch (RestClientResponseException e) { //4xx/5xx — 벤더가 실패로 응답
+            log.error("AI 생성 호출 실패 - model={}, provider={}, status={}, body={}",
+                    model.id(), model.provider(), e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        } catch (Exception e) { //연결 실패 등
+            log.error("AI 생성 처리 실패 - model={}, provider={}", model.id(), model.provider(), e);
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
+    }
+
     // input_type은 _common_rules.txt 0번 규칙이 참조하는 값 — 프롬프트가 pr_diff/pasted_code를
     // 구분해 다르게 행동하도록 이미 지시돼 있었는데, 실제로 이 값을 보낸 적이 없었던 걸 PR 리뷰를
     // 만들며 발견해 같이 고침.
