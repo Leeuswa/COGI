@@ -62,6 +62,7 @@ export default function Plan() {
   const confirm = async () => {
     if (busy) return;
     setBusy(true);
+    let changeRes = null; // 전환 시 서버가 계산한 차액(proratedAmount)을 이력 표시에 사용
     try {
       if (paying.name === "FREE") {
         // 구독 행이 없으면(이미 FREE) 해지할 게 없음 — 잘못된 /subscriptions/undefined 호출 방지
@@ -83,9 +84,9 @@ export default function Plan() {
         return; // 페이지가 토스로 리다이렉트되므로 이후 로직은 실행되지 않음
       } else {
         // 활성 구독 있음 = 전환 (subscriptionId 보장됨)
-        const res = await api.changePlan(mine.subscriptionId, paying.id); // API-061
+        changeRes = await api.changePlan(mine.subscriptionId, paying.id); // API-061
         notify(
-          `플랜 전환 완료. 차액 ${res.proratedAmount?.toLocaleString() ?? 0}원 (테스트 계산)`,
+          `플랜 전환 완료. 차액 ${changeRes.proratedAmount?.toLocaleString() ?? 0}원 (테스트 계산)`,
         );
       }
       patchUser({ planName: paying.name });
@@ -104,7 +105,7 @@ export default function Plan() {
               : !mine?.subscriptionId
                 ? "START"
                 : "CHANGE",
-          proratedAmount: 0,
+          proratedAmount: changeRes?.proratedAmount ?? 0,
           changedAt: new Date().toISOString(),
         },
         ...h,
@@ -241,7 +242,9 @@ export default function Plan() {
           <p className="note" style={{ marginBottom: 14 }}>
             {!mine?.subscriptionId && paying.name !== "FREE"
               ? "약관 동의 후 확정하면 토스 결제창에서 카드를 등록합니다. (테스트 모드 — 실청구 없음)"
-              : "테스트 모드라 실제로 청구되지 않습니다."}
+              : mine?.subscriptionId && paying.name !== "FREE"
+                ? "등록된 카드로 남은 기간만큼의 차액이 일할계산되어 즉시 청구됩니다. (테스트 모드 — 실청구 없음)"
+                : "테스트 모드라 실제로 청구되지 않습니다."}
           </p>
           {paying.name !== "FREE" && (
             <label className="check-row" style={{ marginBottom: 14 }}>
