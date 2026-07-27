@@ -38,5 +38,6 @@ out/
 
 ### Project secrets ###
 src/main/resources/application.properties
+src/test/resources/mail-local.properties
 
 /docs/

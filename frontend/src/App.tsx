@@ -46,6 +46,7 @@ import BillingSuccess from './pages/plan/BillingSuccess';
 import BillingFail from './pages/plan/BillingFail';
 import MyPage from './pages/my/MyPage';
 import Admin from './pages/admin/Admin';
+import Faq from './pages/Faq';
 
 function RequireAuth() {
   const { user } = useAuth();
@@ -113,6 +114,7 @@ export default function App() {
             <Route path="/app/billing/success" element={<BillingSuccess />} /> {/* 토스 결제창 성공 콜백 */}
             <Route path="/app/billing/fail" element={<BillingFail />} /> {/* 토스 결제창 실패 콜백 */}
             <Route path="/app/my" element={<MyPage />} />
+            <Route path="/app/faq" element={<Faq />} />
             <Route path="/app/admin" element={<Admin />} />
           </Route>
         </Route>

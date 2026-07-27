@@ -91,6 +91,23 @@
 .chip.low { background: var(--mint); }
 .chip.navy { background: var(--navy); }
 .chip.gray { background: #8b96b5; }
+.chip.sm { font-size: 11px; padding: 2px 7px; }
+
+/* FAQ 아코디언 (마이페이지 FAQ 탭) — 각 항목을 카드로 띄워 여백 확보 */
+.faq-list { display: flex; flex-direction: column; gap: 14px; }
+.faq-item { border: 3px solid var(--navy); background: #fdfcf7; box-shadow: 4px 4px 0 var(--navy); }
+.faq-item.open { box-shadow: 6px 6px 0 var(--navy); }
+.faq-q { display: flex; align-items: center; gap: 12px; width: 100%; padding: 20px 22px;
+  background: none; border: none; cursor: pointer; text-align: left; font: inherit; }
+.faq-q:hover { background: #fbf6ea; }
+.faq-item.open .faq-q { background: #fbf6ea; border-bottom: 2px solid var(--navy); }
+.faq-q-text { flex: 1; font-size: 15px; font-weight: 700; color: var(--navy); }
+.faq-caret { font-size: 24px; font-weight: 700; color: var(--coral); line-height: 1; }
+.faq-a { padding: 18px 22px; font-size: 14px; line-height: 2; color: var(--sub); white-space: pre-wrap; }
+
+/* 푸터 FAQ 링크 */
+.ft-link { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.ft-link:hover { color: var(--coral); }
 
 /* 신호등 등급 (학습카드) — 이슈 심각도 색과 헷갈리지 않게 아이콘+라벨을 항상 같이 씀 */
 .light { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
