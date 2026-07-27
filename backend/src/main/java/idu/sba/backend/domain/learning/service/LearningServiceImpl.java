@@ -67,7 +67,6 @@ public class LearningServiceImpl implements LearningService {
     private final AiUsageLogRepository aiUsageLogRepository;
     private final ObjectMapper objectMapper;
     private final RetentionService retentionService;
-    private final RetentionService retentionService;
     private final CourseRepository courseRepository;
     private final LearningPromptBuilder promptBuilder;
 
