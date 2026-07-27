@@ -244,7 +244,9 @@ export const linkRepo = (repoId) =>
 
 // API-025 GET /api/prs/{prId}/review — PR 리뷰 결과(이슈 목록)
 export const getPrReview = (prId) =>
-  USE_MOCK ? mock({ pr: { ...M.mockPr, myRole: 'OWNER' /* 팀장. 명세 API-034 표기 그대로 (FR-37/44) */ }, issues: [M.mockIssue] }) : http('GET', `/api/prs/${prId}/review`);
+  USE_MOCK
+    ? mock({ pr: { ...M.mockPr, myRole: 'OWNER' /* 팀장. 명세 API-034 표기 그대로 (FR-37/44) */ }, issues: [M.mockIssue], reviewHistory: M.mockReviewHistory })
+    : http('GET', `/api/prs/${prId}/review`);
 
 // API-028 POST /api/reviews/{prId}/model-select — PR 리뷰에 사용할 AI 모델 선택(FR-34/35). 다음 웹훅 리뷰부터 적용
 export const selectPrModel = (prId, modelName) =>

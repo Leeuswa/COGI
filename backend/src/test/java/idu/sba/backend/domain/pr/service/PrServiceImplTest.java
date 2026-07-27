@@ -172,6 +172,41 @@ class PrServiceImplTest {
     }
 
     @Test
+    void 재검토로_리뷰가_여러번_쌓이면_이력에_전부_나오고_이슈는_최신_것만_반환한다() {
+        // 재검토(웹훅 synchronize)마다 새 Review row가 쌓이는데, 이슈 판정 화면엔 최신 리뷰만 보여주되
+        // "몇 번 재검토됐고 CRITICAL이 몇 건에서 몇 건으로 줄었는지"는 이력으로 따로 노출해야 한다
+        PullRequest pr = pr();
+        Review firstReview = Review.createFromPr(USER_ID, PR_ID, "claude-haiku-4-5");
+        setField(firstReview, "id", 900L);
+        Review latestReview = Review.createFromPr(USER_ID, PR_ID, "claude-haiku-4-5");
+        setField(latestReview, "id", 901L);
+
+        ReviewIssue firstCritical = ReviewIssue.of(900L, IssueCategory.SECURITY, IssueSeverity.CRITICAL, "Foo.java", 10, "SQL 인젝션");
+        ReviewIssue firstMinor = ReviewIssue.of(900L, IssueCategory.CONVENTION, IssueSeverity.MINOR, "Foo.java", 20, "네이밍");
+        ReviewIssue latestCritical = ReviewIssue.of(901L, IssueCategory.SECURITY, IssueSeverity.CRITICAL, "Foo.java", 8, "메모리 노출");
+
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.of(latestReview));
+        when(reviewRepository.findByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(List.of(latestReview, firstReview));
+        when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(firstCritical, firstMinor));
+        when(reviewIssueRepository.findByReviewId(901L)).thenReturn(List.of(latestCritical));
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getIssues()).hasSize(1); //판정 화면엔 최신 리뷰(901) 이슈만
+        assertThat(result.getReviewHistory()).hasSize(2);
+        assertThat(result.getReviewHistory().get(0).getReviewId()).isEqualTo(901L);
+        assertThat(result.getReviewHistory().get(0).getIssueCount()).isEqualTo(1);
+        assertThat(result.getReviewHistory().get(0).getCriticalCount()).isEqualTo(1);
+        assertThat(result.getReviewHistory().get(1).getReviewId()).isEqualTo(900L);
+        assertThat(result.getReviewHistory().get(1).getIssueCount()).isEqualTo(2);
+        assertThat(result.getReviewHistory().get(1).getCriticalCount()).isEqualTo(1);
+    }
+
+    @Test
     void authorId가_null이면_유저_조회_없이_authorName도_null() {
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr())); //authorId 없음
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
