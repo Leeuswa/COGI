@@ -45,6 +45,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/guest/**").permitAll()
                         // /api/plans 요금제 목록 조회 (GET만 허용)
                         .requestMatchers(HttpMethod.GET, "/api/plans").permitAll()
+                        // 공개 FAQ 조회 (GET만 허용) — 등록/수정/삭제는 /api/admin/faqs 로 분리돼 ADMIN만 가능
+                        .requestMatchers(HttpMethod.GET, "/api/faqs").permitAll()
                         // GitHub Webhook 수신(API-024) — JWT가 아니라 X-Hub-Signature-256 서명으로 자체 인증
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/github").permitAll()
                         // 관리자 전용 — JwtAuthenticationFilter가 ROLE_ADMIN 권한을 심으므로 hasRole로 막는다(비관리자 403)

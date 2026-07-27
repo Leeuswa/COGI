@@ -81,6 +81,7 @@ export function Nav() {
           <NavLink to="/app/reports" className={({ isActive }) => (isActive ? 'on' : '')}>주간리포트</NavLink>
           <NavLink to="/app/team" className={({ isActive }) => (isActive ? 'on' : '')}>팀</NavLink>
           <NavLink to="/app/plan" className={({ isActive }) => (isActive ? 'on' : '')}>요금제</NavLink>
+          <NavLink to="/app/faq" className={({ isActive }) => (isActive ? 'on' : '')}>FAQ</NavLink>
           <NavLink to="/app/my" className={({ isActive }) => (isActive ? 'on' : '')}>마이</NavLink>
           {user.role === 'ADMIN' && (
             <NavLink to="/app/admin" className={({ isActive }) => (isActive ? 'on' : '')}>관리자</NavLink>
@@ -116,7 +117,7 @@ export function Footer() {
   return (
     <footer className="ft">
       <div>Team Fable · 상연 · 이수환 · 홍성찬 · 유지환</div>
-      <div>KDT 부트캠프 8회차 해커톤 · COGI · Code Guide</div>
+      <div>KDT 부트캠프 8회차 해커톤 · COGI · Code Guide · <Link to="/app/faq" className="ft-link">FAQ</Link></div>
     </footer>
   );
 }
