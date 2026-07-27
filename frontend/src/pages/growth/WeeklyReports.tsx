@@ -98,7 +98,14 @@ export default function WeeklyReports() {
             {/* 하단 액션 바 — 오른쪽 끝이 메일 발송 */}
             {/* 발송은 매주 월 자동 → 수동 버튼 없이 확인용 팝업 */}
             <div className="row" style={{ marginTop: 24 }}>
-              <span className="note sm">매주 월요일 아침 9시에 이 리포트가 이메일로 자동 발송돼요.</span>
+              <span style={{
+                fontSize: 15, fontWeight: 700, color: 'var(--navy)',
+                background: '#ffd23f', border: '2px solid var(--navy)',
+                padding: '8px 14px', lineHeight: 1.4, display: 'inline-flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 24 }}>📮</span>
+                매주 <b style={{ color: 'var(--navy)' }}>월요일 아침 9시</b>, 이 리포트가 이메일로 자동 발송돼요.
+              </span>
               <button className="btn co sm ml-auto" onClick={() => setOpen(null)}>닫기</button>
             </div>
           </div>

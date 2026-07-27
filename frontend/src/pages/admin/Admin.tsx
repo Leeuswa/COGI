@@ -15,6 +15,7 @@ import MembersTab from './tabs/MembersTab';
 import NoticeTab from './tabs/NoticeTab';
 import GuidesTab from './tabs/GuidesTab';
 import TermsTab from './tabs/TermsTab';
+import FaqTab from './tabs/FaqTab';
 
 export default function Admin() {
   const { user } = useAuth();
@@ -27,6 +28,7 @@ export default function Admin() {
   const [terms, setTerms] = useState([]);
   const [notice, setNotice] = useState({ subject: '', content: '' });
   const [notices, setNotices] = useState([]);
+  const [faqs, setFaqs] = useState([]);
   // 기본 조회 기간: 오늘 기준 최근 한 달 (고정 날짜 아님 — 매 접속 시 최신화)
   const [range, setRange] = useState(() => {
     const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -48,6 +50,7 @@ export default function Admin() {
     api.adminGetGuidelines().then(setGuides);
     api.adminGetTerms().then(setTerms);
     api.adminNotices().then(setNotices);
+    api.adminGetFaqs().then(setFaqs);
   }, [isAdmin, range]);
 
   // 일반 유저가 URL로 직접 들어온 경우
@@ -103,17 +106,42 @@ export default function Admin() {
     }
   };
 
+  // FAQ CRUD — 저장 후 목록 재조회로 서버 상태(id/정렬) 그대로 반영
+  const createFaq = async (draft) => {
+    try {
+      await api.adminCreateFaq(draft);
+      setFaqs(await api.adminGetFaqs());
+      notify('FAQ를 추가했어요.');
+    } catch (e) { notify(e?.message || 'FAQ 추가에 실패했어요.'); }
+  };
+  const updateFaq = async (f) => {
+    try {
+      await api.adminUpdateFaq(f.id, f);
+      setFaqs(await api.adminGetFaqs());
+      notify('FAQ를 저장했어요.');
+    } catch (e) { notify(e?.message || 'FAQ 저장에 실패했어요.'); }
+  };
+  const deleteFaq = async (f) => {
+    if (!window.confirm('이 FAQ를 삭제할까요?')) return;
+    try {
+      await api.adminDeleteFaq(f.id);
+      setFaqs((fs) => fs.filter((x) => x.id !== f.id));
+      notify('FAQ를 삭제했어요.');
+    } catch (e) { notify(e?.message || 'FAQ 삭제에 실패했어요.'); }
+  };
+
   return (
     <main className="app-main">
       <PageHead badge="ADMIN" badgeCls="co" title="관리자 콘솔" lead={"운영 지표, 회원, AI 리뷰 지침을 한곳에서 관리해요."} />
 
-      <Tabs items={[['usage', 'AI 사용량'], ['members', '회원 관리'], ['notice', '전체 공지'], ['guides', '리뷰 지침'], ['terms', '약관 관리']]} value={tab} onChange={setTab} />
+      <Tabs items={[['usage', 'AI 사용량'], ['members', '회원 관리'], ['notice', '전체 공지'], ['guides', '리뷰 지침'], ['terms', '약관 관리'], ['faq', 'FAQ 관리']]} value={tab} onChange={setTab} />
 
       {tab === 'usage' && <UsageTab usage={usage} range={range} setRange={setRange} latency={latency} />}
       {tab === 'members' && <MembersTab members={members} onStatus={changeStatus} onRole={changeRole} me={user.email} />}
       {tab === 'notice' && <NoticeTab notice={notice} setNotice={setNotice} onSend={sendNotice} busy={busy} notices={notices} onRefresh={() => api.adminNotices().then(setNotices)} />}
       {tab === 'guides' && guides && <GuidesTab guides={guides} setGuides={setGuides} onSave={saveGuide} />}
       {tab === 'terms' && <TermsTab terms={terms} setTerms={setTerms} onSave={saveTerm} />}
+      {tab === 'faq' && <FaqTab faqs={faqs} onCreate={createFaq} onUpdate={updateFaq} onDelete={deleteFaq} />}
     </main>
   );
 }

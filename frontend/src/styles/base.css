@@ -77,4 +77,5 @@ nav.gnb .links a:hover, nav.gnb .links a.on { border-bottom-color: var(--coral);
 .app-shell { display: flex; flex-direction: column; min-height: 100vh; background: var(--sky); }
 .app-#root { min-height: 100vh; background: var(--navy); } /* 셸보다 아래 여백은 footer색과 동일하게 */
 body { flex: 1 0 auto; }
+.app-body { flex: 1 0 auto; } /* 본문이 남은 높이를 채워 짧은 페이지에서도 footer가 맨 아래로 */
 footer.ft { flex-shrink: 0; }

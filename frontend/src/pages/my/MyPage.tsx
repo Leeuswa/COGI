@@ -13,6 +13,7 @@ import ProfileTab from './tabs/ProfileTab';
 import GithubTab from './tabs/GithubTab';
 import SecurityTab from './tabs/SecurityTab';
 import TermsTab from './tabs/TermsTab';
+import NoticeTab from './tabs/NoticeTab';
 
 export default function MyPage() {
   const { user, patchUser } = useAuth();
@@ -121,7 +122,7 @@ export default function MyPage() {
     <main className="app-main">
       <PageHead badge="MY PAGE" title="마이페이지" lead={user.name ? `${user.name} · ${user.email}` : user.email} />
 
-      <Tabs items={[['profile', '프로필'], ['github', 'GitHub 연동'], ['security', '보안(OTP)'], ['terms', '약관']]} value={tab} onChange={setTab} />
+      <Tabs items={[['profile', '프로필'], ['github', 'GitHub 연동'], ['security', '보안(OTP)'], ['terms', '약관'], ['notice', '공지사항']]} value={tab} onChange={setTab} />
 
       {tab === 'profile' && (
         <ProfileTab user={user} isSocial={isSocial} providerName={providerName}
@@ -132,6 +133,7 @@ export default function MyPage() {
       {tab === 'github' && <GithubTab user={user} onLink={linkGh} busy={busy} error={linkError} />}
       {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} onEnable={enableTotp} busy={busy} />}
       {tab === 'terms' && <TermsTab terms={terms} agreedIds={agreedIds} />}
+      {tab === 'notice' && <NoticeTab />}
     </main>
   );
 }
