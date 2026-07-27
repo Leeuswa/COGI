@@ -61,11 +61,18 @@ public class LearningCardController {
         return ApiResponse.ok("완료 상태가 변경되었습니다.");
     }
 
-    // API-045: 퀴즈 생성 (크레딧 소진 시 402)
+    // API-045: 퀴즈 생성 (크레딧 소진 시 402). 모델은 사용자가 고르고, 안 고르면 카드 모델로 간다
     @PostMapping("/{cardId}/quiz")
     public ApiResponse<QuizResponseDTO> createQuiz(@AuthenticationPrincipal Long userId, @PathVariable Long cardId,
                                                    @RequestBody QuizCreateRequestDTO request) {
-        return ApiResponse.ok(learningService.createQuiz(userId, cardId, request.getQuestionType()));
+        return ApiResponse.ok(learningService.createQuiz(userId, cardId, request.getQuestionType(), request.getModelName()));
+    }
+
+    // 학습 계획 생성 — 카드 등급에 맞춰 복습 일정을 짠다. 한 번 만들면 카드에 남아 재조회는 공짜
+    @PostMapping("/{cardId}/study-plan")
+    public ApiResponse<LearningCardResponseDTO> createStudyPlan(@AuthenticationPrincipal Long userId,
+                                                                @PathVariable Long cardId) {
+        return ApiResponse.ok(learningService.createStudyPlan(userId, cardId));
     }
 
     // API-046: 퀴즈 제출·채점 (정답이면 신호등 승급)

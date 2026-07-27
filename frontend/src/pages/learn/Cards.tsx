@@ -46,14 +46,15 @@ export default function Cards() {
       ) : (
         <div className="panel-grid c2">
           {shown.map((c) => (
-            <Link key={c.id} to={`/app/cards/${c.id}`} className="panel" style={{ display: 'block' }}>
+            /* card-tile: 세로 flex라 카테고리명이 길고 짧고와 상관없이 메타 줄이 바닥에 붙는다 */
+            <Link key={c.id} to={`/app/cards/${c.id}`} className="panel card-tile">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <GradeLight grade={c.grade} />
                 {c.isBookmarked && <span title="북마크">★</span>}
                 {c.isCompleted && <span className="chip low">완료</span>}
               </div>
               <b style={{ fontSize: 15 }}>{c.category}</b>
-              <p className="note sm" style={{ marginTop: 6 }}>
+              <p className="note sm" style={{ marginTop: 'auto', paddingTop: 6 }}>
                 {c.language} · {c.level} · 정답 {c.correctCount}회
               </p>
             </Link>
