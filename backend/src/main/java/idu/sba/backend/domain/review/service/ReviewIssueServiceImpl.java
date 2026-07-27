@@ -1,9 +1,12 @@
 package idu.sba.backend.domain.review.service;
 
+import idu.sba.backend.domain.notification.service.NotificationService;
 import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
+import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.entity.RepoMember;
 import idu.sba.backend.domain.repo.entity.RepoRole;
+import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.entity.IssueSeverity;
 import idu.sba.backend.domain.review.entity.IssueStatus;
@@ -18,6 +21,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class ReviewIssueServiceImpl implements ReviewIssueService {
@@ -26,6 +31,8 @@ public class ReviewIssueServiceImpl implements ReviewIssueService {
     private final ReviewRepository reviewRepository;
     private final PullRequestRepository pullRequestRepository;
     private final RepoMemberRepository repoMemberRepository;
+    private final GithubRepositoryRepository githubRepositoryRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -40,14 +47,35 @@ public class ReviewIssueServiceImpl implements ReviewIssueService {
         }
 
         IssueStatus verdictStatus = parseVerdict(verdict);
-        // PR 리뷰의 CRITICAL 이슈만 팀장 승인을 거친다 — 그 외(붙여넣기/업로드, 낮은 심각도)는 바로 반영
-        if (verdictStatus == IssueStatus.RESOLVED
-                && review.getTargetType() == ReviewTargetType.PR
-                && issue.getSeverity() == IssueSeverity.CRITICAL) {
-            issue.requestResolve();
+        // PR 리뷰의 CRITICAL 이슈는 RESOLVED/IGNORED 둘 다 팀장 승인을 거친다(AI 오판을 "무시함"으로
+        // 검증 없이 넘기지 못하게) — 그 외(붙여넣기/업로드, 낮은 심각도)는 바로 반영
+        if (review.getTargetType() == ReviewTargetType.PR && issue.getSeverity() == IssueSeverity.CRITICAL) {
+            if (verdictStatus == IssueStatus.RESOLVED) {
+                issue.requestResolve();
+            } else {
+                issue.requestIgnore();
+            }
+            notifyOwnerOfPendingRequest(review, verdictStatus);
         } else {
             issue.finalizeAs(verdictStatus);
         }
+    }
+
+    // 승인 대기가 생겼을 때 레포 팀장에게 인앱 알림 — PENDING은 항상 PR 리뷰 경로에서만 생겨서 prId가 항상 있음
+    private void notifyOwnerOfPendingRequest(Review review, IssueStatus verdictStatus) {
+        PullRequest pr = pullRequestRepository.findById(review.getPrId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PR_NOT_FOUND));
+        GithubRepository repo = githubRepositoryRepository.findById(pr.getRepoId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.REPO_NOT_FOUND));
+
+        String verdictLabel = verdictStatus == IssueStatus.RESOLVED ? "해결됨" : "무시함";
+        notificationService.broadcast(
+                List.of(repo.getUserId()),
+                "⏳",
+                "이슈 승인 대기",
+                "PR #%d의 CRITICAL 이슈를 '%s'(으)로 판정 요청했습니다 — 승인이 필요해요.".formatted(pr.getGithubPrNumber(), verdictLabel),
+                "/app/prs/%d".formatted(pr.getId())
+        );
     }
 
     @Override

@@ -80,15 +80,25 @@ public class ReviewIssue {
         this.acknowledged = (verdict == IssueStatus.IGNORED);
     }
 
-    // 이슈 승인 흐름(RDB-003 [설계 추론]) — PR 리뷰의 CRITICAL 이슈만 팀장 승인을 거친다.
-    // 아직 RESOLVED가 아니라 "고쳐달라는 요청" 단계라 acknowledged는 안 건드림(승인 나야 진짜 RESOLVED)
+    // 이슈 승인 흐름(RDB-003 [설계 추론]) — PR 리뷰의 CRITICAL 이슈는 RESOLVED/IGNORED 둘 다 팀장 승인을 거친다.
+    // AI가 코드 맥락을 전부 모른 채 오판했을 가능성이 RESOLVED("고칠게요")뿐 아니라 IGNORED("의도한 코드다")
+    // 판정에도 똑같이 있어서, "그냥 무시함"으로 검증 없이 넘어가는 걸 막기 위해 IGNORED도 승인 대상에 포함.
+    // 아직 확정이 아니라 "요청" 단계라 acknowledged는 안 건드림(승인 나야 진짜 반영)
     public void requestResolve(){
         this.status = IssueStatus.PENDING;
         this.requestType = "RESOLVE_REQUEST";
     }
 
+    public void requestIgnore(){
+        this.status = IssueStatus.PENDING;
+        this.requestType = "IGNORE_REQUEST";
+    }
+
+    // 요청 종류(requestType)에 따라 최종 상태가 갈린다 — RESOLVE_REQUEST면 RESOLVED, IGNORE_REQUEST면 IGNORED
     public void approve(Long approverId){
-        this.status = IssueStatus.RESOLVED;
+        boolean isIgnoreRequest = "IGNORE_REQUEST".equals(this.requestType);
+        this.status = isIgnoreRequest ? IssueStatus.IGNORED : IssueStatus.RESOLVED;
+        this.acknowledged = isIgnoreRequest;
         this.approvedBy = approverId;
     }
 
