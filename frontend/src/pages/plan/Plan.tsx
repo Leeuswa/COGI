@@ -129,12 +129,17 @@ export default function Plan() {
     }
   };
 
+  // 현재 플랜 하루 크레딧 — getMyPlan엔 dailyCreditLimit가 없어 plans 목록에서 이름으로 매칭
+  const myPlanName = mine?.planName ?? user.planName;
+  const myCredit =
+    mine?.dailyCreditLimit ?? plans.find((p) => p.name === myPlanName)?.dailyCreditLimit ?? 20;
+
   return (
     <main className="app-main">
       <PageHead
         badge="PLAN"
         title="요금제"
-        lead={`지금은 ${mine?.planName ?? user.planName} 플랜이고, 하루 크레딧은 ${mine?.dailyCreditLimit ?? 20}개예요.\n결제는 테스트 모드라 실제로 청구되지 않습니다.`}
+        lead={`지금은 ${myPlanName} 플랜이고, 하루 크레딧은 ${myCredit}개예요.\n결제는 테스트 모드라 실제로 청구되지 않습니다.`}
       />
 
       {/* 해지 예약 상태 — 만료일까지 현재 플랜 유지, 그 날 FREE로 강등 */}
@@ -190,15 +195,17 @@ export default function Plan() {
                 {p.price === 0 ? "₩0" : `₩${p.price.toLocaleString()}`}
                 <span className="note xs">/월</span>
               </p>
-              <p
+              <div
                 style={{
                   fontSize: 12.5,
                   color: "var(--sub)",
                   marginBottom: 12,
                 }}
               >
-                {fmtModels(p.allowedModels)} · 일 {p.dailyCreditLimit}크레딧
-              </p>
+                <div style={{ fontWeight: 700 }}>사용 가능 모델</div>
+                <div style={{ margin: "2px 0 8px" }}>{fmtModels(p.allowedModels)}</div>
+                <div>일 {p.dailyCreditLimit}크레딧</div>
+              </div>
               <ul
                 style={{
                   listStyle: "none",
