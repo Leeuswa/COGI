@@ -67,7 +67,7 @@ export default function PrDetail() {
     );
   }
 
-  const { pr, issues } = data;
+  const { pr, issues, reviewHistory = [] } = data;
   const resolved = issues.filter((it) => it.status === 'RESOLVED').length;
   const ignored = issues.filter((it) => it.status === 'IGNORED').length;
   const open_ = issues.filter((it) => it.status === 'OPEN').length;
@@ -157,6 +157,24 @@ export default function PrDetail() {
           </span>
         </div>
       </div>
+
+      {/* 재검토 이력 — 새 커밋 push마다 웹훅이 리뷰를 다시 돌리는데, 판정 화면엔 항상 최신 리뷰
+          이슈만 보여서 "몇 번 재검토됐고 CRITICAL이 몇 건에서 몇 건으로 줄었는지"가 안 보이던 걸 보완 */}
+      {reviewHistory.length > 1 && (
+        <div className="panel" style={{ marginBottom: 18 }}>
+          <b style={{ fontSize: 14 }}>재검토 이력 ({reviewHistory.length}회)</b>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+            {reviewHistory.map((h, i) => (
+              <div key={h.reviewId} className="row" style={{ gap: 10, fontSize: 13, color: 'var(--sub)' }}>
+                <span className="chip navy">{i === 0 ? '최신' : `${reviewHistory.length - i}차`}</span>
+                <span>{h.createdAt.replace('T', ' ')}</span>
+                <span className="mono">{h.modelName}</span>
+                <span>이슈 {h.issueCount}건{h.criticalCount > 0 ? ` (CRITICAL ${h.criticalCount})` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {issues.map((it) => (
         <div key={it.id} className="panel">

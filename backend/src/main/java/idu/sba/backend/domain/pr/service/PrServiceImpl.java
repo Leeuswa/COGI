@@ -3,6 +3,7 @@ package idu.sba.backend.domain.pr.service;
 import idu.sba.backend.domain.pr.dto.PrDetailResponseDTO;
 import idu.sba.backend.domain.pr.dto.PrFileResponseDTO;
 import idu.sba.backend.domain.pr.dto.PrListItemResponseDTO;
+import idu.sba.backend.domain.pr.dto.PrReviewHistoryItemDTO;
 import idu.sba.backend.domain.pr.dto.PrReviewResponseDTO;
 import idu.sba.backend.domain.pr.dto.PrSummaryResponseDTO;
 import idu.sba.backend.domain.pr.entity.PullRequest;
@@ -13,6 +14,7 @@ import idu.sba.backend.domain.repo.entity.RepoMember;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
+import idu.sba.backend.domain.review.entity.IssueSeverity;
 import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
@@ -55,7 +57,21 @@ public class PrServiceImpl implements PrService {
                 .map(list -> list.stream().map(ReviewIssueResponseDTO::of).toList())
                 .orElse(List.of()); //아직 리뷰가 없으면(PR이 OPEN) 빈 목록 — 예외 아님
 
-        return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, resolveAuthorName(pr), member.getRole().name()), issues);
+        List<PrReviewHistoryItemDTO> reviewHistory = reviewRepository.findByPrIdOrderByCreatedAtDesc(prId).stream()
+                .map(this::toHistoryItem)
+                .toList();
+
+        return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, resolveAuthorName(pr), member.getRole().name()),
+                issues, reviewHistory);
+    }
+
+    //재검토로 이슈가 안 나오게 된 이력까지 완전히 추적하진 않지만(설계 추론, [간단 버전]),
+    //리뷰가 몇 번 돌았고 CRITICAL이 몇 건에서 몇 건으로 줄었는지는 이걸로 보인다
+    private PrReviewHistoryItemDTO toHistoryItem(Review review) {
+        List<ReviewIssue> issues = reviewIssueRepository.findByReviewId(review.getId());
+        long criticalCount = issues.stream().filter(i -> i.getSeverity() == IssueSeverity.CRITICAL).count();
+        return PrReviewHistoryItemDTO.of(review.getId(), review.getCreatedAt(), review.getModelName(),
+                review.getStatus().name(), issues.size(), (int) criticalCount);
     }
 
     @Override
