@@ -12,6 +12,20 @@ import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
 import { PageHead } from "../../components/ui";
 
+// 모델 ID에서 버전 토큰 제거하고 표시용 이름으로. "gpt-5.6-luna" → "GPT Luna"
+const fmtModels = (csv) =>
+  (csv ?? "")
+    .split(",")
+    .filter(Boolean)
+    .map((id) =>
+      id
+        .split("-")
+        .filter((seg) => !/^\d/.test(seg)) // 버전 세그먼트(4, 5, 4-8, 3.5 등) 제거
+        .map((seg) => (seg === "gpt" ? "GPT" : seg.charAt(0).toUpperCase() + seg.slice(1)))
+        .join(" "),
+    )
+    .join(", ");
+
 export default function Plan() {
   const { user, patchUser } = useAuth();
   const { notify } = useGame();
@@ -183,7 +197,7 @@ export default function Plan() {
                   marginBottom: 12,
                 }}
               >
-                {p.allowedModels} · 일 {p.dailyCreditLimit}크레딧
+                {fmtModels(p.allowedModels)} · 일 {p.dailyCreditLimit}크레딧
               </p>
               <ul
                 style={{
