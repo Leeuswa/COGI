@@ -12,6 +12,7 @@ import idu.sba.backend.domain.learning.entity.LearningCard;
 import idu.sba.backend.domain.learning.entity.LearningCardQuiz;
 import idu.sba.backend.domain.learning.entity.QuizSubmission;
 import idu.sba.backend.domain.learning.entity.WeaknessStat;
+import idu.sba.backend.domain.learning.repository.CourseRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardRepository;
 import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
@@ -66,6 +67,8 @@ public class LearningServiceImpl implements LearningService {
     private final AiUsageLogRepository aiUsageLogRepository;
     private final ObjectMapper objectMapper;
     private final RetentionService retentionService;
+    private final RetentionService retentionService;
+    private final CourseRepository courseRepository;
     private final LearningPromptBuilder promptBuilder;
 
     // (카테고리 코드, 언어)로 이슈를 묶는 집계 키 — 언어는 null 가능
@@ -121,11 +124,26 @@ public class LearningServiceImpl implements LearningService {
     @Override
     @Transactional
     public List<CourseRecommendationResponseDTO> getCourseRecommendations(Long userId) {
-        // 약점 집계를 그대로 재사용 → 약점별 딥링크로 변환 (약점 없으면 빈 목록)
-        return getWeaknessStats(userId).stream()
-                .map(CourseRecommendationResponseDTO::of)
+        // 내 약점 → 큐레이션 courses 매칭.
+        // 규칙: category 일치 AND (강의 language가 null(언어무관) 또는 약점 언어와 같음)
+        // 강의는 여러 약점에 걸쳐도 한 번만 노출(중복 제거)
+        List<WeaknessStatResponseDTO> weaknesses = getWeaknessStats(userId);
+        if (weaknesses.isEmpty()) {
+            return List.of(); // 콜드스타트 → 빈 목록
+        }
+        List<String> categories = weaknesses.stream()
+                .map(WeaknessStatResponseDTO::getCategory).distinct().toList();
+
+        return courseRepository.findByCategoryIn(categories).stream()
+                .filter(course -> weaknesses.stream().anyMatch(w ->
+                        w.getCategory().equals(course.getCategory())
+                                && (course.getLanguage() == null
+                                    || course.getLanguage().equalsIgnoreCase(w.getLanguage()))))
+                .map(course -> new CourseRecommendationResponseDTO(
+                        course.getTitle(), course.getDescription(), course.getUrl(), course.getPlatform()))
                 .toList();
     }
+
 
     @Override
     @Transactional

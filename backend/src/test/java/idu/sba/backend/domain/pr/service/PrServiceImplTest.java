@@ -126,7 +126,7 @@ class PrServiceImplTest {
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
         when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
                 .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
-        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
 
@@ -140,7 +140,7 @@ class PrServiceImplTest {
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
         when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
                 .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.OWNER)));
-        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
 
@@ -161,7 +161,7 @@ class PrServiceImplTest {
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
         when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
                 .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
-        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.of(review));
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.of(review));
         when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(issue));
         when(userRepository.findById(77L)).thenReturn(Optional.of(author));
 
@@ -177,7 +177,7 @@ class PrServiceImplTest {
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
         when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
                 .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
-        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
 
@@ -193,7 +193,7 @@ class PrServiceImplTest {
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
         when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
                 .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
-        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.empty());
 
         var result = service.getPrReview(USER_ID, PR_ID);
 
@@ -209,7 +209,7 @@ class PrServiceImplTest {
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
         when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
                 .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
-        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.empty());
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.empty());
         when(userRepository.findById(77L)).thenReturn(Optional.empty()); //탈퇴 등으로 사라진 케이스
 
         var result = service.getPrReview(USER_ID, PR_ID);
@@ -303,7 +303,7 @@ class PrServiceImplTest {
         when(pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(REPO_ID)).thenReturn(List.of(pr()));
         Review review = Review.createFromPr(USER_ID, PR_ID, "claude-haiku-4-5");
         setField(review, "id", 900L);
-        when(reviewRepository.findByPrId(PR_ID)).thenReturn(Optional.of(review));
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.of(review));
         when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(
                 ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.MINOR, "Foo.java", 1, "설명1"),
                 ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 2, "설명2")));

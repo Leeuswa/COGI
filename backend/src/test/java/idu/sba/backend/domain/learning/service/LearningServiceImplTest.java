@@ -2,7 +2,9 @@ package idu.sba.backend.domain.learning.service;
 
 import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
 import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
+import idu.sba.backend.domain.learning.entity.Course;
 import idu.sba.backend.domain.learning.entity.WeaknessStat;
+import idu.sba.backend.domain.learning.repository.CourseRepository;
 import idu.sba.backend.domain.learning.repository.WeaknessStatRepository;
 import idu.sba.backend.domain.review.entity.IssueCategory;
 import idu.sba.backend.domain.review.entity.IssueSeverity;
@@ -32,6 +34,7 @@ class LearningServiceImplTest {
     @Mock private ReviewRepository reviewRepository;
     @Mock private ReviewIssueRepository reviewIssueRepository;
     @Mock private WeaknessStatRepository weaknessStatRepository;
+    @Mock private CourseRepository courseRepository;
 
     @InjectMocks
     private LearningServiceImpl service;
@@ -140,7 +143,7 @@ class LearningServiceImplTest {
     }
 
     @Test
-    void 강의추천은_약점별로_한글검색어와_딥링크를_만든다() {
+    void 강의추천은_약점_카테고리로_큐레이션_강의를_매칭한다() {
         stubSaveEcho();
         Review review = review(10L, "Java");
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
@@ -149,21 +152,26 @@ class LearningServiceImplTest {
                 issue(10L, IssueCategory.SECURITY),
                 issue(10L, IssueCategory.SECURITY)));
 
+        // 언어무관(null)·Java 강의는 Java 약점에 노출, Python 전용 강의는 제외돼야 함
+        Course agnostic = Course.of("SECURITY", null, "UDEMY", "웹 보안 강의", "설명", "https://u/x/");
+        Course javaCourse = Course.of("SECURITY", "Java", "UDEMY", "자바 시큐리티", "설명", "https://u/j/");
+        Course pythonOnly = Course.of("SECURITY", "Python", "UDEMY", "파이썬 시큐리티", "설명", "https://u/p/");
+        when(courseRepository.findByCategoryIn(List.of("SECURITY")))
+                .thenReturn(List.of(agnostic, javaCourse, pythonOnly));
+
         List<CourseRecommendationResponseDTO> result = service.getCourseRecommendations(USER_ID);
 
-        assertThat(result).hasSize(1);
-        CourseRecommendationResponseDTO rec = result.get(0);
-        assertThat(rec.getCategoryLabel()).isEqualTo("보안");
-        assertThat(rec.getQuery()).isEqualTo("Java 보안"); // 언어 + 한글 라벨
-        assertThat(rec.getLinks()).extracting(CourseRecommendationResponseDTO.Link::getPlatform)
-                .containsExactly("INFLEARN", "UDEMY");
-        // 한글 검색어는 URL 인코딩되어 담긴다
-        assertThat(rec.getLinks().get(0).getUrl())
-                .startsWith("https://www.inflearn.com/ko/courses?s=")
-                .contains("Java").doesNotContain("보안");
-        assertThat(rec.getLinks().get(1).getUrl())
-                .startsWith("https://www.udemy.com/courses/search/?q=")
-                .endsWith("&lang=ko");
+        assertThat(result).extracting(CourseRecommendationResponseDTO::getTitle)
+                .containsExactly("웹 보안 강의", "자바 시큐리티"); // Python 전용 제외
+    }
+
+    @Test
+    void 약점이_없으면_강의추천도_빈_목록이다() {
+        stubSaveEcho();
+        when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
+        when(reviewIssueRepository.findByReviewIdIn(any())).thenReturn(List.of());
+
+        assertThat(service.getCourseRecommendations(USER_ID)).isEmpty();
     }
 
     @Test

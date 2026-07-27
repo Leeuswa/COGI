@@ -587,6 +587,22 @@ export const adminGetTerms = () =>
 export const adminUpdateTerm = (termId, content) =>
   USE_MOCK ? mock({ ok: true }) : http('PUT', `/api/admin/terms/${termId}`, { content });
 
+// 사용자 공지 조회 (마이페이지 공지 탭) — 발송 완료 공지 최신순
+export const getNotices = () =>
+  USE_MOCK ? mock([]) : http('GET', '/api/notices');
+
+// FAQ — 공개 조회(FAQ 페이지/푸터) + 관리자 CRUD. faq: { question, answer, category, visible }
+export const getFaqs = () =>
+  USE_MOCK ? mock([]) : http('GET', '/api/faqs');
+export const adminGetFaqs = () =>
+  USE_MOCK ? mock([]) : http('GET', '/api/admin/faqs');
+export const adminCreateFaq = (faq) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/admin/faqs', faq);
+export const adminUpdateFaq = (id, faq) =>
+  USE_MOCK ? mock({ ok: true }) : http('PUT', `/api/admin/faqs/${id}`, faq);
+export const adminDeleteFaq = (id) =>
+  USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/admin/faqs/${id}`);
+
 /* ══════════ 캘린더 연동 (요구사항 8 — 학습카드 → 일정 등록) ══════════ */
 // 구글/애플은 백엔드 없이도 진짜로 동작한다. 카카오만 서버 연동 대기.
 

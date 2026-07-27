@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.user.service;
 
+import idu.sba.backend.domain.payment.service.SubscriptionService;
 import idu.sba.backend.domain.terms.entity.UserAgreement;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
 import idu.sba.backend.domain.user.dto.*;
@@ -27,6 +28,7 @@ public class UserServiceImpl implements UserService{
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final HtmlMailSender htmlMailSender;
+    private final SubscriptionService subscriptionService;
 
 
     //내가 동의한 약관 id 목록 (마이페이지 동의 현황)
@@ -50,6 +52,7 @@ public class UserServiceImpl implements UserService{
                 user.getLevel(),
                 toList(user.getInterests()),
                 user.getPlanId(),
+                subscriptionService.getCurrentPlanEntity(userId).getName(),
             Boolean.TRUE.equals(user.getOnboardingCompleted()),
                 Boolean.TRUE.equals(user.getGuideConfirmed()),
                 user.getProvider(),

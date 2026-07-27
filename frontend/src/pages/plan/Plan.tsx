@@ -12,6 +12,20 @@ import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
 import { PageHead } from "../../components/ui";
 
+// 모델 ID에서 버전 토큰 제거하고 표시용 이름으로. "gpt-5.6-luna" → "GPT Luna"
+const fmtModels = (csv) =>
+  (csv ?? "")
+    .split(",")
+    .filter(Boolean)
+    .map((id) =>
+      id
+        .split("-")
+        .filter((seg) => !/^\d/.test(seg)) // 버전 세그먼트(4, 5, 4-8, 3.5 등) 제거
+        .map((seg) => (seg === "gpt" ? "GPT" : seg.charAt(0).toUpperCase() + seg.slice(1)))
+        .join(" "),
+    )
+    .join(", ");
+
 export default function Plan() {
   const { user, patchUser } = useAuth();
   const { notify } = useGame();
@@ -48,6 +62,7 @@ export default function Plan() {
   const confirm = async () => {
     if (busy) return;
     setBusy(true);
+    let changeRes = null; // 전환 시 서버가 계산한 차액(proratedAmount)을 이력 표시에 사용
     try {
       if (paying.name === "FREE") {
         // 구독 행이 없으면(이미 FREE) 해지할 게 없음 — 잘못된 /subscriptions/undefined 호출 방지
@@ -69,9 +84,9 @@ export default function Plan() {
         return; // 페이지가 토스로 리다이렉트되므로 이후 로직은 실행되지 않음
       } else {
         // 활성 구독 있음 = 전환 (subscriptionId 보장됨)
-        const res = await api.changePlan(mine.subscriptionId, paying.id); // API-061
+        changeRes = await api.changePlan(mine.subscriptionId, paying.id); // API-061
         notify(
-          `플랜 전환 완료. 차액 ${res.proratedAmount?.toLocaleString() ?? 0}원 (테스트 계산)`,
+          `플랜 전환 완료. 차액 ${changeRes.proratedAmount?.toLocaleString() ?? 0}원 (테스트 계산)`,
         );
       }
       patchUser({ planName: paying.name });
@@ -90,7 +105,7 @@ export default function Plan() {
               : !mine?.subscriptionId
                 ? "START"
                 : "CHANGE",
-          proratedAmount: 0,
+          proratedAmount: changeRes?.proratedAmount ?? 0,
           changedAt: new Date().toISOString(),
         },
         ...h,
@@ -115,12 +130,17 @@ export default function Plan() {
     }
   };
 
+  // 현재 플랜 하루 크레딧 — getMyPlan엔 dailyCreditLimit가 없어 plans 목록에서 이름으로 매칭
+  const myPlanName = mine?.planName ?? user.planName;
+  const myCredit =
+    mine?.dailyCreditLimit ?? plans.find((p) => p.name === myPlanName)?.dailyCreditLimit ?? 20;
+
   return (
     <main className="app-main">
       <PageHead
         badge="PLAN"
         title="요금제"
-        lead={`지금은 ${mine?.planName ?? user.planName} 플랜이고, 하루 크레딧은 ${mine?.dailyCreditLimit ?? 20}개예요.\n결제는 테스트 모드라 실제로 청구되지 않습니다.`}
+        lead={`지금은 ${myPlanName} 플랜이고, 하루 크레딧은 ${myCredit}개예요.\n결제는 테스트 모드라 실제로 청구되지 않습니다.`}
       />
 
       {/* 해지 예약 상태 — 만료일까지 현재 플랜 유지, 그 날 FREE로 강등 */}
@@ -176,15 +196,17 @@ export default function Plan() {
                 {p.price === 0 ? "₩0" : `₩${p.price.toLocaleString()}`}
                 <span className="note xs">/월</span>
               </p>
-              <p
+              <div
                 style={{
                   fontSize: 12.5,
                   color: "var(--sub)",
                   marginBottom: 12,
                 }}
               >
-                {p.allowedModels} · 일 {p.dailyCreditLimit}크레딧
-              </p>
+                <div style={{ fontWeight: 700 }}>사용 가능 모델</div>
+                <div style={{ margin: "2px 0 8px" }}>{fmtModels(p.allowedModels)}</div>
+                <div>일 {p.dailyCreditLimit}크레딧</div>
+              </div>
               <ul
                 style={{
                   listStyle: "none",
@@ -220,7 +242,9 @@ export default function Plan() {
           <p className="note" style={{ marginBottom: 14 }}>
             {!mine?.subscriptionId && paying.name !== "FREE"
               ? "약관 동의 후 확정하면 토스 결제창에서 카드를 등록합니다. (테스트 모드 — 실청구 없음)"
-              : "테스트 모드라 실제로 청구되지 않습니다."}
+              : mine?.subscriptionId && paying.name !== "FREE"
+                ? "등록된 카드로 남은 기간만큼의 차액이 일할계산되어 즉시 청구됩니다. (테스트 모드 — 실청구 없음)"
+                : "테스트 모드라 실제로 청구되지 않습니다."}
           </p>
           {paying.name !== "FREE" && (
             <label className="check-row" style={{ marginBottom: 14 }}>

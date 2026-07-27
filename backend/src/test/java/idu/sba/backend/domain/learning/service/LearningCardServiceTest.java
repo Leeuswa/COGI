@@ -9,6 +9,7 @@ import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
 import idu.sba.backend.domain.learning.entity.LearningCard;
 import idu.sba.backend.domain.learning.entity.LearningCardQuiz;
 import idu.sba.backend.domain.learning.entity.QuizSubmission;
+import idu.sba.backend.domain.learning.repository.CourseRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardRepository;
 import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
@@ -59,6 +60,7 @@ class LearningCardServiceTest {
     @Mock private AiReviewClient aiReviewClient;
     @Mock private AiUsageLogRepository aiUsageLogRepository;
     @Mock private RetentionService retentionService;
+    @Mock private CourseRepository courseRepository;
     @Mock private Plan plan;
 
     private LearningServiceImpl service;
@@ -74,7 +76,7 @@ class LearningCardServiceTest {
         service = new LearningServiceImpl(reviewRepository, reviewIssueRepository, weaknessStatRepository,
                 learningCardRepository, learningCardQuizRepository, quizSubmissionRepository,
                 subscriptionService, creditUsageService, aiReviewClient, aiUsageLogRepository, new ObjectMapper(),
-                retentionService, new LearningPromptBuilder());
+                retentionService, courseRepository, new LearningPromptBuilder());
     }
 
     private void setField(Object target, String fieldName, Object value) {
