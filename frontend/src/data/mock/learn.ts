@@ -17,15 +17,11 @@ export const mockWeaknessList = [
 ];
 export const mockWeakness = mockWeaknessList[0]; // 단건 참조 호환용
 
-// ── course recommendations (LRN-003~004) — 약점별 인프런/Udemy 검색 딥링크 ──
-// 백엔드 CourseRecommendationResponseDTO 모양 그대로 (query + links는 서버가 조립)
-const deeplinks = (q) => [
-  { platform: 'INFLEARN', label: '인프런에서 찾기', url: `https://www.inflearn.com/ko/courses?s=${encodeURIComponent(q)}` },
-  { platform: 'UDEMY', label: 'Udemy에서 찾기', url: `https://www.udemy.com/courses/search/?q=${encodeURIComponent(q)}&lang=ko` },
-];
+// ── course recommendations (LRN-003~004) — 큐레이션 강의 (약점 category 매칭) ──
+// 백엔드 CourseRecommendationResponseDTO 모양 그대로 {title, description, url, platform}
 export const mockCourseRecommendations = [
-  { category: 'BUG', categoryLabel: '버그', language: 'TypeScript', occurrenceCount: 3, query: 'TypeScript 버그', links: deeplinks('TypeScript 버그') },
-  { category: 'BUG', categoryLabel: '버그', language: 'Java', occurrenceCount: 4, query: 'Java 버그', links: deeplinks('Java 버그') },
+  { platform: 'UDEMY', title: 'Java Programming Masterclass', description: '자바 기초부터 예외 처리·디버깅까지. 반복 버그의 근본 원인을 잡는다.', url: 'https://www.udemy.com/course/java-the-complete-java-developer-course/' },
+  { platform: 'INFLEARN', title: '클린 코드 (Clean Code)', description: '읽기 좋은 코드의 원칙과 리팩터링 실습. 코드 냄새 제거의 정석.', url: 'https://www.inflearn.com/ko/courses?s=클린코드' },
 ];
 
 // ── learning_cards (LRN-002) — 신호등 등급 RED 상태로 시작 ──
