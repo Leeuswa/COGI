@@ -49,7 +49,7 @@ public class PrServiceImpl implements PrService {
         RepoMember member = repoMemberRepository.findByRepoIdAndUserId(repo.getId(), currentUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REPO_MEMBER));
 
-        List<ReviewIssueResponseDTO> issues = reviewRepository.findByPrId(prId)
+        List<ReviewIssueResponseDTO> issues = reviewRepository.findTopByPrIdOrderByCreatedAtDesc(prId)
                 .map(Review::getId)
                 .map(reviewIssueRepository::findByReviewId)
                 .map(list -> list.stream().map(ReviewIssueResponseDTO::of).toList())
@@ -82,7 +82,7 @@ public class PrServiceImpl implements PrService {
         requireRepoMember(currentUserId, repoId);
         return pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(repoId).stream()
                 .map(pr -> {
-                    List<ReviewIssue> issues = reviewRepository.findByPrId(pr.getId())
+                    List<ReviewIssue> issues = reviewRepository.findTopByPrIdOrderByCreatedAtDesc(pr.getId())
                             .map(Review::getId)
                             .map(reviewIssueRepository::findByReviewId)
                             .orElse(List.of());
