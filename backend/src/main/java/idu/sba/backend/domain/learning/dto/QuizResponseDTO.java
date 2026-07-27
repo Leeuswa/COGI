@@ -12,6 +12,7 @@ public class QuizResponseDTO {
     private final Long id;
     private final Long cardId;
     private final String questionType;
+    private final String modelName; // 어떤 모델이 낸 문제인지 화면에 배지로 띄운다
     private final String question;
     private final List<String> options; // 객관식/OX면 보기 배열, 아니면 null(텍스트 입력)
     private final String answer;         // 오답 시 정답 노출용 — 프론트가 이미 이 필드를 쓴다
@@ -21,6 +22,7 @@ public class QuizResponseDTO {
         this.id = quiz.getId();
         this.cardId = quiz.getCardId();
         this.questionType = quiz.getQuestionType();
+        this.modelName = quiz.getModelName();
         this.question = quiz.getQuestion();
         this.options = (quiz.getOptions() == null || quiz.getOptions().isBlank())
                 ? null

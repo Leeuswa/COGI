@@ -1,18 +1,19 @@
 /*
- * 학습카드 상세 (LRN-002, API-044~047 + 지난 문제 보기 + 캘린더 학습 일정)
+ * 학습카드 상세 (LRN-002, API-044~046 + 지난 문제 복습 + AI 학습 계획)
  * 카드 한 장에 학습 루프가 다 들어있다:
- *   개념 → 예제 → 퀴즈 생성(크레딧) → 제출(streak, 정답 무관) → 정답이면 승급 카운트
+ *   개념 → 예제 → 퀴즈 생성(모델 선택 + 크레딧) → 제출(streak, 정답 무관) → 정답이면 승급 카운트
  *   RED → YELLOW(정답 3) → GREEN(정답 7) → GREEN_PLUS(재도전 8) (FR-61)
- * + 북마크/완료 토글, 승급 히스토리(FR-63), 지난 문제 복습(내 답·정답·해설)
- * + 캘린더 학습 일정: 오늘 기준 간격(3일/1주/2주/한달)으로 복습 일정을 뽑아 구글/애플/카카오에 등록.
+ * + 북마크/완료 토글, 승급 진행바(FR-63), 지난 문제 복습(내 답·정답·해설)
+ * + AI 학습 계획: 등급·누적 정답을 보고 AI가 간격을 정해준다. 단계별로 구글/애플/카카오에 등록.
  * 퀴즈 보상은 다마고치와 연결: 정답 +20코인, 오답 +5코인.
  */
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import * as api from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
 import { PageHead, GradeLight } from '../../components/ui';
-import { QUIZ_TYPES } from '../../data/constants';
+import { QUIZ_TYPES, MODEL_TIERS, PLAN_TIER } from '../../data/constants';
 
 // 정답 누적 → 등급 계산. 서버도 같은 규칙 (FR-61)
 const gradeOf = (n) => (n >= 8 ? 'GREEN_PLUS' : n >= 7 ? 'GREEN' : n >= 3 ? 'YELLOW' : 'RED');
@@ -20,43 +21,46 @@ const gradeOf = (n) => (n >= 8 ? 'GREEN_PLUS' : n >= 7 ? 'GREEN' : n >= 3 ? 'YEL
 // 문제 유형 코드 → 한글 라벨
 const typeKo = (v) => QUIZ_TYPES.find(([code]) => code === v)?.[1] ?? v;
 
-// 복습 일정 프리셋: 오늘 기준 얼마나 멀리까지 복습을 걸어둘지
-const HORIZONS: [string, number][] = [['3일', 3], ['1주', 7], ['2주', 14], ['한달', 30]];
-// 선택한 기간 안에서 간격 복습(1·3·7·14·30일 뒤) 체크포인트를 만든다
-const buildSchedule = (days) => {
-  const today = new Date();
-  return [1, 3, 7, 14, 30]
-    .filter((n) => n <= days)
-    .map((n) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() + n);
-      return { n, date: d.toISOString().slice(0, 10) };
-    });
+// 모델 코드 → 한글 라벨 (퀴즈에 붙는 배지용)
+const modelKo = (v) => MODEL_TIERS.find((m) => m.name === v)?.label ?? v;
+
+// 크레딧 차감량 = 모델 티어. 리뷰 스튜디오와 같은 규칙이라 화면 표기도 맞춰준다
+const modelWeight = (v) => MODEL_TIERS.find((m) => m.name === v)?.tier ?? 1;
+
+// 승급 마일스톤 (FR-61). 진행바에 눈금으로 찍고 "다음까지 몇 회"를 계산한다
+const MILESTONES = [
+  { at: 3, label: '🟡 진행중' },
+  { at: 7, label: '🟢 해결' },
+  { at: 8, label: '💎 해결+' },
+];
+
+// dayOffset(오늘로부터 며칠 뒤) → YYYY-MM-DD. 캘린더 링크에 넘길 날짜를 만든다
+const dateAfter = (days) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 };
 
 export default function CardDetail() {
   const { cardId } = useParams();
+  const { user } = useAuth();
   const { spendCredit, recordSubmit, earnCoins, notify } = useGame();
 
   const [card, setCard] = useState(null);
-  const [history, setHistory] = useState([]);
   const [quiz, setQuiz] = useState(null);
   const [picked, setPicked] = useState(null);
   const [result, setResult] = useState(null); // { isCorrect }
   const [busy, setBusy] = useState(false);
   const [quizType, setQuizType] = useState('MULTIPLE_CHOICE'); // 훅은 early return 위
+  const [model, setModel] = useState(MODEL_TIERS[0].name); // 퀴즈 낼 모델
+  const [planning, setPlanning] = useState(false); // 학습 계획 생성 중
 
   // 지난 문제 보기
   const [pastOpen, setPastOpen] = useState(false);
   const [past, setPast] = useState(null);
 
-  // 캘린더 학습 일정
-  const [horizon, setHorizon] = useState(7);
-  const [schedule, setSchedule] = useState(null);
-
   useEffect(() => {
     api.getLearningCard(cardId).then(setCard);
-    api.getCardHistory(cardId).then(setHistory);
   }, [cardId]);
 
   if (!card) {
@@ -67,13 +71,26 @@ export default function CardDetail() {
     );
   }
 
+  const myTier = PLAN_TIER[user?.planName] ?? 1; // 내 플랜에서 고를 수 있는 모델 상한
+
   const makeQuiz = async () => {
     if (busy) return;
-    if (!spendCredit(1)) return;
+    if (!spendCredit(modelWeight(model))) return; // 상위 모델일수록 크레딧을 더 먹는다
     setBusy(true);
     setResult(null); setPicked(null);
-    try { setQuiz(await api.createQuiz(card.id, quizType)); }
+    try { setQuiz(await api.createQuiz(card.id, quizType, model)); }
     finally { setBusy(false); }
+  };
+
+  // 학습 계획 생성 — 카드 모델로 돌아가고 결과는 카드에 저장돼 새로고침해도 남는다
+  const makePlan = async () => {
+    if (planning) return;
+    if (!spendCredit(1)) return;
+    setPlanning(true);
+    try {
+      const updated = await api.createStudyPlan(card.id);
+      setCard((c) => ({ ...c, studyPlan: updated.studyPlan }));
+    } finally { setPlanning(false); }
   };
 
   // 유형을 바꿔서 다시 풀기 — 문제를 접고 유형 선택 화면으로
@@ -93,8 +110,7 @@ export default function CardDetail() {
       if (res.isCorrect) {
         const n = card.correctCount + 1;
         const next = gradeOf(n);
-        if (next !== card.grade) {
-          setHistory((h) => [...h, { date: new Date().toISOString().slice(0, 10), grade: next, note: `정답 ${n}회 달성 → ${next} 승급` }]);
+        if (next !== card.grade) { // 등급이 바뀐 순간에만 알린다. 진행바는 correctCount로 알아서 따라온다
           notify(next === 'GREEN_PLUS' ? '💎 재도전 성공 — 해결+ 로 업그레이드!'
             : next === 'GREEN' ? '🟢 약점 해결! 카드가 초록이 됐어요' : '🟡 승급! 학습 진행중');
         }
@@ -119,7 +135,9 @@ export default function CardDetail() {
     if (open && past === null) setPast(await api.getCardSubmissions(card.id));
   };
 
-  const genSchedule = () => setSchedule(buildSchedule(horizon));
+  // 다음 마일스톤까지 몇 번 더 맞혀야 하는지. 8회를 넘겼으면 더 오를 곳이 없다
+  const nextStep = MILESTONES.find((m) => card.correctCount < m.at);
+  const plan = card.studyPlan ?? null; // 서버가 배열로 내려준다. 아직 안 만들었으면 null
 
   return (
     <main className="app-main">
@@ -138,10 +156,42 @@ export default function CardDetail() {
         </span>
       </div>
 
+      {/* 승급 진행바 (FR-63) — 언제 어느 등급으로 올라갔는지를 눈금 하나로 보여준다 */}
+      <div className="panel grade-progress">
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+          <b style={{ fontSize: 14 }}>정답 {card.correctCount}회</b>
+          <span className="note sm">
+            {nextStep ? `${nextStep.label}까지 ${nextStep.at - card.correctCount}회` : '💎 최고 등급 달성'}
+          </span>
+        </div>
+        <div className="gp-track">
+          {/* 8회를 100%로 잡고 채운다. 넘어가도 100%에서 멈춘다 */}
+          <div className="gp-fill" style={{ width: `${Math.min(100, (card.correctCount / 8) * 100)}%` }} />
+          {MILESTONES.map((m) => (
+            <span key={m.at}
+              className={`gp-mark ${card.correctCount >= m.at ? 'on' : ''}`}
+              style={{ left: `${(m.at / 8) * 100}%` }}
+              title={`정답 ${m.at}회 · ${m.label}`} />
+          ))}
+        </div>
+        <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+          {MILESTONES.map((m) => (
+            <span key={m.at} className={`note xs ${card.correctCount >= m.at ? 'ok' : ''}`}>{m.label} {m.at}회</span>
+          ))}
+        </div>
+      </div>
+
       {/* 개념 → 실패/개선 예제 → 핵심 요약 */}
       <div className="panel">
         <h3>📖 개념</h3>
         <p style={{ fontSize: 13.5, lineHeight: 2 }}>{card.conceptContent}</p>
+        {/* 예전에 만든 카드엔 없는 필드라 있을 때만 띄운다 */}
+        {card.whyItMatters && (
+          <>
+            <h3>🔥 그냥 두면 생기는 일</h3>
+            <p style={{ fontSize: 13.5, lineHeight: 2 }}>{card.whyItMatters}</p>
+          </>
+        )}
       </div>
       <div className="panel-grid c2">
         <div className="panel">
@@ -153,11 +203,33 @@ export default function CardDetail() {
           <pre className="codebox good">{card.goodExample}</pre>
         </div>
       </div>
+      {card.diffExplain && (
+        <div className="panel">
+          <h3>🔍 무엇이 바뀌었나</h3>
+          <p style={{ fontSize: 13.5, lineHeight: 2 }}>{card.diffExplain}</p>
+        </div>
+      )}
       {card.keyPoints && card.keyPoints.length > 0 && (
         <div className="panel">
           <h3>🎯 핵심 3줄</h3>
           <ol className="keypoints">
             {card.keyPoints.map((k, i) => <li key={i}>{k}</li>)}
+          </ol>
+        </div>
+      )}
+      {card.pitfalls && card.pitfalls.length > 0 && (
+        <div className="panel">
+          <h3>⚠️ 이런 실수를 자주 해요</h3>
+          <ol className="keypoints">
+            {card.pitfalls.map((p, i) => <li key={i}>{p}</li>)}
+          </ol>
+        </div>
+      )}
+      {card.selfCheck && card.selfCheck.length > 0 && (
+        <div className="panel">
+          <h3>✅ 다음 리뷰 전 셀프 체크</h3>
+          <ol className="keypoints selfcheck">
+            {card.selfCheck.map((s, i) => <li key={i}>{s}</li>)}
           </ol>
         </div>
       )}
@@ -168,14 +240,24 @@ export default function CardDetail() {
         {!quiz ? (
           <>
             <p className="note" style={{ marginBottom: 14 }}>
-              문제 유형을 고르고 생성하세요. 제출만 해도 연속 학습이 이어지고, 정답이 쌓이면 등급이 올라요.
+              유형과 모델을 고르고 생성하세요. 모델이 올라갈수록 문제가 깊어지고 크레딧도 더 듭니다.
+              제출만 해도 연속 학습이 이어지고, 정답이 쌓이면 등급이 올라요.
             </p>
             <div className="row" style={{ marginBottom: 4 }}>
               <select value={quizType} onChange={(e) => setQuizType(e.target.value)} aria-label="문제 유형">
                 {QUIZ_TYPES.map(([v, ko]) => <option key={v} value={v}>{ko}</option>)}
               </select>
+              {/* 리뷰 스튜디오와 같은 규칙 — 내 플랜보다 위 티어는 못 고른다 */}
+              <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="AI 모델">
+                {MODEL_TIERS.map((m) => (
+                  <option key={m.name} value={m.name} disabled={m.tier > myTier}>
+                    {m.label}
+                    {m.tier > myTier ? ` — ${Object.keys(PLAN_TIER).find((k) => PLAN_TIER[k] === m.tier)} 필요` : ''}
+                  </option>
+                ))}
+              </select>
               <button className="btn co sm" onClick={makeQuiz} disabled={busy}>
-                {busy ? '문제 만드는 중…' : '문제 생성 (⚡1)'}
+                {busy ? '문제 만드는 중…' : `문제 생성 (⚡${modelWeight(model)})`}
               </button>
             </div>
           </>
@@ -183,6 +265,8 @@ export default function CardDetail() {
           <>
             <div className="row" style={{ marginBottom: 12 }}>
               <span className="chip navy">{typeKo(quiz.questionType)}</span>
+              {/* 어느 모델이 낸 문제인지 남겨야 난이도 차이를 사용자가 납득한다 */}
+              {quiz.modelName && <span className="chip low">{modelKo(quiz.modelName)}</span>}
             </div>
             <p style={{ fontSize: 14, marginBottom: 14, lineHeight: 1.9 }}>{quiz.question}</p>
 
@@ -226,8 +310,8 @@ export default function CardDetail() {
                   <div className="explain-box">💡 {quiz.explain}</div>
                 )}
                 <div className="row" style={{ marginTop: 14 }}>
-                  <button className="btn co sm" onClick={makeQuiz} disabled={busy}>다른 문제 더 풀기 (⚡1)</button>
-                  <button className="btn wh sm" onClick={resetQuiz}>다른 유형으로 변경</button>
+                  <button className="btn co sm" onClick={makeQuiz} disabled={busy}>다른 문제 더 풀기 (⚡{modelWeight(model)})</button>
+                  <button className="btn wh sm" onClick={resetQuiz}>유형·모델 바꾸기</button>
                 </div>
               </div>
             )}
@@ -238,9 +322,10 @@ export default function CardDetail() {
       {/* 지난 문제 보기 */}
       <div className="panel">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h3 style={{ margin: 0 }}>🧾 지난 문제 보기</h3>
+          <h3 style={{ margin: 0 }}>🧾 내가 푼 문제 복습</h3>
           <button className="btn wh sm" onClick={togglePast}>{pastOpen ? '접기 ▲' : '펼치기 ▼'}</button>
         </div>
+        <p className="note sm" style={{ marginTop: 8 }}>지금까지 푼 문제와 내 답·정답·해설을 다시 봅니다.</p>
         {pastOpen && (
           past === null ? (
             <p className="note" style={{ marginTop: 12 }}>불러오는 중…</p>
@@ -265,51 +350,43 @@ export default function CardDetail() {
         )}
       </div>
 
-      {/* 캘린더 학습 일정 */}
+      {/* AI 학습 계획 — 고정 간격 대신 등급·누적 정답을 보고 AI가 간격을 정한다 */}
       <div className="panel">
-        <h3>🗓 학습 미션을 캘린더에</h3>
+        <h3>🗓 학습 계획</h3>
         <p className="note" style={{ marginBottom: 14 }}>
-          "이따 해야지"는 안 하게 돼요. 오늘 기준으로 복습 일정을 뽑아 15분짜리 미션으로 박아두세요.
+          학습 계획을 AI한테 만들어달라고 요청하세요!
         </p>
-        <div className="row">
-          {HORIZONS.map(([ko, d]) => (
-            <button key={d}
-              className={`btn sm ${horizon === d ? 'co' : 'wh'}`}
-              onClick={() => { setHorizon(d); setSchedule(null); }}>
-              {ko}
+
+        {!plan ? (
+          <button className="btn co sm" onClick={makePlan} disabled={planning}>
+            {planning ? '계획 짜는 중…' : '학습 계획 생성 (⚡1)'}
+          </button>
+        ) : (
+          <>
+            {plan.map((s, i) => {
+              const date = dateAfter(s.dayOffset); // 캘린더에 넘길 실제 날짜
+              return (
+                <div key={i} className="sched-row">
+                  <span className="d">D+{s.dayOffset}</span>
+                  <span className="mono note" style={{ minWidth: 92 }}>{date}</span>
+                  <span className="plan-body">
+                    <b style={{ fontSize: 13 }}>{s.title}</b>
+                    <span className="note sm">{s.focus}</span>
+                    <span className="note xs">✔ {s.checkpoint} · {s.minutes}분</span>
+                  </span>
+                  <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <a className="btn wh sm" href={api.googleCalendarUrl(card, date)} target="_blank" rel="noreferrer">구글</a>
+                    <button className="btn wh sm" onClick={() => api.downloadIcs(card, date)}>애플(.ics)</button>
+                    <button className="btn wh sm" onClick={async () => { await api.kakaoCalendarAdd(card, date); notify('카카오 캘린더는 비즈니스 인증 후 열려요 (준비 중)'); }}>카카오</button>
+                  </span>
+                </div>
+              );
+            })}
+            <button className="btn wh sm" style={{ marginTop: 14 }} onClick={makePlan} disabled={planning}>
+              {planning ? '다시 짜는 중…' : '다시 생성 (⚡1)'}
             </button>
-          ))}
-          <button className="btn co sm" onClick={genSchedule}>학습 일정 생성하기</button>
-        </div>
-
-        {schedule && (
-          <div style={{ marginTop: 14 }}>
-            {schedule.length === 0 ? (
-              <p className="note">일정이 없어요.</p>
-            ) : schedule.map(({ n, date }) => (
-              <div key={date} className="sched-row">
-                <span className="d">D+{n}</span>
-                <span className="mono note" style={{ minWidth: 92 }}>{date}</span>
-                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <a className="btn wh sm" href={api.googleCalendarUrl(card, date)} target="_blank" rel="noreferrer">구글</a>
-                  <button className="btn wh sm" onClick={() => api.downloadIcs(card, date)}>애플(.ics)</button>
-                  <button className="btn wh sm" onClick={async () => { await api.kakaoCalendarAdd(card, date); notify('카카오 캘린더는 비즈니스 인증 후 열려요 (준비 중)'); }}>카카오</button>
-                </span>
-              </div>
-            ))}
-          </div>
+          </>
         )}
-      </div>
-
-      {/* 승급 히스토리 (FR-63) */}
-      <div className="panel">
-        <h3>📜 히스토리</h3>
-        {history.map((h, i) => (
-          <div key={i} className="meta-row" style={{ marginTop: i ? 8 : 0 }}>
-            <span style={{ fontFamily: 'inherit', fontSize: 13 }}>{h.note}</span>
-            <span className="mono note xs">{h.date} · {h.grade}</span>
-          </div>
-        ))}
       </div>
 
       <p className="note sm mt18">

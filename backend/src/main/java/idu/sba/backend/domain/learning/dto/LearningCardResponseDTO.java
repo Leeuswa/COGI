@@ -1,6 +1,7 @@
 package idu.sba.backend.domain.learning.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import idu.sba.backend.domain.learning.entity.LearningCard;
 import lombok.Getter;
 
@@ -24,9 +25,17 @@ public class LearningCardResponseDTO {
     private final boolean completed;
 
     private final String conceptContent;
+    private final String whyItMatters;
     private final String badExample;
     private final String goodExample;
+    private final String diffExplain;
     private final List<String> keyPoints;
+    private final List<String> pitfalls;
+    private final List<String> selfCheck;
+
+    // 저장해 둔 계획 JSON을 그대로 내보낸다. 저장 전에 파싱해 검증했으므로 깨진 JSON이 나갈 일은 없다
+    @JsonRawValue
+    private final String studyPlan;
 
     private LearningCardResponseDTO(LearningCard card) {
         this.id = card.getId();
@@ -38,15 +47,22 @@ public class LearningCardResponseDTO {
         this.bookmarked = card.isBookmarked();
         this.completed = card.isCompleted();
         this.conceptContent = card.getConceptContent();
+        this.whyItMatters = card.getWhyItMatters();
         this.badExample = card.getBadExample();
         this.goodExample = card.getGoodExample();
-        // 줄바꿈으로 저장된 핵심 포인트를 배열로 분리 (없으면 빈 배열)
-        this.keyPoints = (card.getKeyPoints() == null || card.getKeyPoints().isBlank())
-                ? List.of()
-                : List.of(card.getKeyPoints().split("\n"));
+        this.diffExplain = card.getDiffExplain();
+        this.keyPoints = splitLines(card.getKeyPoints());
+        this.pitfalls = splitLines(card.getPitfalls());
+        this.selfCheck = splitLines(card.getSelfCheck());
+        this.studyPlan = card.getStudyPlan();
     }
 
     public static LearningCardResponseDTO of(LearningCard card) {
         return new LearningCardResponseDTO(card);
+    }
+
+    // 줄바꿈으로 이어 저장한 목록을 배열로 되돌린다. 예전에 만든 카드는 비어 있어 빈 배열이 나간다
+    private static List<String> splitLines(String value) {
+        return (value == null || value.isBlank()) ? List.of() : List.of(value.split("\n"));
     }
 }
