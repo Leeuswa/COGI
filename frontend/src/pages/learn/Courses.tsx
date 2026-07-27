@@ -33,27 +33,34 @@ export default function Courses() {
           </div>
         </div>
       ) : (
-        list.map((c, i) => (
-          <div key={i} className="panel">
-            <div className="row">
-              <div style={{ flex: 1, minWidth: 220 }}>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <span className="chip low">{c.categoryLabel}</span>
-                  {c.language && <span className="chip gray">{c.language}</span>}
-                </div>
-                <b style={{ fontSize: 15 }}>“{c.query}” 강의</b>
-                <p className="note sm" style={{ marginTop: 6 }}>{c.occurrenceCount}회 반복된 약점</p>
-              </div>
-              <div className="row" style={{ flexShrink: 0, gap: 8 }}>
-                {c.links.map((l) => (
-                  <a key={l.platform} className="btn co sm" href={l.url} target="_blank" rel="noreferrer">
-                    {l.label} →
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        ))
+      list.map((c, i) => (
+  <div key={i} className="panel">
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 20 }}>
+      <div style={{ flex: 1 }}>
+        <span className="chip low">{c.platform}</span>
+
+        <h3 style={{ marginTop: 10 }}>
+          {c.title}
+        </h3>
+
+        <p className="note sm" style={{ marginTop: 8 }}>
+          {c.description}
+        </p>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <a
+          className="btn co sm"
+          href={c.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          강의 보기 →
+        </a>
+      </div>
+    </div>
+  </div>
+))
       )}
     </main>
   );
