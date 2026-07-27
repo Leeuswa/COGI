@@ -9,7 +9,8 @@ import java.util.Optional;
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     //API-025: PR에 대한 리뷰 결과 조회(아직 없으면 empty — PR이 OPEN 상태)
-    Optional<Review> findByPrId(Long prId);
+    //PR 하나에 리뷰가 여러 개 쌓일 수 있음(웹훅 synchronize마다 새 Review row 생성) — 항상 최신 것만 조회
+    Optional<Review> findTopByPrIdOrderByCreatedAtDesc(Long prId);
 
     //리뷰 히스토리 [설계 추론]: 로그인 사용자의 개별 리뷰 목록(최신순)
     List<Review> findByUserIdOrderByCreatedAtDesc(Long userId);

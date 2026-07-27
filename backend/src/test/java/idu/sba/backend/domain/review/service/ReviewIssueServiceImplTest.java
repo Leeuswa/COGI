@@ -1,9 +1,12 @@
 package idu.sba.backend.domain.review.service;
 
+import idu.sba.backend.domain.notification.service.NotificationService;
 import idu.sba.backend.domain.pr.entity.PullRequest;
 import idu.sba.backend.domain.pr.repository.PullRequestRepository;
+import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.entity.RepoMember;
 import idu.sba.backend.domain.repo.entity.RepoRole;
+import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.entity.IssueCategory;
 import idu.sba.backend.domain.review.entity.IssueSeverity;
@@ -21,10 +24,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,6 +41,8 @@ class ReviewIssueServiceImplTest {
     @Mock private ReviewRepository reviewRepository;
     @Mock private PullRequestRepository pullRequestRepository;
     @Mock private RepoMemberRepository repoMemberRepository;
+    @Mock private GithubRepositoryRepository githubRepositoryRepository;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private ReviewIssueServiceImpl service;
@@ -83,6 +92,12 @@ class ReviewIssueServiceImplTest {
         PullRequest pr = PullRequest.open(REPO_ID, 42, "title", null, null);
         setField(pr, "id", PR_ID);
         return pr;
+    }
+
+    private GithubRepository githubRepository() {
+        GithubRepository repo = GithubRepository.link(OWNER_ID, "gh-1", "repo", false, "owner/repo");
+        setField(repo, "id", REPO_ID);
+        return repo;
     }
 
     @Test
@@ -155,11 +170,31 @@ class ReviewIssueServiceImplTest {
         ReviewIssue issue = issue(IssueSeverity.CRITICAL);
         when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
         when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(USER_ID)));
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(githubRepository()));
 
         service.finalizeIssue(USER_ID, ISSUE_ID, "RESOLVED");
 
         assertThat(issue.getStatus()).isEqualTo(IssueStatus.PENDING);
         assertThat(issue.getRequestType()).isEqualTo("RESOLVE_REQUEST");
+        verify(notificationService).broadcast(eq(List.of(OWNER_ID)), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void PR_리뷰의_CRITICAL_이슈는_IGNORED로_확정해도_승인_없이_안_풀리고_대기로_간다() {
+        // AI가 코드 맥락을 다 모른 채 오판했을 수 있는 건 RESOLVED뿐 아니라 IGNORED("의도한 코드다")도
+        // 마찬가지라, CRITICAL은 "그냥 무시함"으로 검증 없이 넘어가지 못하게 막는다
+        ReviewIssue issue = issue(IssueSeverity.CRITICAL);
+        when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
+        when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(USER_ID)));
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(githubRepository()));
+
+        service.finalizeIssue(USER_ID, ISSUE_ID, "IGNORED");
+
+        assertThat(issue.getStatus()).isEqualTo(IssueStatus.PENDING);
+        assertThat(issue.getRequestType()).isEqualTo("IGNORE_REQUEST");
+        assertThat(issue.isAcknowledged()).isFalse(); //승인 나기 전까진 통계 제외도 안 됨
     }
 
     @Test
@@ -236,6 +271,23 @@ class ReviewIssueServiceImplTest {
         service.decideResolveRequest(OWNER_ID, ISSUE_ID, true);
 
         assertThat(issue.getStatus()).isEqualTo(IssueStatus.RESOLVED);
+        assertThat(issue.getApprovedBy()).isEqualTo(OWNER_ID);
+    }
+
+    @Test
+    void decideResolveRequest_IGNORE_REQUEST를_승인하면_IGNORED로_통계에서도_제외된다() {
+        ReviewIssue issue = issue(IssueSeverity.CRITICAL);
+        issue.requestIgnore();
+        when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
+        when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(USER_ID)));
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, OWNER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, OWNER_ID, RepoRole.OWNER)));
+
+        service.decideResolveRequest(OWNER_ID, ISSUE_ID, true);
+
+        assertThat(issue.getStatus()).isEqualTo(IssueStatus.IGNORED);
+        assertThat(issue.isAcknowledged()).isTrue();
         assertThat(issue.getApprovedBy()).isEqualTo(OWNER_ID);
     }
 

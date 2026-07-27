@@ -17,19 +17,21 @@ public class ProfileResponseDTO {
     private final Level level;
     private final List<String> interests;
     private final Long planId;
+    private final String planName;                // ACTIVE 구독 기준 실제 플랜명(FREE/PRO/MAX) — 프론트 모델 잠금 판정용
     private final boolean onboardingCompleted;   // 프론트 온보딩 가드용
     private final boolean guideConfirmed;
     private final Provider provider;             // 가입 방식 (마이페이지 표시/분기용)
     private final Role role;                      // 프론트 관리자 화면(/app/admin) 진입 가드용
 
     private ProfileResponseDTO(Long userId, String nickname, String email, Level level, List<String> interests,
-                               Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role) {
+                               Long planId, String planName, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role) {
         this.userId = userId;
         this.nickname = nickname;
         this.email = email;
         this.level = level;
         this.interests = interests;
         this.planId = planId;
+        this.planName = planName;
         this.onboardingCompleted = onboardingCompleted;
         this.guideConfirmed = guideConfirmed;
         this.provider = provider;
@@ -38,8 +40,8 @@ public class ProfileResponseDTO {
     }
 
     public static ProfileResponseDTO of(Long userId, String nickname, String email, Level level, List<String> interests,
-                                        Long planId, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role) {
-        return new ProfileResponseDTO(userId, nickname, email, level, interests, planId, onboardingCompleted, guideConfirmed, provider, githubUsername, role);
+                                        Long planId, String planName, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role) {
+        return new ProfileResponseDTO(userId, nickname, email, level, interests, planId, planName, onboardingCompleted, guideConfirmed, provider, githubUsername, role);
     }
 
 }
