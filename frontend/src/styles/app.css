@@ -645,6 +645,20 @@
 /* 셀프 체크는 번호 대신 체크박스 모양으로 */
 .keypoints.selfcheck li::before { content: '☐'; color: var(--navy); }
 
+/* 회원탈퇴 위험구역 (마이페이지 하단) */
+.danger-zone {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin-top: 28px; padding: 18px 20px; border: 3px solid #e24b4a; background: #fff5f3;
+}
+.danger-zone b { font-size: 14px; color: #a32d2d; }
+.danger-zone p { font-size: 12.5px; color: var(--sub); margin-top: 4px; }
+.btn.danger { background: #e24b4a; color: var(--white); }
+/* 탈퇴 확인 문구 입력 (모달) */
+.modal .input {
+  width: 100%; padding: 11px 13px; border: 3px solid var(--navy); font-size: 14px; background: #fff;
+}
+.modal .input:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+
 /* 카드 상세로 들어오면 나갈 길이 없어서 맨 위에 두는 복귀 링크 */
 .back-link {
   display: inline-block; margin-bottom: 14px; font-size: 12.5px;
@@ -982,3 +996,4 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .chat-skill:hover:not(:disabled) { background: #fff6f4; }
 .chat-skill:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
 .chat-skill:disabled { color: var(--sub); border-color: #cdd8ea; box-shadow: 2px 2px 0 #cdd8ea; cursor: default; }
+
