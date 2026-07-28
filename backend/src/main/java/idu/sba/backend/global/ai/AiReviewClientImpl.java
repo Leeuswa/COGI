@@ -166,10 +166,18 @@ public class AiReviewClientImpl implements AiReviewClient {
                 .body(body)
                 .retrieve()
                 .body(JsonNode.class);
-        String content = res.path("content").get(0).path("text").asString();
+        // content[0]이 항상 텍스트 블록이라고 가정하면 안 됨 — 확장 사고(thinking)를 쓰는 모델은
+        // content 배열 앞쪽에 thinking/redacted_thinking 블록이 먼저 오고 그 다음에 text 블록이 옴
+        // (Claude Sonnet 5에서 content[0].text가 비어 파싱이 깨지는 문제로 실사용 중 발견)
+        StringBuilder content = new StringBuilder();
+        for (JsonNode block : res.path("content")) {
+            if ("text".equals(block.path("type").asString())) {
+                content.append(block.path("text").asString());
+            }
+        }
         int inputTokens = res.path("usage").path("input_tokens").asInt(0);
         int outputTokens = res.path("usage").path("output_tokens").asInt(0);
-        return new VendorCallResult(content, inputTokens, outputTokens);
+        return new VendorCallResult(content.toString(), inputTokens, outputTokens);
     }
 
     // 벤더 호출 1건의 결과(본문 텍스트 + 토큰 사용량) — 두 호출 경로가 공유
