@@ -104,6 +104,7 @@ public enum ErrorCode {
     LEARNING_CARD_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 학습카드입니다."),
     LEARNING_CARD_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 학습카드만 접근할 수 있습니다."),
     LEARNING_QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 퀴즈입니다."),
+    WEAKNESS_STATS_EMPTY(HttpStatus.BAD_REQUEST,"아직 약점 데이터가 없어요. 코드 리뷰를 먼저 받아보세요."),
 
     //관리자 본인 권한수정
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 권한은 변경할 수 없습니다."),

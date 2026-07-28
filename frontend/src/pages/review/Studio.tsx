@@ -19,10 +19,19 @@ import { useGame } from "../../context/GameContext";
 import { PageHead, SevChip, renderDescription } from "../../components/ui";
 import { MODEL_TIERS, PLAN_TIER, catKo } from "../../data/constants";
 import PreviewDock from "./PreviewDock";
+import useIsMobile from "../../hooks/useIsMobile";
+import MobileStudio from "../mobile/MobileStudio";
 
 const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend";
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function Studio() {
+  return useIsMobile() ? <MobileStudio /> : <DesktopStudio />;
+}
+
+function DesktopStudio() {
     const { user } = useAuth();
     const { spendCredit, refundCredit, notify, S, creditLimit } = useGame();
     const location = useLocation();
@@ -44,6 +53,7 @@ export default function Studio() {
     const [picker, setPicker] = useState(null); // PR 가져오기 모달 — 레포→PR→파일 3단계 { step, repos, repo, prs, pr, files, checked:Set }
     const [previewCode, setPreviewCode] = useState(null); // 미리보기 대상 (프론트 파일)
     const [dockOpen, setDockOpen] = useState(false);
+    const [favSkills, setFavSkills] = useState(null); // 즐겨찾기 스킬. null = 아직 안 받음
     const [reverifyByIssue, setReverifyByIssue] = useState({}); // 이슈 재검증 { [issueId]: {open, code, busy, result} } — 이슈별로 독립이라 issue가 바뀌면 자연히 새 항목
     const setReverifyFor = (issueId, patch) =>
         setReverifyByIssue((prev) => ({
@@ -60,6 +70,13 @@ export default function Studio() {
     }, [msgs, busy]);
 
     const push = (m) => setMsgs((prev) => [...prev, m]);
+
+    // 후속 질문은 리뷰가 시작돼야 열린다. 그때 즐겨찾기 스킬을 한 번만 받아 칩으로 깐다
+    // 실패하면 칩만 안 보이게 둔다 — 채팅 자체를 막을 이유는 없다
+    useEffect(() => {
+        if (reviewId === null || favSkills !== null) return;
+        api.getFavoriteSkills().then(setFavSkills).catch(() => setFavSkills([]));
+    }, [reviewId, favSkills]);
 
     // PR 상세 화면(PrDetail.tsx)의 [스튜디오에서 마저 판정]에서 prId를 받으면, 새 리뷰를
     // 시작하는 대신 그 PR의 최신 리뷰에서 아직 판정 안 한(OPEN) 이슈만 불러와 이어서 판정한다.
@@ -245,6 +262,7 @@ export default function Studio() {
         setFinalized(false);
         setIsPrReview(false);
     };
+
 
     return (
         <main className="app-main">
@@ -479,6 +497,17 @@ export default function Studio() {
 
                 {/* ── 입력 영역: 입력창이 주인공(전체 폭), 도구는 아래 한 줄로 ── */}
                 <div className="chat-input">
+                    {/* 즐겨찾기해 둔 스킬 — 누르면 질문 문장이 입력창에 채워진다. 보내기 전에 고칠 수 있다 */}
+                    {reviewId !== null && favSkills?.length > 0 && (
+                        <div className="chat-skills">
+                            {favSkills.map((s) => (
+                                <button key={s.id} className="chat-skill" disabled={busy || insufficientCredit}
+                                        onClick={() => setInput(`${s.title} 관점에서 이 코드를 점검해줘.`)}>
+                                    ★ {s.title}
+                                </button>
+                            ))}
+                        </div>
+                    )}
           <textarea
               rows={reviewId === null ? 4 : 2}
               value={input}

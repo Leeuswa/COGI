@@ -1,0 +1,22 @@
+/* 모바일 강의 추천 — 카드 전체가 링크 */
+@media (max-width: 640px) {
+  .mcourse { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .mcourse li a {
+    display: block; background: var(--white); border: 2px solid var(--navy);
+    border-radius: 14px; padding: 13px 14px; color: var(--navy);
+  }
+  .mcourse li a:active { background: #f6f9ff; }
+
+  .mco-top { display: flex; align-items: center; margin-bottom: 8px; }
+  /* 플랫폼 배지 — 인프런·Udemy를 색으로 구분 */
+  .mco-plat {
+    font-family: 'Silkscreen', monospace; font-size: 10.5px; letter-spacing: .5px;
+    color: var(--white); background: var(--sub); padding: 4px 10px; border-radius: 999px;
+  }
+  .mco-plat.inflearn { background: var(--mint); }
+  .mco-plat.udemy { background: #8b6fd4; }
+  .mco-go { margin-left: auto; font-size: 15px; color: #b6c0d8; }
+
+  .mco-title { display: block; font-size: 15px; line-height: 1.45; }
+  .mco-desc { font-size: 12.5px; line-height: 1.75; color: var(--sub); margin-top: 6px; }
+}

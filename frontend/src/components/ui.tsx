@@ -46,8 +46,8 @@ function SessionTimer() {
   const s = Math.max(0, Math.floor(left / 1000));
   const hms = `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; // 시:분:초
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Silkscreen, monospace', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>
-      ⏱ {hms}
+    <span className="nav-timer" title="남은 로그인 시간">
+      <b>⏱ {hms}</b>
       <button className="btn sm wh" onClick={extend} disabled={busy}>{busy ? '연장 중…' : '연장'}</button>
     </span>
   );
@@ -88,8 +88,9 @@ export function Nav() {
           )}
           <Bell loginId={user.loginId} />
           {/* 코인/크레딧 요약. 눌러도 아무 일 없음, 상태 표시용 */}
-          <span style={{ fontFamily: 'Silkscreen, monospace', fontSize: 12 }}>
-            🪙{S.coins} · ⚡{creditLimit - S.creditUsed}
+          <span className="nav-wallet" title={`코인 ${S.coins}개 · 남은 크레딧 ${creditLimit - S.creditUsed}개`}>
+            <b>🪙 {S.coins}</b>
+            <b>⚡ {creditLimit - S.creditUsed}</b>
           </span>
           {/* GitHub 미연동 계정에만 노출 — 연동된 계정은 팀 페이지의 '레포 연동 관리'로 통한다 */}
           {!user.githubUsername && <Link className="btn sm wh" to="/app/repos">🐙 GitHub 연동</Link>}

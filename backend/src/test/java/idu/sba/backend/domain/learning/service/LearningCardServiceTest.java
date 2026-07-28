@@ -9,6 +9,9 @@ import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
 import idu.sba.backend.domain.learning.entity.LearningCard;
 import idu.sba.backend.domain.learning.entity.LearningCardQuiz;
 import idu.sba.backend.domain.learning.entity.QuizSubmission;
+import idu.sba.backend.domain.learning.repository.AiSkillFavoriteRepository;
+import idu.sba.backend.domain.learning.repository.AiSkillRecommendationRepository;
+import idu.sba.backend.domain.learning.repository.AiSkillRepository;
 import idu.sba.backend.domain.learning.repository.CourseRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardRepository;
@@ -29,6 +32,7 @@ import idu.sba.backend.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
@@ -61,6 +65,9 @@ class LearningCardServiceTest {
     @Mock private AiUsageLogRepository aiUsageLogRepository;
     @Mock private RetentionService retentionService;
     @Mock private CourseRepository courseRepository;
+    @Mock private AiSkillRepository aiSkillRepository;
+    @Mock private AiSkillFavoriteRepository aiSkillFavoriteRepository;
+    @Mock private AiSkillRecommendationRepository aiSkillRecommendationRepository; // 스킬 추천 이력
     @Mock private Plan plan;
 
     private LearningServiceImpl service;
@@ -76,7 +83,8 @@ class LearningCardServiceTest {
         service = new LearningServiceImpl(reviewRepository, reviewIssueRepository, weaknessStatRepository,
                 learningCardRepository, learningCardQuizRepository, quizSubmissionRepository,
                 subscriptionService, creditUsageService, aiReviewClient, aiUsageLogRepository, new ObjectMapper(),
-                retentionService, courseRepository, new LearningPromptBuilder());
+                retentionService, courseRepository, new LearningPromptBuilder(),
+                aiSkillRepository, aiSkillFavoriteRepository, aiSkillRecommendationRepository);
     }
 
     private void setField(Object target, String fieldName, Object value) {
@@ -327,7 +335,7 @@ class LearningCardServiceTest {
         when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
                 .thenReturn(new AiGenerationResult(aiJson, 40, 90, 0.004));
 
-        LearningCardResponseDTO result = service.createStudyPlan(USER_ID, CARD_ID);
+        LearningCardResponseDTO result = service.createStudyPlan(USER_ID, CARD_ID, 7);
 
         assertThat(result.getStudyPlan()).startsWith("["); // 래퍼를 벗겨 배열만 남는다
         assertThat(result.getStudyPlan()).contains("개념 다시 읽기");
@@ -340,8 +348,23 @@ class LearningCardServiceTest {
         when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
                 .thenReturn(new AiGenerationResult("JSON이 아님", 10, 10, 0.001));
 
-        assertThatThrownBy(() -> service.createStudyPlan(USER_ID, CARD_ID))
+        assertThatThrownBy(() -> service.createStudyPlan(USER_ID, CARD_ID, 7))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void 학습계획_고른_기간이_프롬프트_입력에_실린다() {
+        when(learningCardRepository.findById(CARD_ID)).thenReturn(Optional.of(cardOwnedBy(USER_ID)));
+        String aiJson = "{\"steps\":[{\"dayOffset\":0,\"title\":\"t\",\"focus\":\"f\",\"minutes\":15,\"checkpoint\":\"c\"}]}";
+        when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
+                .thenReturn(new AiGenerationResult(aiJson, 10, 10, 0.001));
+
+        service.createStudyPlan(USER_ID, CARD_ID, 14);
+
+        // 14일을 골랐으면 AI에게도 14일이라고 알려야 그 기간만큼만 짠다
+        ArgumentCaptor<String> input = ArgumentCaptor.forClass(String.class);
+        verify(aiReviewClient).generate(any(AiModel.class), anyString(), input.capture());
+        assertThat(input.getValue()).contains("계획 기간: 14일");
     }
 
     // ---------- 차등 프롬프트 ----------

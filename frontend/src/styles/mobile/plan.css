@@ -1,0 +1,55 @@
+/* 모바일 요금제 — 3열 카드와 5열 이력 표를 폰 폭에 맞춰 다시 */
+@media (max-width: 640px) {
+  .mpl-notice { border-color: var(--sub); font-size: 12.5px; line-height: 1.85; color: var(--navy); }
+  .mpl-notice b { color: var(--coral); }
+
+  .mpl.on { border-color: var(--coral); background: #fffdf3; }
+  /* 데스크톱 뱃지는 카드 위로 튀어나와 폰에서 겹쳤다. 카드 안 첫 줄로 넣는다 */
+  .mpl-top { display: flex; align-items: center; gap: 8px; }
+  .mpl-top b { font-family: 'Silkscreen', monospace; font-size: 16px; color: var(--navy); }
+  .mpl-flag {
+    font-size: 10.5px; font-weight: 700; color: var(--white); background: var(--coral);
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .mpl-price { font-size: 24px; color: var(--navy); margin: 8px 0 12px; }
+  .mpl-price i { font-style: normal; font-size: 12px; color: var(--sub); margin-left: 2px; }
+
+  /* 모델 — 알약을 왼쪽부터 가로로 채우고 넘치면 다음 줄로 */
+  .mpl-label { font-size: 12px; color: var(--sub); margin-bottom: 7px; }
+  .mpl-models { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mpl-models span {
+    font-size: 11.5px; line-height: 1.4; color: var(--navy); white-space: nowrap;
+    background: #eef2fa; border-radius: 999px; padding: 5px 10px;
+  }
+  .mpl-credit { font-size: 12.5px; color: var(--sub); margin-top: 10px; }
+  .mpl-credit b { color: var(--navy); }
+
+  .mpl-feat { list-style: none; display: flex; flex-direction: column; gap: 5px; margin: 12px 0 14px; }
+  .mpl-feat li { font-size: 12.5px; line-height: 1.7; color: var(--navy); padding-left: 15px; position: relative; }
+  .mpl-feat li::before { content: '•'; position: absolute; left: 2px; color: var(--coral); }
+
+  /* 결제 확정 패널 */
+  .mpl-pay { border-color: var(--coral); }
+  .mpl-pay .mcard-head h2 { font-size: 13.5px; line-height: 1.5; }
+  .mpl-agree {
+    display: flex; align-items: flex-start; gap: 9px; margin: 12px 0 14px;
+    font-size: 12.5px; line-height: 1.6; color: var(--navy);
+  }
+  .mpl-agree input { flex-shrink: 0; width: 19px; height: 19px; margin-top: 1px; }
+  .mpl-pay .btn.full { margin-top: 10px; }
+  .mpl-cancel { margin-top: 8px; }
+
+  /* 변경 이력 — 표 대신 줄 리스트 */
+  .mpl-hist { list-style: none; display: flex; flex-direction: column; }
+  .mpl-hist li { display: flex; align-items: center; gap: 9px; padding: 11px 0; border-top: 2px solid #eef2fa; }
+  .mpl-hist li:first-child { border-top: none; padding-top: 0; }
+  .mpl-tag {
+    flex-shrink: 0; font-size: 11px; color: var(--white); background: var(--navy);
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .mpl-tag.off { background: var(--sub); }
+  .mpl-hbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .mpl-hbody b { font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--navy); }
+  .mpl-hbody i { font-style: normal; font-size: 11px; color: var(--sub); }
+  .mpl-amt { flex-shrink: 0; font-size: 11.5px; color: var(--sub); white-space: nowrap; }
+}

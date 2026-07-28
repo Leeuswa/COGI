@@ -36,6 +36,7 @@ export default function GuestReview() {
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState('BEGINNER'); // 수준에 따라 설명 깊이가 달라진다 (ADM-004 지침)
   const [issues, setIssues] = useState(null);
+  const [err, setErr] = useState('');            // AI 호출 실패(502 등) — 결과 영역에 인라인으로 보여준다
   const [used, setUsed] = useState(readUsed);
 
   const left = LIMIT - used;
@@ -53,6 +54,7 @@ export default function GuestReview() {
     }
     if (!code.trim()) return;
     setBusy(true);
+    setErr('');            // 재시도 시 이전 에러 지움
     try {
       const res = await api.guestReview(code, level);
       setIssues(res.comments ?? res.issues); // 실서버는 comments, 목은 issues
@@ -69,7 +71,9 @@ export default function GuestReview() {
         setUsed(LIMIT + 1);
         writeUsed(LIMIT + 1);
       } else {
-        alert('리뷰 요청에 실패했어요. 잠시 후 다시 시도해주세요.');
+        // 502 등 — 결과 영역에 인라인으로 노출(alert는 놓치기 쉬워 "아무 일도 안 일어난" 것처럼 보였음)
+        setIssues(null);
+        setErr(e?.message || '리뷰 요청에 실패했어요. 잠시 후 다시 시도해주세요.');
       }
     } finally {
       setBusy(false);
@@ -126,6 +130,15 @@ export default function GuestReview() {
             <Link className="btn co" to="/signup">무료로 시작하기</Link>
             <Link className="btn wh" to="/login">로그인</Link>
           </div>
+        </div>
+      )}
+
+      {!expired && err && (
+        <div className="panel">
+          <p className="note" style={{ color: 'var(--danger, #d33)' }}>
+            {err}<br />
+            <span className="sm">코기가 잠깐 붐비는 중이에요. 잠시 후 다시 눌러보세요. (체험 횟수는 차감되지 않았어요)</span>
+          </p>
         </div>
       )}
 

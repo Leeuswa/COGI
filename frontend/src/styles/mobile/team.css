@@ -1,0 +1,42 @@
+/* 모바일 팀 — 3열 표를 버리고 레포 카드 안에 팀원 한 줄씩 */
+@media (max-width: 640px) {
+  /* 받은 초대는 눈에 띄게 */
+  .minvite { border-color: var(--coral); background: #fffdf3; }
+  .mi-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 2px solid #f0e6dc; }
+  .mi-row:first-of-type { border-top: none; }
+  .mi-row b { flex: 1; min-width: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mi-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* 팀원 목록 */
+  .mteam { list-style: none; display: flex; flex-direction: column; }
+  .mteam li { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 2px solid #eef2fa; }
+  .mteam li:first-child { border-top: none; padding-top: 0; }
+
+  /* 역할 배지 — 팀장만 채워서 구분한다 */
+  .mt-role {
+    flex-shrink: 0; width: 44px; text-align: center; padding: 5px 0;
+    font-size: 11.5px; font-weight: 700; border-radius: 8px;
+    background: var(--white); color: var(--sub); border: 2px solid #dfe5f0;
+  }
+  .mt-role.own { background: var(--navy); color: var(--white); border-color: var(--navy); }
+
+  .mt-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .mt-who b { font-size: 13.5px; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mt-who i { font-style: normal; font-size: 11.5px; color: var(--sub); }
+
+  /* 팀원 행 액션 — 나가기 / 위임·내보내기 */
+  .mt-act, .mt-acts { flex-shrink: 0; }
+  .mt-acts { display: flex; gap: 6px; }
+  .mteam .btn.sm { padding: 7px 10px; font-size: 11px; min-width: 0; }
+
+  /* 초대 입력 — 입력창과 버튼을 한 줄에, 이메일 폴백은 아래 줄에 */
+  .mt-invite { margin-top: 12px; border-top: 2px solid #eef2fa; padding-top: 12px; }
+  .mt-inv-row { display: flex; gap: 8px; }
+  .mt-inv-row + .mt-inv-row { margin-top: 8px; }
+  .mt-inv-row input {
+    flex: 1; min-width: 0; padding: 11px 12px; font-size: 14px;
+    border: 2px solid var(--navy); border-radius: 10px; background: var(--white); color: var(--navy);
+  }
+  .mt-inv-row .btn { flex-shrink: 0; }
+  .mt-err { margin-top: 8px; font-size: 11.5px; line-height: 1.6; color: var(--coral); }
+}
