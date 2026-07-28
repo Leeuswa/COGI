@@ -13,5 +13,6 @@ export const mockTerms = [
     content: '구독 요금은 결제일 기준 1개월 단위로 청구되며, 해지 시 남은 기간은 일할 계산으로 정산됩니다.' },
 ];
 
-// FR-91 재동의 판정 결과 — required 를 true 로 바꾸면 앱 상단에 재동의 배너가 뜬다
-export const mockReagreement = { required: false, termTitle: '서비스 이용약관', newVersion: '1.1' };
+// FR-91 재동의 판정 결과 — required 를 true 로 바꾸면 대시보드 진입 전 재동의 게이트가 뜬다.
+// terms 는 개정된 필수 약관(본문 포함). 게이트 테스트: required 를 true 로 두고 terms 에 mockTerms 항목을 넣는다.
+export const mockReagreement = { required: false, terms: [] };

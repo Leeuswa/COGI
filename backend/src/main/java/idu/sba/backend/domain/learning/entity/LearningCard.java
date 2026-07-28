@@ -32,6 +32,9 @@ public class LearningCard {
     private String conceptContent; // 개념 설명
 
     @Lob
+    private String whyItMatters; // 방치하면 실무에서 뭐가 터지는지 (기존 카드는 null)
+
+    @Lob
     private String exampleContent; // 대표 예제(엑셀 컬럼 유지) — 개선 예제와 같은 값을 둔다
 
     @Lob
@@ -41,7 +44,19 @@ public class LearningCard {
     private String goodExample; // 개선된 예제
 
     @Lob
+    private String diffExplain; // bad에서 good으로 뭘 왜 바꿨는지 (기존 카드는 null)
+
+    @Lob
     private String keyPoints; // 핵심 포인트 — 줄바꿈으로 이어 저장, 응답에서 배열로 분리
+
+    @Lob
+    private String pitfalls; // 흔한 실수 — keyPoints와 같은 줄바꿈 저장 방식
+
+    @Lob
+    private String selfCheck; // 리뷰 전 셀프 체크 — 역시 줄바꿈 저장
+
+    @Lob
+    private String studyPlan; // AI가 짠 복습 계획 JSON 원문. 생성해야 채워지고 그 전엔 null
 
     private String grade; // 신호등 등급 RED/YELLOW/GREEN/GREEN_PLUS, 생성 시 RED
 
@@ -60,17 +75,22 @@ public class LearningCard {
     }
 
     private LearningCard(Long userId, String category, String level, String language, String modelName,
-                         String conceptContent, String badExample, String goodExample, String keyPoints) {
+                         String conceptContent, String whyItMatters, String badExample, String goodExample,
+                         String diffExplain, String keyPoints, String pitfalls, String selfCheck) {
         this.userId = userId;
         this.category = category;
         this.level = level;
         this.language = language;
         this.modelName = modelName;
         this.conceptContent = conceptContent;
+        this.whyItMatters = whyItMatters;
         this.badExample = badExample;
         this.goodExample = goodExample;
         this.exampleContent = goodExample; // 엑셀 example_content는 개선 예제로 채운다
+        this.diffExplain = diffExplain;
         this.keyPoints = keyPoints;
+        this.pitfalls = pitfalls;
+        this.selfCheck = selfCheck;
         this.grade = "RED"; // 새 카드는 학습 시작(빨강)
         this.correctCount = 0;
         this.isBookmarked = false;
@@ -78,8 +98,15 @@ public class LearningCard {
     }
 
     public static LearningCard create(Long userId, String category, String level, String language, String modelName,
-                                      String conceptContent, String badExample, String goodExample, String keyPoints) {
-        return new LearningCard(userId, category, level, language, modelName, conceptContent, badExample, goodExample, keyPoints);
+                                      String conceptContent, String whyItMatters, String badExample, String goodExample,
+                                      String diffExplain, String keyPoints, String pitfalls, String selfCheck) {
+        return new LearningCard(userId, category, level, language, modelName, conceptContent, whyItMatters,
+                badExample, goodExample, diffExplain, keyPoints, pitfalls, selfCheck);
+    }
+
+    // 학습 계획은 나중에 따로 생성한다. 다시 만들면 이전 계획을 덮어쓴다
+    public void updateStudyPlan(String studyPlan) {
+        this.studyPlan = studyPlan;
     }
 
     // 북마크 토글 (API-044-1)

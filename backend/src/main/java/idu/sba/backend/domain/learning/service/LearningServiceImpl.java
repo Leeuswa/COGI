@@ -40,6 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +53,7 @@ public class LearningServiceImpl implements LearningService {
 
     private static final int MIN_OCCURRENCE = 3; // 3회 이상만 약점으로 집계 (FR-56)
     private static final String REQUEST_TYPE_CARD = "LEARNING_CARD"; // ai_usage_logs 구분값
+    private static final String REQUEST_TYPE_STUDY_PLAN = "STUDY_PLAN"; // 학습 계획 호출은 따로 집계
 
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
@@ -66,13 +68,15 @@ public class LearningServiceImpl implements LearningService {
     private final ObjectMapper objectMapper;
     private final RetentionService retentionService;
     private final CourseRepository courseRepository;
-
+    private final LearningPromptBuilder promptBuilder;
 
     // (카테고리 코드, 언어)로 이슈를 묶는 집계 키 — 언어는 null 가능
     private record StatKey(String category, String language) {}
 
-    // 카드 생성 AI 응답 파싱용 — 프롬프트가 이 형태로 답하도록 지시한다
-    private record CardContent(String conceptContent, String badExample, String goodExample, List<String> keyPoints) {}
+    // 카드 생성 AI 응답 파싱용 — card_common.txt의 출력 스키마와 키 이름이 1:1로 맞아야 한다
+    private record CardContent(String conceptContent, String whyItMatters, String badExample, String goodExample,
+                               String diffExplain, List<String> keyPoints, List<String> pitfalls,
+                               List<String> selfCheck) {}
 
     // 퀴즈 생성 AI 응답 파싱용
     private record QuizContent(String question, List<String> options, String answer, String explain) {}
@@ -151,8 +155,9 @@ public class LearningServiceImpl implements LearningService {
         creditUsageService.checkAndConsume(userId, modelName);
 
         AiModel model = resolveAiModel(modelName);
+        // 수준과 모델 티어에 따라 프롬프트가 갈린다 — 같은 카테고리라도 초급/고급, 1티어/3티어 결과가 달라진다
         AiGenerationResult result = aiReviewClient.generate(model,
-                buildCardPrompt(request.getLevel()), buildCardInput(request));
+                promptBuilder.buildCard(request.getLevel(), modelName), buildCardInput(request));
 
         // 벤더 호출은 실제로 일어나 비용이 났으므로 사용량을 기록
         aiUsageLogRepository.save(AiUsageLog.of(userId, modelName,
@@ -160,8 +165,9 @@ public class LearningServiceImpl implements LearningService {
 
         CardContent content = parseCard(result.content());
         LearningCard card = LearningCard.create(userId, request.getCategory(), request.getLevel(), request.getLanguage(),
-                modelName, content.conceptContent(), content.badExample(), content.goodExample(),
-                content.keyPoints() == null ? null : String.join("\n", content.keyPoints()));
+                modelName, content.conceptContent(), content.whyItMatters(), content.badExample(),
+                content.goodExample(), content.diffExplain(), joinLines(content.keyPoints()),
+                joinLines(content.pitfalls()), joinLines(content.selfCheck()));
         learningCardRepository.save(card);
 
         return LearningCardResponseDTO.of(card);
@@ -193,25 +199,47 @@ public class LearningServiceImpl implements LearningService {
 
     @Override
     @Transactional
-    public QuizResponseDTO createQuiz(Long userId, Long cardId, String questionType) {
+    public QuizResponseDTO createQuiz(Long userId, Long cardId, String questionType, String requestedModel) {
         LearningCard card = requireOwnedCard(userId, cardId);
 
-        // 퀴즈는 이 카드를 만들 때 쓴 모델 그대로 생성한다. 크레딧도 그 모델 기준으로 소모(실패 시 롤백으로 복구)
-        String modelName = card.getModelName();
-        creditUsageService.checkAndConsume(userId, modelName);
+        // 사용자가 고른 모델을 쓰되 플랜에 없는 모델이면 거부한다. 안 골랐으면 카드 만들 때 쓴 모델로 간다
+        String modelName = resolveQuizModel(userId, requestedModel, card.getModelName());
+        creditUsageService.checkAndConsume(userId, modelName); // 크레딧도 고른 모델 기준(실패 시 롤백으로 복구)
 
         AiModel model = resolveAiModel(modelName);
         AiGenerationResult result = aiReviewClient.generate(model,
-                buildQuizPrompt(questionType), buildQuizInput(card));
+                promptBuilder.buildQuiz(card.getLevel(), questionType, modelName), buildQuizInput(card));
         aiUsageLogRepository.save(AiUsageLog.of(userId, modelName,
                 result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_CARD));
 
         QuizContent qc = parseQuiz(result.content());
         String options = (qc.options() == null || qc.options().isEmpty()) ? null : String.join("\n", qc.options());
-        LearningCardQuiz quiz = LearningCardQuiz.create(cardId, questionType, qc.question(), options, qc.answer(), qc.explain());
+        LearningCardQuiz quiz = LearningCardQuiz.create(cardId, questionType, modelName,
+                qc.question(), options, qc.answer(), qc.explain());
         learningCardQuizRepository.save(quiz);
 
         return QuizResponseDTO.of(quiz);
+    }
+
+    @Override
+    @Transactional
+    public LearningCardResponseDTO createStudyPlan(Long userId, Long cardId) {
+        LearningCard card = requireOwnedCard(userId, cardId);
+
+        // 계획은 카드를 만든 모델로 짠다. 퀴즈와 달리 따로 고르게 하지 않았다
+        String modelName = card.getModelName();
+        creditUsageService.checkAndConsume(userId, modelName);
+
+        AiModel model = resolveAiModel(modelName);
+        AiGenerationResult result = aiReviewClient.generate(model,
+                promptBuilder.buildStudyPlan(modelName), buildStudyPlanInput(card));
+        aiUsageLogRepository.save(AiUsageLog.of(userId, modelName,
+                result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_STUDY_PLAN));
+
+        // 저장 전에 파싱해 형식을 확인한다. 깨졌으면 여기서 롤백돼 크레딧이 돌아간다
+        card.updateStudyPlan(parseStudyPlanSteps(result.content()));
+
+        return LearningCardResponseDTO.of(card);
     }
 
     @Override
@@ -295,14 +323,19 @@ public class LearningServiceImpl implements LearningService {
         }
     }
 
-    // 카드 생성 시스템 프롬프트 — 수준에 맞춰 JSON 한 덩어리로만 답하게 지시
-    private String buildCardPrompt(String level) {
-        return """
-                너는 개발 학습카드를 만드는 튜터야. 주어진 약점 카테고리로 학습카드 한 장을 만들어.
-                학습자 수준: %s (수준에 맞게 설명 난이도를 조절)
-                아래 JSON 형식으로만 답해. 다른 말이나 코드펜스 없이 JSON만:
-                {"conceptContent":"개념 설명(한국어)","badExample":"문제 있는 예시 코드","goodExample":"고친 예시 코드","keyPoints":["핵심1","핵심2","핵심3"]}
-                """.formatted(level == null ? "BEGINNER" : level);
+    // 퀴즈에 쓸 모델 결정 — 안 골랐으면 카드 모델, 골랐으면 내 플랜에 있는지 확인하고 통과시킨다
+    private String resolveQuizModel(Long userId, String requestedModel, String cardModel) {
+        if (requestedModel == null || requestedModel.isBlank()) {
+            return cardModel;
+        }
+        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+        boolean allowed = Arrays.stream(plan.getAllowedModels().split(","))
+                .map(String::trim)
+                .anyMatch(requestedModel::equals);
+        if (!allowed) { // 상위 플랜 모델을 요청한 경우 — 프론트에서 막지만 서버도 한 번 더 본다
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
+        return requestedModel;
     }
 
     // 카드 생성 입력 — 카테고리와 언어(있으면)를 넘긴다
@@ -323,17 +356,6 @@ public class LearningServiceImpl implements LearningService {
         }
     }
 
-    // 퀴즈 생성 시스템 프롬프트 — 유형에 맞춰 JSON 한 덩어리로만 답하게 지시
-    private String buildQuizPrompt(String questionType) {
-        return """
-                너는 개발 학습 퀴즈를 만드는 튜터야. 아래 학습 주제로 %s 유형 문제 하나를 만들어.
-                MULTIPLE_CHOICE는 보기 4개, OX는 보기 ["O","X"], SHORT_ANSWER·FILL_BLANK는 보기 없이(options는 [] 또는 생략).
-                explain에는 왜 그 답이 정답인지 한두 문장 해설을 꼭 넣어(정답을 맞혀도 학습용으로 보여준다).
-                아래 JSON 형식으로만 답해. 다른 말이나 코드펜스 없이 JSON만:
-                {"question":"문제(한국어)","options":["보기1","보기2"],"answer":"정답","explain":"해설"}
-                """.formatted(questionType);
-    }
-
     // 퀴즈 생성 입력 — 어떤 카드(개념)로 문제를 낼지 넘긴다
     private String buildQuizInput(LearningCard card) {
         return "주제: " + card.getCategory()
@@ -347,6 +369,28 @@ public class LearningServiceImpl implements LearningService {
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }
+    }
+
+    // 학습 계획 입력 — 등급과 누적 정답 수를 같이 넘겨야 AI가 간격을 조절한다 (study_plan.txt 1번 규칙)
+    private String buildStudyPlanInput(LearningCard card) {
+        return "주제: " + card.getCategory()
+                + "\n현재 등급: " + card.getGrade()
+                + "\n누적 정답: " + card.getCorrectCount() + "회"
+                + "\n개념: " + card.getConceptContent();
+    }
+
+    // 계획 JSON에서 steps 배열만 떼어 저장한다. 프론트가 배열을 바로 받도록 응답에 그대로 실린다
+    private String parseStudyPlanSteps(String content) {
+        try {
+            return objectMapper.readTree(content).get("steps").toString();
+        } catch (Exception e) { // steps 키가 없거나 JSON이 깨졌으면 크레딧까지 롤백
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
+    }
+
+    // 목록형 응답을 줄바꿈으로 이어 한 컬럼에 담는다 (keyPoints·pitfalls·selfCheck 공통)
+    private String joinLines(List<String> values) {
+        return (values == null || values.isEmpty()) ? null : String.join("\n", values);
     }
 
     // 승급 등급별 히스토리 문구

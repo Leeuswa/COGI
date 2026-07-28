@@ -1,7 +1,13 @@
 package idu.sba.backend.domain.user.service;
 
 import idu.sba.backend.domain.payment.service.SubscriptionService;
+import idu.sba.backend.domain.terms.dto.AgreedTermDTO;
+import idu.sba.backend.domain.terms.dto.ReagreementResponseDTO;
+import idu.sba.backend.domain.terms.dto.TermResponseDTO;
+import idu.sba.backend.domain.terms.entity.Term;
+import idu.sba.backend.domain.terms.entity.TermType;
 import idu.sba.backend.domain.terms.entity.UserAgreement;
+import idu.sba.backend.domain.terms.repository.TermRepository;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
 import idu.sba.backend.domain.user.dto.*;
 import idu.sba.backend.domain.user.entity.User;
@@ -16,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,6 +32,7 @@ public class UserServiceImpl implements UserService{
 
     private final UserRepository userRepository;
     private final UserAgreementRepository userAgreementRepository;
+    private final TermRepository termRepository;
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final HtmlMailSender htmlMailSender;
@@ -38,6 +46,40 @@ public class UserServiceImpl implements UserService{
         return userAgreementRepository.findByUserIdAndAgreedTrue(userId).stream()
                 .map(UserAgreement::getTermId)
                 .toList();
+    }
+
+    //동의 약관 + 동의 당시 버전 (마이페이지 개정 배지·재동의 판정)
+    @Override
+    @Transactional(readOnly = true)
+    public List<AgreedTermDTO> getAgreementVersions(Long userId) {
+        return userAgreementRepository.findByUserIdAndAgreedTrue(userId).stream()
+                .map(AgreedTermDTO::from)
+                .toList();
+    }
+
+    // 재동의 판정 — 필수 약관(PAYMENT 제외) 중 내 동의 버전이 현재 버전과 다르거나(미동의 포함) 하나라도 있으면 대상.
+    // agreedVersion 이 null 인 레거시 동의도 대상으로 본다(backfill SQL 로 방지 가능).
+    @Override
+    @Transactional(readOnly = true)
+    public ReagreementResponseDTO checkReagreement(Long userId) {
+        // 관리자 계정은 재동의 게이트 제외 (약관 관리 주체이므로 스스로 재동의 받을 필요 없음)
+        if (findUser(userId).getRole() == idu.sba.backend.domain.user.entity.Role.ADMIN) {
+            return new ReagreementResponseDTO(List.of());
+        }
+        // Collectors.toMap 은 null 값을 못 담는다(레거시 동의는 agreedVersion=null) → 수동 put 으로 null 스킵.
+        // 키가 없으면 get()==null 이라 재동의 대상 판정 결과는 동일하다.
+        Map<Long, String> agreedVer = new java.util.HashMap<>();
+        for (UserAgreement a : userAgreementRepository.findByUserIdAndAgreedTrue(userId)) {
+            if (a.getAgreedVersion() != null) agreedVer.put(a.getTermId(), a.getAgreedVersion());
+        }
+
+        List<TermResponseDTO> outdated = termRepository.findByIsRequiredTrue().stream()
+                .filter(t -> t.getType() != TermType.PAYMENT)
+                .filter(t -> !java.util.Objects.equals(agreedVer.get(t.getId()), t.getVersion()))
+                .map(TermResponseDTO::from)
+                .toList();
+
+        return new ReagreementResponseDTO(outdated);
     }
 
     //프로필 조회
@@ -152,22 +194,29 @@ public class UserServiceImpl implements UserService{
         user.enableTotp(); // 검증 통과 → 활성화
     }
 
+    // 약관 동의 저장 (온보딩 최초 동의 + 개정 후 재동의 공용).
+    // 기존 행이 있으면 버전을 최신으로 갱신(재동의), 없으면 현재 버전으로 새로 저장.
     @Override
     @Transactional
     public void submitAgreements(Long userId, AgreementSubmitDTO req) {
-        // 이미 동의한 약관 id → 중복 insert 방지
-        Set<Long> already = userAgreementRepository.findByUserIdAndAgreedTrue(userId).stream()
-                .map(UserAgreement::getTermId)
-                .collect(Collectors.toSet());
+        for (AgreementSubmitDTO.Item item : req.getAgreements()) {
+            Term term = termRepository.findById(item.getTermId()).orElse(null);
+            if (term == null) continue;                                 // 없는 약관 id 무시
 
-        List<UserAgreement> toSave = req.getAgreements().stream()
-                .filter(a -> Boolean.TRUE.equals(a.getAgreed()))   // 동의한 것만
-                .map(AgreementSubmitDTO.Item::getTermId)
-                .filter(termId -> !already.contains(termId))       // 이미 있으면 스킵
-                .map(termId -> UserAgreement.of(userId, termId))
-                .toList();
-
-        userAgreementRepository.saveAll(toSave);
+            if (Boolean.TRUE.equals(item.getAgreed())) {
+                // 동의(신규/재동의) — 버전·일시 갱신
+                userAgreementRepository.findFirstByUserIdAndTermIdOrderByIdAsc(userId, term.getId())
+                        .ifPresentOrElse(
+                                a -> a.reagree(term.getVersion()),
+                                () -> userAgreementRepository.save(UserAgreement.of(userId, term.getId(), term.getVersion()))
+                        );
+            } else {
+                // 동의 철회 — 필수 약관은 철회 불가(무시), 선택 약관만 agreed=false
+                if (Boolean.TRUE.equals(term.getIsRequired())) continue;
+                userAgreementRepository.findFirstByUserIdAndTermIdOrderByIdAsc(userId, term.getId())
+                        .ifPresent(UserAgreement::withdraw);
+            }
+        }
     }
 
     private User findUser(Long userId){

@@ -225,6 +225,11 @@ export const getTerms = () =>
 export const getMyAgreements = () =>
   USE_MOCK ? mock([1, 2]) : http('GET', '/api/users/me/agreements');
 
+// GET /api/users/me/agreements/versions — 내 동의 약관 + 동의 당시 버전(개정 배지/선택약관 재동의 판정)
+export const getMyAgreementVersions = () =>
+  USE_MOCK ? mock([{ termId: 1, agreedVersion: '1.0' }, { termId: 2, agreedVersion: '1.0' }])
+           : http('GET', '/api/users/me/agreements/versions');
+
 // API-064 POST /api/users/me/agreements — 약관 동의 제출
 export const submitAgreements = (agreements) =>
   USE_MOCK ? mock({ ok: true }) : http('POST', '/api/users/me/agreements', { agreements });
@@ -244,7 +249,9 @@ export const linkRepo = (repoId) =>
 
 // API-025 GET /api/prs/{prId}/review — PR 리뷰 결과(이슈 목록)
 export const getPrReview = (prId) =>
-  USE_MOCK ? mock({ pr: { ...M.mockPr, myRole: 'OWNER' /* 팀장. 명세 API-034 표기 그대로 (FR-37/44) */ }, issues: [M.mockIssue] }) : http('GET', `/api/prs/${prId}/review`);
+  USE_MOCK
+    ? mock({ pr: { ...M.mockPr, myRole: 'OWNER' /* 팀장. 명세 API-034 표기 그대로 (FR-37/44) */ }, issues: [M.mockIssue], reviewHistory: M.mockReviewHistory })
+    : http('GET', `/api/prs/${prId}/review`);
 
 // API-028 POST /api/reviews/{prId}/model-select — PR 리뷰에 사용할 AI 모델 선택(FR-34/35). 다음 웹훅 리뷰부터 적용
 export const selectPrModel = (prId, modelName) =>
@@ -421,10 +428,15 @@ export const toggleComplete = (cardId, completed) =>
 
 // API-045 POST /api/learning-cards/{cardId}/quiz — 문제 생성(크레딧 소진 시 402)
 // questionType: MULTIPLE_CHOICE / OX / SHORT_ANSWER / FILL_BLANK (FR-64)
-export const createQuiz = (cardId, questionType = 'MULTIPLE_CHOICE') =>
+// modelName: 리뷰 스튜디오처럼 사용자가 고른 모델. 안 넘기면 서버가 카드 모델로 만든다
+export const createQuiz = (cardId, questionType = 'MULTIPLE_CHOICE', modelName = null) =>
   USE_MOCK
     ? mock(M.mockQuizzes.find((q) => q.questionType === questionType) ?? M.mockQuizzes[0], 700)
-    : http('POST', `/api/learning-cards/${cardId}/quiz`, { questionType });
+    : http('POST', `/api/learning-cards/${cardId}/quiz`, { questionType, modelName });
+
+// 학습 계획 생성 — 카드 등급에 맞춘 복습 일정. 응답은 studyPlan이 채워진 카드 전체
+export const createStudyPlan = (cardId) =>
+  USE_MOCK ? mock({ studyPlan: [] }, 900) : http('POST', `/api/learning-cards/${cardId}/study-plan`);
 
 // API-046 POST .../quiz/{quizId}/submit — 정답 제출 → 등급 승급 + streak 갱신 (RET-001 통합)
 export const submitQuiz = (cardId, quizId, answer) => {

@@ -1,7 +1,11 @@
 /*
  * 발송은 서버에서 비동기로 처리 → 폼은 "발송 시작"만 알리고, 실제 성공/실패 건수는 아래 이력 테이블에서 확인.
+ * 이력 제목을 누르면 보낸 공지 원문(제목+내용)을 읽기전용 팝업으로 보여준다.
  */
+import { useState } from 'react';
+
 export default function NoticeTab({ notice, setNotice, onSend, busy, notices, onRefresh }) {
+  const [view, setView] = useState(null); // 이력 원문 팝업 대상
   return (
     <>
       <div className="panel">
@@ -37,7 +41,9 @@ export default function NoticeTab({ notice, setNotice, onSend, busy, notices, on
             ) : notices.map((n) => (
               <tr key={n.id}>
                 <td className="mono xs">{n.createdAt.slice(0, 16).replace('T', ' ')}</td>
-                <td style={{ fontSize: 13 }}>{n.subject}</td>
+                <td style={{ fontSize: 13 }}>
+                  <button type="button" className="term-link" onClick={() => setView(n)}>{n.subject}</button>
+                </td>
                 <td className="mono">{n.recipientCount}</td>
                 <td><span className={`chip ${n.status === 'SENT' ? 'low' : 'navy'}`}>{n.status === 'SENT' ? '완료' : '발송 중'}</span></td>
                 <td className="mono">{n.status === 'SENT' ? `${n.successCount} / ${n.failCount}` : '—'}</td>
@@ -46,6 +52,20 @@ export default function NoticeTab({ notice, setNotice, onSend, busy, notices, on
           </tbody>
         </table>
       </div>
+
+      {/* 이력 원문 읽기전용 팝업 (알림처럼 제목+내용만, 수정 불가) */}
+      {view && (
+        <div className="modal-mask" onClick={() => setView(null)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>📢 {view.subject}</h3>
+            <p className="note sm" style={{ marginTop: -4 }}>
+              {view.createdAt.slice(0, 16).replace('T', ' ')} · 대상 {view.recipientCount}명
+            </p>
+            <p style={{ fontSize: 13.5, lineHeight: 1.8, margin: '14px 0 22px', whiteSpace: 'pre-wrap' }}>{view.content}</p>
+            <button className="btn wh sm" onClick={() => setView(null)}>닫기</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

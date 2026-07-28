@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,10 +72,11 @@ class LearningCardServiceTest {
     @BeforeEach
     void setUp() {
         // ObjectMapper는 실제 파싱을 검증해야 하므로 목이 아닌 실물을 주입
+        // 프롬프트 빌더는 classpath txt를 읽을 뿐이라 목 대신 실물을 넣는다
         service = new LearningServiceImpl(reviewRepository, reviewIssueRepository, weaknessStatRepository,
                 learningCardRepository, learningCardQuizRepository, quizSubmissionRepository,
                 subscriptionService, creditUsageService, aiReviewClient, aiUsageLogRepository, new ObjectMapper(),
-                retentionService, courseRepository);
+                retentionService, courseRepository, new LearningPromptBuilder());
     }
 
     private void setField(Object target, String fieldName, Object value) {
@@ -97,7 +99,8 @@ class LearningCardServiceTest {
 
     private LearningCard cardOwnedBy(Long userId) {
         LearningCard card = LearningCard.create(userId, "null 안전성", "BEGINNER", "Java",
-                "claude-haiku-4-5", "개념", "bad", "good", "k1\nk2\nk3");
+                "claude-haiku-4-5", "개념", "왜 중요한지", "bad", "good", "무엇이 바뀌었나",
+                "k1\nk2\nk3", "p1\np2\np3", "s1\ns2\ns3");
         setField(card, "id", CARD_ID);
         return card;
     }
@@ -180,7 +183,8 @@ class LearningCardServiceTest {
     // ---------- 퀴즈 생성/제출/히스토리 (API-045/046/047) ----------
 
     private LearningCardQuiz quiz(Long cardId, String answer) {
-        LearningCardQuiz q = LearningCardQuiz.create(cardId, "MULTIPLE_CHOICE", "문제", "A\nB\nC\nD", answer, "해설");
+        LearningCardQuiz q = LearningCardQuiz.create(cardId, "MULTIPLE_CHOICE", "claude-haiku-4-5",
+                "문제", "A\nB\nC\nD", answer, "해설");
         setField(q, "id", QUIZ_ID);
         return q;
     }
@@ -194,7 +198,7 @@ class LearningCardServiceTest {
                 .thenReturn(new AiGenerationResult(aiJson, 50, 80, 0.005));
         when(learningCardQuizRepository.save(any(LearningCardQuiz.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        QuizResponseDTO result = service.createQuiz(USER_ID, CARD_ID, "MULTIPLE_CHOICE");
+        QuizResponseDTO result = service.createQuiz(USER_ID, CARD_ID, "MULTIPLE_CHOICE", null); // 모델 미선택 → 카드 모델
 
         assertThat(result.getQuestionType()).isEqualTo("MULTIPLE_CHOICE");
         assertThat(result.getQuestion()).isEqualTo("?. 의 이름은?");
@@ -282,5 +286,86 @@ class LearningCardServiceTest {
         assertThat(result.get(0).getExplain()).isEqualTo("해설");
         assertThat(result.get(0).isCorrect()).isFalse();
         assertThat(result.get(0).getSubmittedAt()).isEqualTo("2026-07-12");
+    }
+
+    // ---------- 퀴즈 모델 선택 ----------
+
+    @Test
+    void 퀴즈생성_고른_모델이_플랜에_있으면_그_모델로_간다() {
+        when(learningCardRepository.findById(CARD_ID)).thenReturn(Optional.of(cardOwnedBy(USER_ID)));
+        when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(plan);
+        when(plan.getAllowedModels()).thenReturn("claude-haiku-4-5,claude-sonnet-5");
+        String aiJson = "{\"question\":\"문제\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":\"A\",\"explain\":\"해설\"}";
+        when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
+                .thenReturn(new AiGenerationResult(aiJson, 50, 80, 0.005));
+        when(learningCardQuizRepository.save(any(LearningCardQuiz.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        QuizResponseDTO result = service.createQuiz(USER_ID, CARD_ID, "MULTIPLE_CHOICE", "claude-sonnet-5");
+
+        assertThat(result.getModelName()).isEqualTo("claude-sonnet-5"); // 카드 모델(haiku)이 아니라 고른 모델
+        verify(creditUsageService).checkAndConsume(USER_ID, "claude-sonnet-5"); // 크레딧도 고른 모델 기준
+    }
+
+    @Test
+    void 퀴즈생성_플랜에_없는_모델을_고르면_거부한다() {
+        when(learningCardRepository.findById(CARD_ID)).thenReturn(Optional.of(cardOwnedBy(USER_ID)));
+        when(subscriptionService.getCurrentPlanEntity(USER_ID)).thenReturn(plan);
+        when(plan.getAllowedModels()).thenReturn("claude-haiku-4-5"); // FREE라 상위 모델 없음
+
+        assertThatThrownBy(() -> service.createQuiz(USER_ID, CARD_ID, "MULTIPLE_CHOICE", "claude-opus-4-8"))
+                .isInstanceOf(BusinessException.class);
+
+        verify(creditUsageService, never()).checkAndConsume(any(), anyString()); // 검증 실패면 크레딧도 안 깎는다
+    }
+
+    // ---------- 학습 계획 ----------
+
+    @Test
+    void 학습계획_steps만_떼어_카드에_저장한다() {
+        when(learningCardRepository.findById(CARD_ID)).thenReturn(Optional.of(cardOwnedBy(USER_ID)));
+        String aiJson = "{\"steps\":[{\"dayOffset\":0,\"title\":\"개념 다시 읽기\",\"focus\":\"개념을 소리내 읽는다\",\"minutes\":15,\"checkpoint\":\"설명할 수 있는가?\"}]}";
+        when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
+                .thenReturn(new AiGenerationResult(aiJson, 40, 90, 0.004));
+
+        LearningCardResponseDTO result = service.createStudyPlan(USER_ID, CARD_ID);
+
+        assertThat(result.getStudyPlan()).startsWith("["); // 래퍼를 벗겨 배열만 남는다
+        assertThat(result.getStudyPlan()).contains("개념 다시 읽기");
+        verify(creditUsageService).checkAndConsume(USER_ID, "claude-haiku-4-5"); // 계획은 카드 모델로
+    }
+
+    @Test
+    void 학습계획_응답이_깨지면_예외로_막아_크레딧을_되돌린다() {
+        when(learningCardRepository.findById(CARD_ID)).thenReturn(Optional.of(cardOwnedBy(USER_ID)));
+        when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
+                .thenReturn(new AiGenerationResult("JSON이 아님", 10, 10, 0.001));
+
+        assertThatThrownBy(() -> service.createStudyPlan(USER_ID, CARD_ID))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    // ---------- 차등 프롬프트 ----------
+
+    @Test
+    void 프롬프트는_수준과_모델티어에_따라_서로_다르다() {
+        LearningPromptBuilder builder = new LearningPromptBuilder();
+
+        String 초급1티어 = builder.buildCard("BEGINNER", "claude-haiku-4-5");
+        String 고급1티어 = builder.buildCard("ADVANCED", "claude-haiku-4-5");
+        String 고급3티어 = builder.buildCard("ADVANCED", "claude-opus-4-8");
+
+        assertThat(초급1티어).isNotEqualTo(고급1티어); // 수준 축이 먹는다
+        assertThat(고급1티어).isNotEqualTo(고급3티어); // 모델 축도 먹는다
+        assertThat(초급1티어).contains("수준 = 초급").contains("1티어");
+        assertThat(고급3티어).contains("수준 = 고급").contains("3티어");
+    }
+
+    @Test
+    void 퀴즈_프롬프트도_수준별로_갈리고_유형이_붙는다() {
+        LearningPromptBuilder builder = new LearningPromptBuilder();
+
+        String 중급 = builder.buildQuiz("INTERMEDIATE", "OX", "claude-sonnet-5");
+
+        assertThat(중급).contains("수준 = 중급").contains("2티어").contains("이번에 낼 문제 유형: OX");
     }
 }

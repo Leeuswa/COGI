@@ -12,7 +12,7 @@
  * PR 상세(팀장 승인·내보내기)는 별도 페이지 유지 — 거기서 [스튜디오에서 이어가기]로 넘어온다.
  */
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import * as api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
@@ -25,8 +25,10 @@ const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend"
 export default function Studio() {
     const { user } = useAuth();
     const { spendCredit, refundCredit, notify, S, creditLimit } = useGame();
+    const location = useLocation();
     const fileRef = useRef(null);
     const threadRef = useRef(null); // 채팅 스레드 컨테이너 — 내부 스크롤 전용
+    const loadedPrRef = useRef(false); // PR 판정 이어받기 — StrictMode 이중 실행에도 한 번만
     const myTier = PLAN_TIER[user.planName] ?? 1;
     const modelWeight = (m) => MODEL_TIERS.find((t) => t.name === m)?.tier ?? 1; // 크레딧 차감 가중치 = 모델 tier
     const remainingCredit = creditLimit - S.creditUsed;
@@ -51,11 +53,29 @@ export default function Studio() {
         if (t) t.scrollTop = t.scrollHeight; // scrollTo 미지원 환경도 안전
     }, [msgs, busy]);
 
-    // PR 상세 화면(PrDetail.tsx)에서 [스튜디오에서 마저 판정]으로 넘어오는 자동 실행은
-    // PR 대시보드(API-032/034, 아직 mock)의 prId 체계에 맞물려 있어 이번 범위에서 같이 못 고침 —
-    // 대시보드가 실제 백엔드를 갖추면 그때 (repoId, prNumber) 기준으로 재연결 필요.
-
     const push = (m) => setMsgs((prev) => [...prev, m]);
+
+    // PR 상세 화면(PrDetail.tsx)의 [스튜디오에서 마저 판정]에서 prId를 받으면, 새 리뷰를
+    // 시작하는 대신 그 PR의 최신 리뷰에서 아직 판정 안 한(OPEN) 이슈만 불러와 이어서 판정한다.
+    // RESOLVED/IGNORED/PENDING은 절대 다시 안 불러옴 — finalizeIssue가 상태와 무관하게 덮어써서,
+    // 이미 팀장 승인 대기 중인 이슈를 다시 판정에 태우면 안 되기 때문.
+    useEffect(() => {
+        const prId = location.state?.prId;
+        if (!prId || loadedPrRef.current) return;
+        loadedPrRef.current = true;
+        (async () => {
+            const res = await api.getPrReview(prId);
+            const openIssues = res.issues.filter((it) => it.status === "OPEN");
+            if (openIssues.length === 0) {
+                notify("이 PR엔 판정할 지적이 없어요.");
+                return;
+            }
+            setReviewId(res.reviewHistory?.[0]?.reviewId ?? null);
+            setIsPrReview(true);
+            push({ who: "cogi", text: `PR 판정을 이어갈게요 — 아직 결정 안 한 지적 ${openIssues.length}건이에요.` });
+            openIssues.forEach((it) => push({ issue: it }));
+        })();
+    }, [location.state]);
     const cogiSays = (list, gap = 650) => {
         list.forEach((m, i) =>
             setTimeout(() => push({ who: "cogi", ...m }), gap * (i + 1)),

@@ -148,6 +148,41 @@ class CreditUsageServiceImplTest {
         assertThat(status.remaining()).isEqualTo(15);
     }
 
+    // ---------- checkAndConsumeFixed/refundFixed (리뷰 후속 질문 ⚡1 등 — 모델 등급과 무관) ----------
+
+    @Test
+    void checkAndConsumeFixed는_모델_등급_조회_없이_넘긴_가중치만큼_소모한다() {
+        CreditUsage usage = usageStartingAt(0);
+        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+
+        service.checkAndConsumeFixed(USER_ID, 1);
+
+        assertThat(usage.getUsedCredits()).isEqualTo(1);
+        verify(planRepository, never()).findByName(any()); // 모델 등급 조회 자체가 없어야 함
+    }
+
+    @Test
+    void checkAndConsumeFixed도_한도_초과면_예외() {
+        CreditUsage usage = usageStartingAt(20); // FREE 한도 20 소진
+        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+
+        assertThatThrownBy(() -> service.checkAndConsumeFixed(USER_ID, 1))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CREDIT_LIMIT_EXCEEDED);
+
+        assertThat(usage.getUsedCredits()).isEqualTo(20);
+    }
+
+    @Test
+    void refundFixed는_넘긴_가중치만큼_되돌린다() {
+        CreditUsage usage = usageStartingAt(1);
+        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+
+        service.refundFixed(USER_ID, 1);
+
+        assertThat(usage.getUsedCredits()).isEqualTo(0);
+    }
+
     @Test
     void 오늘_사용_이력이_없으면_플랜_한도로_0_사용_반환() {
         when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.empty());

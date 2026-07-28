@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -125,9 +126,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             }
         }
 
-        //동의 약관 DB에 저장
+        //동의 약관 DB에 저장 (동의 당시 버전 함께 기록 — 재동의 판정용)
+        Map<Long, String> versionById = allTerms.stream()
+                .collect(Collectors.toMap(Term::getId, Term::getVersion));
         dto.agreeTerms().forEach(termId ->
-                userAgreementRepository.save(UserAgreement.of(userId, termId)));
+                userAgreementRepository.save(UserAgreement.of(userId, termId, versionById.get(termId))));
 
         // 새로 구독할 플랜 조회
         Plan newPlan = planRepository.findById(dto.planId())
@@ -200,7 +203,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         //일할계산 (남은일수 기준 차액) — 업그레이드라 항상 양수
         int prorated = calculateProratedAmount(
-                oldPlan.getPrice(), newPlan.getPrice(), LocalDate.now());
+                oldPlan.getPrice(), newPlan.getPrice(), sub);
 
         // 일할 차액을 빌링키로 즉시 청구. @Transactional 안이라 청구 실패 시 plan 전환·history까지 전부 롤백.
         PaymentMethod pm = paymentMethodRepository.findById(sub.getPaymentMethodId())
@@ -222,6 +225,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.updatePlanId(newPlan.getId());
 
+        // 전환 차액 결제 완료 메일 — 신규 구독과 동일하게 알림(청구액 = prorated)
+        try {
+            sendBillingMail(user.getEmail(), newPlan.getName(), prorated, pm.getCardMaskedNumber());
+        } catch (Exception e) {
+            log.warn("전환 결제 메일 발송 실패 userId={}: {}", user.getId(), e.getMessage());
+        }
 
         return new SubscriptionHistoryResponseDTO(
                 savedHistory.getPreviousPlanId(), savedHistory.getNewPlanId(),
@@ -277,12 +286,18 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .toList();
     }
 
-    // 일할계산: (새가격 - 기존가격) × 남은일수 ÷ 그 달 총일수
-    private int calculateProratedAmount(int oldPrice, int newPrice, LocalDate changeDate) {
-        int totalDays = changeDate.lengthOfMonth();
-        int remainingDays = totalDays - changeDate.getDayOfMonth();
+    // 일할계산: (새가격 - 기존가격) × 남은일수 ÷ 구독주기일수
+    // 주기는 달력월이 아니라 구독 주기(startedAt~expiresAt) 기준 — 가입일 앵커와 맞춤
+    private int calculateProratedAmount(int oldPrice, int newPrice, Subscription sub) {
+        LocalDate today = LocalDate.now();
+        LocalDate start = sub.getStartedAt().toLocalDate();
+        LocalDate expires = sub.getExpiresAt().toLocalDate();
+        long cycleDays = ChronoUnit.DAYS.between(start, expires);
+        if (cycleDays <= 0) return newPrice - oldPrice; // 방어: 비정상 주기면 차액 전액
+        long remainingDays = ChronoUnit.DAYS.between(today, expires);
+        remainingDays = Math.max(0, Math.min(remainingDays, cycleDays)); // [0, cycle]로 클램프
         int diff = newPrice - oldPrice;
-        return diff * remainingDays / totalDays;
+        return (int) ((long) diff * remainingDays / cycleDays); // long 승격으로 오버플로 방지
     }
 
     //결제시 이메일 알림

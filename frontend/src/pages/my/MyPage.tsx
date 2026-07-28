@@ -26,6 +26,7 @@ export default function MyPage() {
   const [totp, setTotp] = useState(null); // setup 응답 { secret }
   const [terms, setTerms] = useState([]);
   const [agreedIds, setAgreedIds] = useState([]); // 내가 동의한 약관 id
+  const [agreedVers, setAgreedVers] = useState([]); // [{termId, agreedVersion}] — 개정 여부 판정용
   const [busy, setBusy] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ cur: '', next: '', confirm: '' });
@@ -36,10 +37,14 @@ export default function MyPage() {
   const isSocial = user.provider === 'KAKAO' || user.provider === 'GITHUB';
   const providerName = user.provider === 'KAKAO' ? '카카오' : user.provider === 'GITHUB' ? 'GitHub' : null;
 
+  const loadAgreements = () => {
+    api.getMyAgreements().then(setAgreedIds).catch(() => setAgreedIds([]));
+    api.getMyAgreementVersions().then(setAgreedVers).catch(() => setAgreedVers([]));
+  };
   useEffect(() => {
     api.getTerms().then(setTerms);
-    api.getMyAgreements().then(setAgreedIds).catch(() => setAgreedIds([]));
-  }, []);
+    loadAgreements();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // GitHub 연동 리다이렉트 결과 처리 — 백엔드 콜백이 ?linked=1 또는 ?error=... 로 되돌려보낸다
   const [params, setParams] = useSearchParams();
@@ -132,7 +137,7 @@ export default function MyPage() {
       )}
       {tab === 'github' && <GithubTab user={user} onLink={linkGh} busy={busy} error={linkError} />}
       {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} onEnable={enableTotp} busy={busy} />}
-      {tab === 'terms' && <TermsTab terms={terms} agreedIds={agreedIds} />}
+      {tab === 'terms' && <TermsTab terms={terms} agreedIds={agreedIds} agreedVers={agreedVers} onReagreed={loadAgreements} />}
       {tab === 'notice' && <NoticeTab />}
     </main>
   );

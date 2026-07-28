@@ -30,7 +30,8 @@ public class WeeklyReportSender {
         User u = userRepository.findById(userId).orElse(null);
         if (u == null) return;
 
-        LocalDate thisMonday = LocalDate.now().with(DayOfWeek.MONDAY);
+//        LocalDate thisMonday = LocalDate.now().with(DayOfWeek.MONDAY);
+        LocalDate thisMonday = LocalDate.now().plusWeeks(1).with(DayOfWeek.MONDAY);
         LocalDate lastMonday = thisMonday.minusWeeks(1);
         if (weeklyReportRepository.existsByUserIdAndPeriodStart(userId, lastMonday)) return; // 중복 방지
 

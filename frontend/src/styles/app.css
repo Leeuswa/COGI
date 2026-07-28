@@ -93,6 +93,11 @@
 .chip.gray { background: #8b96b5; }
 .chip.sm { font-size: 11px; padding: 2px 7px; }
 
+/* 약관 탭 동의/재동의 버튼 — 표 셀 안에서 콤팩트하게 (기본 .btn.sm 은 셀에 비해 큼) */
+.term-btn.btn.sm { padding: 5px 11px; min-width: 0; font-size: 11.5px; box-shadow: 2px 2px 0 var(--navy); }
+.term-btn.btn.sm:hover:not(:disabled) { box-shadow: 3px 3px 0 var(--navy); transform: translate(-1px, -1px); }
+.term-btn.btn.sm:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--navy); }
+
 /* FAQ 아코디언 (마이페이지 FAQ 탭) — 각 항목을 카드로 띄워 여백 확보 */
 .faq-list { display: flex; flex-direction: column; gap: 14px; }
 .faq-item { border: 3px solid var(--navy); background: #fdfcf7; box-shadow: 4px 4px 0 var(--navy); }
@@ -598,3 +603,32 @@
   background: var(--coral); color: var(--white); font-size: 12px; font-weight: 700;
   padding: 4px 14px; border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy); white-space: nowrap;
 }
+
+/* ── 학습카드 목록·상세 (LRN-002) ── */
+
+/* c3에 이미 넣어둔 것과 같은 처리. 전역 `.panel + .panel { margin-top: 22px }`가
+   그리드 2번째 칸부터 걸려서 첫 줄만 아래로 밀려 높이가 어긋나 보였다. */
+.panel-grid.c2 { align-items: stretch; }
+.panel-grid.c2 > .panel { margin-top: 0; }
+
+/* 카테고리명 길이가 달라도 메타 줄이 같은 높이에 오도록 세로 flex로 편다 */
+.card-tile { display: flex; flex-direction: column; }
+
+/* 승급 진행바 — 히스토리 패널을 걷어내고 이 눈금 하나로 대체했다 */
+.gp-track {
+  position: relative; height: 14px; background: #f1efe6;
+  border: 3px solid var(--navy); overflow: visible;
+}
+.gp-fill { height: 100%; background: var(--mint); transition: width .3s ease; }
+/* 마일스톤 눈금(3·7·8회). 지나온 지점은 코랄로 채워 한눈에 보이게 */
+.gp-mark {
+  position: absolute; top: -5px; width: 8px; height: 18px; margin-left: -4px;
+  background: var(--white); border: 3px solid var(--navy);
+}
+.gp-mark.on { background: var(--coral); }
+
+/* 학습 계획 한 줄 — 제목/할 일/체크포인트를 세로로 쌓는다 */
+.plan-body { display: flex; flex-direction: column; gap: 3px; max-width: 46%; }
+
+/* 셀프 체크는 번호 대신 체크박스 모양으로 */
+.keypoints.selfcheck li::before { content: '☐'; color: var(--navy); }

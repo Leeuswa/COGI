@@ -22,6 +22,8 @@ public class LearningCardQuiz {
 
     private String questionType; // MULTIPLE_CHOICE/OX/SHORT_ANSWER/FILL_BLANK
 
+    private String modelName; // 이 문제를 만든 모델. 카드 모델과 다를 수 있어 따로 남긴다
+
     @Lob
     private String question;
 
@@ -30,7 +32,8 @@ public class LearningCardQuiz {
 
     private String answer;
 
-    // explain은 MariaDB 예약어라 그대로 쓰면 테이블 생성 DDL부터 깨진다. 컬럼명만 explanation으로 바꾸고 필드명은 유지
+
+    // explain은 MariaDB 예약어라 그대로 쓰면 테이블 생성 DDL부터 깨진다. 컬럼명만 바꾸고 필드명은 유지
     @Lob
     @Column(name = "explanation")
     private String explain; // 해설 — 정답이든 오답이든 학습용으로 보여준다
@@ -43,16 +46,19 @@ public class LearningCardQuiz {
         this.createdAt = LocalDateTime.now();
     }
 
-    private LearningCardQuiz(Long cardId, String questionType, String question, String options, String answer, String explain) {
+    private LearningCardQuiz(Long cardId, String questionType, String modelName,
+                             String question, String options, String answer, String explain) {
         this.cardId = cardId;
         this.questionType = questionType;
+        this.modelName = modelName;
         this.question = question;
         this.options = options;
         this.answer = answer;
         this.explain = explain;
     }
 
-    public static LearningCardQuiz create(Long cardId, String questionType, String question, String options, String answer, String explain) {
-        return new LearningCardQuiz(cardId, questionType, question, options, answer, explain);
+    public static LearningCardQuiz create(Long cardId, String questionType, String modelName,
+                                          String question, String options, String answer, String explain) {
+        return new LearningCardQuiz(cardId, questionType, modelName, question, options, answer, explain);
     }
 }

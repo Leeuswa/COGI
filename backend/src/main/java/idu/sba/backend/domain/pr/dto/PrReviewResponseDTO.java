@@ -11,14 +11,18 @@ public class PrReviewResponseDTO {
 
     private final PrDetailResponseDTO pr;
     private final List<ReviewIssueResponseDTO> issues;
+    private final List<PrReviewHistoryItemDTO> reviewHistory; //최신순, 재검토가 없었으면 1건
 
-    private PrReviewResponseDTO(PrDetailResponseDTO pr, List<ReviewIssueResponseDTO> issues) {
+    private PrReviewResponseDTO(PrDetailResponseDTO pr, List<ReviewIssueResponseDTO> issues,
+                                 List<PrReviewHistoryItemDTO> reviewHistory) {
         this.pr = pr;
         this.issues = issues;
+        this.reviewHistory = reviewHistory;
     }
 
-    public static PrReviewResponseDTO of(PrDetailResponseDTO pr, List<ReviewIssueResponseDTO> issues) {
-        return new PrReviewResponseDTO(pr, issues);
+    public static PrReviewResponseDTO of(PrDetailResponseDTO pr, List<ReviewIssueResponseDTO> issues,
+                                          List<PrReviewHistoryItemDTO> reviewHistory) {
+        return new PrReviewResponseDTO(pr, issues, reviewHistory);
     }
 
 }

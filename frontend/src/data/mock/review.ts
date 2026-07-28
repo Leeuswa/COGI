@@ -35,6 +35,13 @@ export const mockPr = {
   createdAt: '2026-07-10T02:47:00',
 };
 
+// ── 리뷰 이력(재검토로 쌓인 Review 목록, 최신순) — "고쳐져서 재검토에 안 나오면 판정 이력이
+// 안 남는다"는 한계를 완전히 없애진 못해도, 최소한 몇 번 재검토됐고 CRITICAL이 줄었는지는 보여줌 ──
+export const mockReviewHistory = [
+  { reviewId: 2, createdAt: '2026-07-11T09:12:00', modelName: 'claude-haiku-4-5', status: 'COMPLETED', issueCount: 1, criticalCount: 0 },
+  { reviewId: 1, createdAt: '2026-07-10T02:47:00', modelName: 'claude-haiku-4-5', status: 'COMPLETED', issueCount: 2, criticalCount: 1 },
+];
+
 // ── review_issues (RDB-001/003) — 랜딩 데모 패널의 그 이슈 하나 ──
 export const mockIssue = {
   id: 1,
