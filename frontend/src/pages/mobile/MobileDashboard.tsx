@@ -14,7 +14,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import * as api from "../../api/client";
-import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
 import CorgiDevice from "../../components/CorgiDevice";
 import { catKo } from "../../data/constants";
@@ -23,7 +22,6 @@ import "../../styles/mobile/dashboard.css";
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 export default function MobileDashboard() {
-  const { user } = useAuth();
   const { S, creditLimit, syncServer, checkIn } = useGame();
 
   const [weakness, setWeakness] = useState([]);
