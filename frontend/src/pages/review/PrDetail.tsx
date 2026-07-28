@@ -13,7 +13,7 @@ import { useParams, Link } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useGame } from '../../context/GameContext';
 import { PageHead, SevChip, renderDescription } from '../../components/ui';
-import { catKo, ISSUE_STATUS_KO, MODEL_TIERS } from '../../data/constants';
+import { catKo, sevKo, ISSUE_STATUS_KO, MODEL_TIERS } from '../../data/constants';
 
 // 내보내기(MD)는 백엔드 없이 프론트에서 파일을 만들어 내려준다 (FR-45~46)
 function download(text, filename) {
@@ -113,15 +113,20 @@ export default function PrDetail() {
       `| 구분 | 심각도 | 카테고리 | 위치 | 상태 |`,
       `|:-:|:--|:--|:--|:--|`,
       ...issues.map((it, i) =>
-        `| ${i + 1} | ${SEV_DOT[it.severity] ?? '⚪'} \`${it.severity}\` | ${catKo(it.category)} | \`${it.filePath}:${it.lineNumber}\` | ${STAT_MD[it.status] ?? it.status} |`),
+        `| ${i + 1} | ${SEV_DOT[it.severity] ?? '⚪'} ${sevKo(it.severity)} | ${catKo(it.category)} | \`${it.filePath}:${it.lineNumber}\` | ${STAT_MD[it.status] ?? it.status} |`),
       ``,
       `## 상세`,
       ``,
     ];
     const body = issues.flatMap((it, i) => {
-      const desc = String(it.description ?? '').split('\n').map((l) => `> ${l}`).join('\n');
+      // 산문은 인용(> )으로, 펜스 코드블럭(```)은 인용 밖으로 빼 진짜 코드블럭으로 렌더시킨다. 인라인 백틱은 그대로 코드로 보임
+      let inFence = false;
+      const desc = String(it.description ?? '').split('\n').map((l) => {
+        if (l.trimStart().startsWith('```')) { inFence = !inFence; return l; }
+        return inFence ? l : `> ${l}`;
+      }).join('\n');
       return [
-        `### ${SEV_DOT[it.severity] ?? '⚪'} ${i + 1}. ${catKo(it.category)} · \`${it.severity}\``,
+        `### ${SEV_DOT[it.severity] ?? '⚪'} ${i + 1}. ${catKo(it.category)} · ${sevKo(it.severity)}`,
         `**위치** \`${it.filePath}:${it.lineNumber}\`　**상태** ${STAT_MD[it.status] ?? it.status}`,
         ``,
         desc,
@@ -156,6 +161,80 @@ export default function PrDetail() {
       let y = M;
       const need = (h) => { if (y + h > PH - M) { pdf.addPage(); y = M; } };
 
+      // 설명 속 백틱/펜스 코드 세그먼트를 뽑아 회색 배경으로 그린다 — 사이트의 inline-code 느낌을 PDF에도.
+      // 폰트가 Nanum 하나뿐이라 배경 박스로 코드감을 준다. draw=false면 높이만 재서 카드 높이 계산에 쓴다.
+      // CJK는 공백이 없어 문자 단위로 줄바꿈(word-wrap 불가)한다.
+      const tokenizeDesc = (text) => {
+        const re = /```[\w-]*\n?([\s\S]*?)```|`([^`\n]+)`/g;
+        const segs = []; let last = 0, m;
+        while ((m = re.exec(text)) !== null) {
+          if (m.index > last) segs.push({ code: false, text: text.slice(last, m.index) });
+          segs.push(m[1] !== undefined ? { code: true, block: true, text: m[1].trim() } : { code: true, text: m[2] });
+          last = re.lastIndex;
+        }
+        if (last < text.length) segs.push({ code: false, text: text.slice(last) });
+        return segs;
+      };
+      // 사이트와 동일: 펜스 코드블럭=네이비 배경+하늘색 글씨+코랄 왼쪽바, 인라인 코드=크림 칩+테두리.
+      // rows: 인라인 줄({block:false, chars})은 문자단위 wrap(CJK 대응), 코드블럭 줄({block:true})은 splitTextToSize로 wrap.
+      const drawDesc = (text, x0, y0, maxW, lineH, draw) => {
+        const rows = []; let buf = [];
+        const flushInline = () => { // buf(문자 토큰)를 maxW로 감아 인라인 줄로 만든다
+          let line = [], w = 0;
+          for (const t of buf) {
+            if (t.nl) { rows.push({ block: false, chars: line }); line = []; w = 0; continue; }
+            const cw = pdf.getTextWidth(t.c);
+            if (w + cw > maxW) { rows.push({ block: false, chars: line }); line = []; w = 0; }
+            line.push({ c: t.c, code: t.code, cw }); w += cw;
+          }
+          if (line.length) rows.push({ block: false, chars: line });
+          buf = [];
+        };
+        tokenizeDesc(text).forEach((s) => {
+          if (s.block) {
+            flushInline();
+            const wrapped = [];
+            s.text.split('\n').forEach((cl) => pdf.splitTextToSize(cl || ' ', maxW - 5).forEach((p) => wrapped.push(p)));
+            wrapped.forEach((cl, i) => rows.push({ block: true, text: cl, first: i === 0, last: i === wrapped.length - 1 }));
+          } else {
+            [...s.text].forEach((c) => buf.push(c === '\n' ? { nl: 1 } : { c, code: s.code ? 1 : 0 }));
+          }
+        });
+        flushInline();
+
+        // 높이 = 인라인 줄 lineH, 코드줄 lineH + 첫/막 줄 상하 패딩 2mm씩
+        const rowH = (r) => lineH + (r.block ? (r.first ? 2 : 0) + (r.last ? 2 : 0) : 0);
+        if (!draw) return rows.reduce((h, r) => h + rowH(r), 0);
+
+        let cy = y0;
+        rows.forEach((r) => {
+          if (r.block) {
+            if (r.first) cy += 2;
+            const rectY = cy - 3.8 - (r.first ? 2 : 0);
+            const rectH = lineH + (r.first ? 2 : 0) + (r.last ? 2 : 0);
+            fill('#1b2a4a'); pdf.rect(x0 - 1, rectY, maxW + 2, rectH, 'F');       // 네이비 블록
+            fill('#ff6b57'); pdf.rect(x0 - 1, rectY, 1.8, rectH, 'F');            // 코랄 왼쪽바
+            ink('#cfe8ff'); pdf.text(r.text, x0 + 4, cy);                         // 하늘색 코드
+            cy += lineH + (r.last ? 2 : 0);
+          } else {
+            let x = x0, j = 0;
+            while (j < r.chars.length) { // 인라인 코드 크림 칩
+              if (r.chars[j].code) { let rw = 0, k = j; while (k < r.chars.length && r.chars[k].code) { rw += r.chars[k].cw; k++; } fill('#f3eee3'); const bc = rgb('#40507a'); pdf.setDrawColor(bc[0], bc[1], bc[2]); pdf.setLineWidth(0.2); pdf.roundedRect(x - 0.8, cy - 3.4, rw + 1.6, 4.8, 0.4, 0.4, 'FD'); x += rw; j = k; }
+              else { x += r.chars[j].cw; j++; }
+            }
+            x = x0; j = 0;
+            while (j < r.chars.length) {
+              const code = r.chars[j].code; let str = '', k = j;
+              while (k < r.chars.length && r.chars[k].code === code) { str += r.chars[k].c; k++; }
+              ink(code ? '#1b2a4a' : '#2c2c2a'); pdf.text(str, x, cy);
+              for (let z = j; z < k; z++) x += r.chars[z].cw; j = k;
+            }
+            cy += lineH;
+          }
+        });
+        return rows.reduce((h, r) => h + rowH(r), 0);
+      };
+
       // 헤더
       fill('#1b2a4a'); pdf.rect(M, y, W, 26, 'F');
       ink('#ffd23f'); pdf.setFontSize(9); pdf.text('COGI · CODE GUIDE', M + 6, y + 8);
@@ -185,8 +264,9 @@ export default function PrDetail() {
       issues.forEach((it) => {
         const [bg, fg, bar] = SEV_C[it.severity] || ['#f1efe8', '#444441', '#888780'];
         pdf.setFontSize(10);
-        const desc = pdf.splitTextToSize(String(it.description ?? ''), W - 14);
-        const cardH = 15 + desc.length * 5 + 3;
+        const descText = String(it.description ?? '');
+        const descH = drawDesc(descText, M + 6, y + 15, W - 12, 5, false);
+        const cardH = 15 + descH + 3;
         need(cardH + 3);
         pdf.setFillColor(255, 255, 255); pdf.setDrawColor(229, 225, 214);
         pdf.roundedRect(M, y, W, cardH, 2, 2, 'FD');
@@ -194,16 +274,17 @@ export default function PrDetail() {
         // 뱃지 줄
         let bx = M + 6; const by = y + 8;
         pdf.setFontSize(8);
-        const sw = pdf.getTextWidth(it.severity) + 6;
-        fill(bg); pdf.roundedRect(bx, by - 4.2, sw, 6, 1, 1, 'F'); ink(fg); pdf.text(it.severity, bx + 3, by);
+        const sevText = sevKo(it.severity);
+        const sw = pdf.getTextWidth(sevText) + 6;
+        fill(bg); pdf.roundedRect(bx, by - 4.2, sw, 6, 1, 1, 'F'); ink(fg); pdf.text(sevText, bx + 3, by);
         bx += sw + 3;
         const cat = catKo(it.category), cw = pdf.getTextWidth(cat) + 6;
         fill('#1b2a4a'); pdf.roundedRect(bx, by - 4.2, cw, 6, 1, 1, 'F'); ink('#ffffff'); pdf.text(cat, bx + 3, by);
         bx += cw + 4;
         ink('#666666'); pdf.text(String(ISSUE_STATUS_KO[it.status] ?? it.status), bx, by);
         ink('#8b96b5'); pdf.text(`${it.filePath}:${it.lineNumber}`, M + W - 6, by, { align: 'right' });
-        // 설명
-        ink('#2c2c2a'); pdf.setFontSize(10); pdf.text(desc, M + 6, y + 15);
+        // 설명 — 백틱 코드는 회색 배경으로
+        pdf.setFontSize(10); drawDesc(descText, M + 6, y + 15, W - 12, 5, true);
         y += cardH + 4;
       });
 

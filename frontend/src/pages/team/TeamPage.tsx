@@ -152,10 +152,10 @@ export default function TeamPage() {
               <thead><tr><th>GitHub 아이디</th><th>역할</th><th>합류일</th><th></th></tr></thead>
               <tbody>
                 {(members[r.repoId] || []).map((m) => {
-                  const isMe = m.githubUsername === user.githubUsername;
+                  const isMe = !!m.githubUsername && m.githubUsername === user.githubUsername;
                   return (
                     <tr key={m.userId}>
-                      <td><b>@{m.githubUsername}</b></td>
+                      <td><b>{m.githubUsername ? `@${m.githubUsername}` : (m.nickname || '탈퇴한 회원')}</b></td>
                       <td><span className={`chip ${m.role === 'OWNER' ? 'co' : 'navy'}`}>{m.role === 'OWNER' ? '팀장' : '팀원'}</span></td>
                       <td className="mono xs">{m.joinedAt}</td>
                       <td>

@@ -108,7 +108,11 @@ public enum ErrorCode {
     //관리자 본인 권한수정
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 권한은 변경할 수 없습니다."),
     //관리자 본인 상태수정
-    CANNOT_STATUS_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 상태는 수정할 수 없습니다.");
+    CANNOT_STATUS_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 상태는 수정할 수 없습니다."),
+
+    //회원탈퇴
+    ACCOUNT_WITHDRAWN(HttpStatus.FORBIDDEN, "탈퇴한 계정입니다."),
+    INVALID_WITHDRAW_CONFIRM(HttpStatus.BAD_REQUEST, "탈퇴 확인 문구가 올바르지 않습니다.");
 
     private final HttpStatus status; // 이 에러가 나갈 때의 HTTP 상태코드
     private final String message; // 사용자에게 보여줄 메시지

@@ -210,6 +210,11 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.ACCOUNT_SUSPENDED);
         }
 
+        //탈퇴한 계정 — 이메일이 익명화돼 사실상 여기 도달 못 하지만 방어적으로 차단
+        if(user.getStatus() == UserStatus.WITHDRAWN){
+            throw new BusinessException(ErrorCode.ACCOUNT_WITHDRAWN);
+        }
+
         //비밀번호 검증
         if(!passwordEncoder.matches(req.getPassword(),user.getPassword())){
             user.increaseLoginFailCount(); //실패 회수 + 1, 5회이상 -> 계정잠금

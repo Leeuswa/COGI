@@ -3,7 +3,7 @@
  * 상태와 저장/연동/OTP 핸들러는 여기, 화면은 tabs/ 아래 파일 하나씩.
  */
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
 import { isValidPassword, PW_HINT } from '../../utils/password';
 import { useAuth } from '../../context/AuthContext';
@@ -15,11 +15,17 @@ import SecurityTab from './tabs/SecurityTab';
 import TermsTab from './tabs/TermsTab';
 import NoticeTab from './tabs/NoticeTab';
 
+const WITHDRAW_PHRASE = '탈퇴하겠습니다';
+
 export default function MyPage() {
-  const { user, patchUser } = useAuth();
+  const { user, patchUser, signOut } = useAuth();
   const { notify } = useGame();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState('profile');
+  const [wdOpen, setWdOpen] = useState(false);      // 회원탈퇴 모달
+  const [wdText, setWdText] = useState('');         // 확인 문구 입력값
+  const [wdBusy, setWdBusy] = useState(false);
   const [name, setName] = useState(user.name || '');
   const [level, setLevel] = useState(user.level || 'BEGINNER');
   const [interests, setInterests] = useState(user.interests || []);
@@ -123,6 +129,21 @@ export default function MyPage() {
     } finally { setBusy(false); }
   };
 
+  // 회원탈퇴 — 문구 일치해야 진행. 팀장인 팀은 서버가 첫 팀원에게 위임/해체. 완료되면 로그아웃 후 홈으로.
+  const doWithdraw = async () => {
+    if (wdText.trim() !== WITHDRAW_PHRASE) return;
+    setWdBusy(true);
+    try {
+      await api.withdraw(wdText.trim());
+      await signOut();
+      navigate('/', { replace: true });
+      notify('회원 탈퇴가 완료됐어요. 이용해주셔서 감사합니다');
+    } catch (ex) {
+      notify(ex.message || '탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요');
+      setWdBusy(false);
+    }
+  };
+
   return (
     <main className="app-main">
       <PageHead badge="MY PAGE" title="마이페이지" lead={user.name ? `${user.name} · ${user.email}` : user.email} />
@@ -139,6 +160,42 @@ export default function MyPage() {
       {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} onEnable={enableTotp} busy={busy} />}
       {tab === 'terms' && <TermsTab terms={terms} agreedIds={agreedIds} agreedVers={agreedVers} onReagreed={loadAgreements} />}
       {tab === 'notice' && <NoticeTab />}
+
+      {/* 회원탈퇴 — 하단 위험구역. 프로필 탭에서만 노출 */}
+      {tab === 'profile' && (
+        <div className="danger-zone">
+          <div>
+            <b>회원 탈퇴</b>
+            <p>탈퇴하면 개인정보는 삭제되고 되돌릴 수 없어요. 작성한 리뷰 기록은 '탈퇴한 회원'으로 남습니다.</p>
+          </div>
+          <button className="btn danger sm" onClick={() => { setWdText(''); setWdOpen(true); }}>회원 탈퇴</button>
+        </div>
+      )}
+
+      {wdOpen && (
+        <div className="modal-mask" onClick={() => !wdBusy && setWdOpen(false)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3>정말 탈퇴하시겠어요?</h3>
+            <ul style={{ fontSize: 13.5, lineHeight: 1.9, margin: '14px 0 6px', paddingLeft: 18 }}>
+              <li>개인정보(이메일·닉네임·소셜 연동)가 삭제돼요.</li>
+              <li>회원님이 <b>팀장인 팀</b>은 가장 먼저 합류한 팀원에게 <b>자동 위임</b>돼요.<br />(팀원이 없으면 팀이 해체돼요)</li>
+              <li>작성한 리뷰·PR 기록은 <b>'탈퇴한 회원'</b>으로 남아요.</li>
+            </ul>
+            <p style={{ fontSize: 13.5, margin: '16px 0 8px' }}>
+              계속하려면 아래에 <b>{WITHDRAW_PHRASE}</b> 를 정확히 입력해주세요.
+            </p>
+            <input className="input" value={wdText} onChange={(e) => setWdText(e.target.value)}
+              placeholder={WITHDRAW_PHRASE} disabled={wdBusy} autoFocus />
+            <div className="row" style={{ gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
+              <button className="btn wh sm" onClick={() => setWdOpen(false)} disabled={wdBusy}>취소</button>
+              <button className="btn danger sm" onClick={doWithdraw}
+                disabled={wdBusy || wdText.trim() !== WITHDRAW_PHRASE}>
+                {wdBusy ? '처리 중…' : '탈퇴하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
