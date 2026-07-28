@@ -165,6 +165,10 @@ export const changePassword = (currentPassword, newPassword, newPasswordConfirm)
         : new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('401'), { status: 401 })), 300)))
     : http('PATCH', '/api/users/me/password', { currentPassword, newPassword, newPasswordConfirm });
 
+// 회원탈퇴 — 소셜·로컬 공통, 확인 문구("탈퇴하겠습니다")를 서버가 재검증
+export const withdraw = (confirm) =>
+  USE_MOCK ? mock({ ok: true }) : http('DELETE', '/api/users/me', { confirm });
+
 // API-006-1 POST /api/users/me/totp/setup — 로그인 상태에서 시크릿/QR 발급 (아직 활성화 아님)
 export const totpSetup = () =>
   USE_MOCK

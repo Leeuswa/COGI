@@ -72,6 +72,12 @@ public class PromptBuilder {
         return levelPrompt + "\n" + override;
     }
 
+    // Groq(llama) 전용 언어 강제 규칙 — 게스트 리뷰가 Groq로 폴백할 때만 프롬프트 끝에 덧붙인다.
+    // 다른 프롬프트처럼 파일(prompt_groq_language.txt)로 관리한다.
+    public String readGroqLanguageRule() {
+        return readResource("prompt_groq_language.txt");
+    }
+
     // 레벨 지침: DB에 있으면 그 값, 없으면 파일 폴백. 관리자 조회(GET)도 이걸 재사용해
     // "리뷰가 실제로 쓰는 값"을 그대로 화면에 보여준다.
     public String resolveLevelGuideline(Level level) {

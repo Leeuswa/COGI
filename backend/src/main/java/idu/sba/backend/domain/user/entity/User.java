@@ -152,6 +152,22 @@ public class User {
         this.status = status;
     }
 
+    // 회원탈퇴 — 소프트삭제 + 개인정보 익명화. 리뷰/PR 등 이력은 남기고 식별정보만 지운다.
+    // nickname을 "탈퇴한 회원"으로 세팅 → authorName이 여기서 나오므로 모든 화면에 자동 반영.
+    // email/githubId/kakaoId는 유니크 제약이라 비워야 같은 이메일·소셜계정으로 재가입 가능(NULL은 중복 허용).
+    public void withdraw() {
+        this.status = UserStatus.WITHDRAWN;
+        this.nickname = "탈퇴한 회원";
+        this.email = "withdrawn_" + this.id + "@deleted.local"; // 원래 이메일 해방
+        this.githubId = null;
+        this.kakaoId = null;
+        this.githubUsername = null;
+        this.githubAccessToken = null;
+        this.totpSecret = null;
+        this.totpEnabled = false;
+        this.isLocked = false;
+    }
+
     // 관리자 회원관리 권한(USER/ADMIN) 즉시 변경
     public void changeRole(Role role) {
         this.role = role;

@@ -36,4 +36,7 @@ public interface UserService {
 
     //소셜로그인 약관동의
     void submitAgreements(Long userId, AgreementSubmitDTO req);
+
+    //회원탈퇴 — 팀장이면 첫 팀원에게 위임(없으면 팀 해체) 후 소프트삭제·익명화
+    void withdraw(Long userId, WithdrawRequestDTO req);
 }

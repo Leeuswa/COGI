@@ -57,7 +57,9 @@ export default function TermsTab({ terms, agreedIds = [], agreedVers = [], onRea
                   {t.isRequired ? (
                     <span className="chip low">동의함</span>
                   ) : t.type === 'PAYMENT' ? (
-                    <span className="chip gray">결제 시 동의</span>
+                    on
+                      ? <span className="chip low">동의함</span>
+                      : <span className="chip gray">결제 시 동의</span>
                   ) : (
                     // 선택 — 동의/해제 토글 버튼
                     <button type="button" className={`btn sm term-btn ${on ? 'wh' : 'co'}`} disabled={busy}

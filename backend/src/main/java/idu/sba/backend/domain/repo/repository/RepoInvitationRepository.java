@@ -27,4 +27,7 @@ public interface RepoInvitationRepository extends JpaRepository<RepoInvitation, 
     boolean existsByRepoIdAndInvitedGithubUsernameIgnoreCaseAndStatus(
             Long repoId, String invitedGithubUsername, RepoInvitationStatus status);
 
+    //팀 해체(팀장 탈퇴 시 팀원 0명) — 해당 레포의 초대 전부 정리
+    void deleteByRepoId(Long repoId);
+
 }
