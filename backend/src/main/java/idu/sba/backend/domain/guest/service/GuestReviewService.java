@@ -15,6 +15,7 @@ import idu.sba.backend.domain.review.service.PromptBuilder;
 import idu.sba.backend.domain.user.entity.Level;
 import idu.sba.backend.global.ai.AiInputType;
 import idu.sba.backend.global.ai.AiModel;
+import idu.sba.backend.global.ai.AiProvider;
 import idu.sba.backend.global.ai.AiReviewClient;
 import idu.sba.backend.global.ai.AiReviewResult;
 import idu.sba.backend.global.exception.BusinessException;
@@ -54,8 +55,9 @@ public class GuestReviewService {
     // 비로그인 체험 제한 횟수(3회). 한 곳에서만 관리하려고 상수로.
     private static final int TRIAL_LIMIT = 3;
 
-    // 게스트 체험이 쓰는 모델. claim 시 reviews.model_name 에도 이 값을 남긴다.
-    private static final AiModel GUEST_MODEL = AiModel.GEMINI_FLASH;
+    // 게스트 체험 모델 — 앞이 우선, 실패(rate limit/장애) 시 다음으로 폴백.
+    // 실제로 성공한 모델을 usage 로그·claim 시 reviews.model_name 에 남긴다.
+    private static final List<AiModel> GUEST_MODELS = List.of(AiModel.GEMINI_FLASH, AiModel.GROQ_LLAMA_70B);
 
     // 체험 횟수 유지 창. 첫 리뷰 시점부터 24시간 뒤 카운터가 만료돼 3회가 리셋된다.
     private static final Duration TRIAL_WINDOW = Duration.ofHours(24);
@@ -91,30 +93,44 @@ public class GuestReviewService {
 
 
         Level level = parseLevel(request.getLevel());
+        String systemPrompt = promptBuilder.build(level, GUEST_PLAN);
 
-        String summary;
-        List<ReviewComment> comments;
-        try {
-            String systemPrompt = promptBuilder.build(level, GUEST_PLAN);
-            AiReviewResult result = aiReviewClient.review(
-                    GUEST_MODEL, systemPrompt, request.getCode(), null, AiInputType.PASTED_CODE);
-            summary = result.summary();
-            comments = result.issues().stream()
-                    .map(i -> new ReviewComment(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))
-                    .toList();
-            //게스트 AI 사용량 기록 — userId=null(비로그인), 통계는 부차적이라 실패해도 리뷰는 계속
+        // Gemini 우선 호출, 실패(rate limit/장애) 시 Groq로 폴백. 하나라도 성공하면 그 결과를 쓴다.
+        AiReviewResult result = null;
+        AiModel usedModel = null;
+        BusinessException lastError = null;
+        for (AiModel model : GUEST_MODELS) {
+            // Groq만 언어 누출이 있어 이 모델에 한해 프롬프트 끝에 한국어 강제 규칙(파일)을 덧붙인다.
+            String prompt = model.provider() == AiProvider.GROQ
+                    ? systemPrompt + "\n\n" + promptBuilder.readGroqLanguageRule()
+                    : systemPrompt;
             try {
-                aiUsageLogRepository.save(AiUsageLog.of(
-                        null, GUEST_MODEL.id(), result.inputTokens(), result.outputTokens(),
-                        result.cost(), "GUEST_REVIEW"));
-            } catch (Exception logEx) {
-                // 로깅만 하고 삼킴 — 회계 저장 실패가 게스트 리뷰를 막으면 안 됨
+                result = aiReviewClient.review(
+                        model, prompt, request.getCode(), null, AiInputType.PASTED_CODE);
+                usedModel = model;
+                break;
+            } catch (BusinessException e) {
+                lastError = e; // 이 모델 실패 — 다음 폴백 모델로 시도
             }
-        } catch (BusinessException e) {
-            // AI 호출 실패 시 방금 올린 체험 횟수를 롤백하고, 에러코드(AI_MODEL_CALL_FAILED)는 그대로 유지한 채 재던짐
-            // — GlobalExceptionHandler가 502로 통일 응답하도록(예전처럼 500 RuntimeException으로 뭉개지 않음)
+        }
+        // 모든 모델 실패 — 방금 올린 체험 횟수를 롤백하고 마지막 에러(AI_MODEL_CALL_FAILED)를 재던져 502로 통일 응답
+        // (예전처럼 500 RuntimeException으로 뭉개지 않음)
+        if (result == null) {
             redisTemplate.opsForValue().decrement(countKey);
-            throw e;
+            throw lastError;
+        }
+
+        String summary = result.summary();
+        List<ReviewComment> comments = result.issues().stream()
+                .map(i -> new ReviewComment(i.category(), i.severity(), i.filePath(), i.lineNumber(), i.description()))
+                .toList();
+        //게스트 AI 사용량 기록 — userId=null(비로그인), 통계는 부차적이라 실패해도 리뷰는 계속
+        try {
+            aiUsageLogRepository.save(AiUsageLog.of(
+                    null, usedModel.id(), result.inputTokens(), result.outputTokens(),
+                    result.cost(), "GUEST_REVIEW"));
+        } catch (Exception logEx) {
+            // 로깅만 하고 삼킴 — 회계 저장 실패가 게스트 리뷰를 막으면 안 됨
         }
 
         String reviewId = "G-" + UUID.randomUUID();  // 리뷰마다 고유 이름표
@@ -123,7 +139,7 @@ public class GuestReviewService {
         // Redis에 저장 (24시간 보관). 회원가입 claim 때 reviews 행을 복원하려고
         // 프론트 응답과 달리 원본 code/model 까지 함께 담는다. (게스트는 언어를 받지 않아 language는 null)
         GuestReviewRecord record = new GuestReviewRecord(
-                reviewId, summary, comments, request.getCode(), null, GUEST_MODEL.id());
+                reviewId, summary, comments, request.getCode(), null, usedModel.id());
         String reviewKey = "guest:review:" + guestToken + ":" + reviewId;
         try {
             String json = objectMapper.writeValueAsString(record);   // 객체 → JSON 문자열
