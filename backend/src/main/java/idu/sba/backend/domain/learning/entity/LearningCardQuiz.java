@@ -27,14 +27,19 @@ public class LearningCardQuiz {
     @Lob
     private String question;
 
-    @Column(length = 1000)
+    // 보기 4개에 코드가 섞이면 1000자를 금방 넘긴다. 넉넉히 TEXT로 잡는다
+    @Lob
+    @Column(length = 65535)
     private String options; // 선택지 — 줄바꿈으로 이어 저장, 객관식/OX에만 있음(없으면 null)
 
+    // 객관식 정답은 보기 문자열과 정확히 같아야 해서 보기만큼 길어질 수 있다
+    @Column(length = 1000)
     private String answer;
 
-    // explain은 MariaDB 예약어라 그대로 쓰면 테이블 생성 DDL부터 깨진다. 컬럼명만 바꾸고 필드명은 유지
+    // explain은 MariaDB 예약어라 그대로 쓰면 테이블 생성 DDL부터 깨진다. 컬럼명만 바꾸고 필드명은 유지.
+    // length를 안 주면 @Lob이 기본 255를 물어 tinytext가 되고, 해설 몇 문장에 바로 넘친다
     @Lob
-    @Column(name = "explanation")
+    @Column(name = "explanation", length = 65535)
     private String explain; // 해설 — 정답이든 오답이든 학습용으로 보여준다
 
     @Column(updatable = false)

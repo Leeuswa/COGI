@@ -68,11 +68,12 @@ public class LearningCardController {
         return ApiResponse.ok(learningService.createQuiz(userId, cardId, request.getQuestionType(), request.getModelName()));
     }
 
-    // 학습 계획 생성 — 카드 등급에 맞춰 복습 일정을 짠다. 한 번 만들면 카드에 남아 재조회는 공짜
+    // 학습 계획 생성 — 고른 기간(3·5·7·14일)을 그 기간만큼 채운다. 한 번 만들면 카드에 남아 재조회는 공짜
     @PostMapping("/{cardId}/study-plan")
     public ApiResponse<LearningCardResponseDTO> createStudyPlan(@AuthenticationPrincipal Long userId,
-                                                                @PathVariable Long cardId) {
-        return ApiResponse.ok(learningService.createStudyPlan(userId, cardId));
+                                                                @PathVariable Long cardId,
+                                                                @RequestParam(defaultValue = "7") int days) {
+        return ApiResponse.ok(learningService.createStudyPlan(userId, cardId, days));
     }
 
     // API-046: 퀴즈 제출·채점 (정답이면 신호등 승급)
