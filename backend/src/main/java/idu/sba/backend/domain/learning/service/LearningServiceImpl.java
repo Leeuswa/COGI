@@ -169,8 +169,7 @@ public class LearningServiceImpl implements LearningService {
     @Transactional
     public LearningCardResponseDTO createCard(Long userId, LearningCardCreateRequestDTO request) {
         // 프론트가 모델을 안 보내므로 플랜의 기본(첫 허용) 모델을 쓴다 — 리뷰와 동일하게 플랜별 모델 반영
-        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
-        String modelName = plan.getAllowedModels().split(",")[0].trim();
+        String modelName = defaultModelName(userId);
 
         // 모델 검증 뒤 크레딧 소모 — 부족하면 여기서 402. AI 호출/파싱이 실패하면 @Transactional로 이 소모까지 롤백된다
         creditUsageService.checkAndConsume(userId, modelName);
@@ -375,13 +374,10 @@ public class LearningServiceImpl implements LearningService {
     @Override
     @Transactional(readOnly = true)
     public List<AiSkillResponseDTO> getFavoriteSkills(Long userId) {
-        // 내가 찜한 스킬 id로 바로 조회 — provider는 안 가린다
+        // 내가 찜한 스킬 id로 바로 조회 — provider는 안 가린다. 빈 목록이면 findAllById도 빈 걸 준다
         List<Long> favoriteIds = aiSkillFavoriteRepository.findByUserId(userId).stream()
                 .map(AiSkillFavorite::getSkillId)
                 .toList();
-        if (favoriteIds.isEmpty()) {
-            return List.of(); // 찜한 게 없으면 빈 배열
-        }
         return aiSkillRepository.findAllById(favoriteIds).stream()
                 .map(skill -> AiSkillResponseDTO.of(skill, true)) // 여기 나온 건 다 내가 찜한 것
                 .toList();
@@ -396,9 +392,8 @@ public class LearningServiceImpl implements LearningService {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
 
-        // 카드 생성과 같은 패턴 — 플랜 기본(첫 허용) 모델로 크레딧부터 체크·소모
-        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
-        String modelName = plan.getAllowedModels().split(",")[0].trim();
+        // 카드 생성과 같은 패턴 — 플랜 기본 모델로 크레딧부터 체크·소모
+        String modelName = defaultModelName(userId);
         creditUsageService.checkAndConsume(userId, modelName);
 
         AiModel model = resolveAiModel(modelName);
@@ -426,9 +421,8 @@ public class LearningServiceImpl implements LearningService {
         // 자유 입력 버전(recommendSkill)과 달리 모델 등급이 아니라 고정 2크레딧을 쓴다
         creditUsageService.checkAndConsumeFixed(userId, SKILL_RECOMMEND_BY_WEAKNESS_CREDIT);
 
-        // 카드 생성과 같은 방식으로 플랜 기본(첫 허용) 모델을 쓴다
-        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
-        String modelName = plan.getAllowedModels().split(",")[0].trim();
+        // 카드 생성과 같은 방식으로 플랜 기본 모델을 쓴다
+        String modelName = defaultModelName(userId);
         AiModel model = resolveAiModel(modelName);
 
         // 사용자가 입력하는 게 없어서 약점 통계를 서버가 직접 요약해 입력으로 넘긴다
@@ -495,6 +489,11 @@ public class LearningServiceImpl implements LearningService {
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }
+    }
+
+    // 플랜의 기본 모델 — allowed_models의 첫 값이 그 플랜 기본이라는 규칙을 한 곳에만 둔다
+    private String defaultModelName(Long userId) {
+        return subscriptionService.getCurrentPlanEntity(userId).getAllowedModels().split(",")[0].trim();
     }
 
     // 약점 통계를 AI 입력으로 요약 — 카테고리·언어·발생 횟수를 한 줄씩 나열한다
