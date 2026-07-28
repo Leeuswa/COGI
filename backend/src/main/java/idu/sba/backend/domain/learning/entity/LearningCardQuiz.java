@@ -31,6 +31,7 @@ public class LearningCardQuiz {
     private String answer;
 
     @Lob
+    @Column(name = "`explain`") // explain은 MariaDB 예약어 → 백틱으로 감싸 따옴표 처리(테이블 생성 실패 방지)
     private String explain; // 해설 — 정답이든 오답이든 학습용으로 보여준다
 
     @Column(updatable = false)
