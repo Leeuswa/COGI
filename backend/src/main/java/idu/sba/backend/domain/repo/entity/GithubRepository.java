@@ -11,8 +11,10 @@ import java.time.LocalDateTime;
  * 테이블 정의서의 repositories — GitHub 레포지토리 연동 정보.
  * Webhook 자동 등록(webhookId)은 별도 작업(Webhook 수신)의 몫이라 이번 연동 단계에서는 null로 남긴다.
  */
+//existsByGithubRepoId 체크 후 save가 원자적이지 않아, 더블클릭으로 같은 GitHub 레포가 두 행으로 연동되면
+//findByGithubRepoId(웹훅 처리 등)가 전부 IncorrectResultSizeDataAccessException으로 깨지므로 DB 제약으로 막는다
 @Entity
-@Table(name = "repositories")
+@Table(name = "repositories", uniqueConstraints = @UniqueConstraint(columnNames = "github_repo_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class GithubRepository {

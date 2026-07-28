@@ -53,10 +53,16 @@ class GithubWebhookServiceImplTest {
 
     private GithubPullRequestEventPayload payload(String action, Integer prNumber, String title,
                                                     String authorLogin, Long githubRepoId, String fullName) {
+        return payload(action, prNumber, title, authorLogin, githubRepoId, fullName, "sha-1");
+    }
+
+    private GithubPullRequestEventPayload payload(String action, Integer prNumber, String title,
+                                                    String authorLogin, Long githubRepoId, String fullName, String headSha) {
         return new GithubPullRequestEventPayload(
                 action, prNumber,
                 new GithubPullRequestEventPayload.GithubPrPayload(prNumber, title,
-                        authorLogin == null ? null : new GithubPullRequestEventPayload.GithubUserPayload(authorLogin)),
+                        authorLogin == null ? null : new GithubPullRequestEventPayload.GithubUserPayload(authorLogin),
+                        headSha == null ? null : new GithubPullRequestEventPayload.GithubRefPayload(headSha)),
                 new GithubPullRequestEventPayload.GithubRepoPayload(githubRepoId, fullName));
     }
 
@@ -136,6 +142,52 @@ class GithubWebhookServiceImplTest {
         var captor = org.mockito.ArgumentCaptor.forClass(PullRequest.class);
         verify(pullRequestRepository).save(captor.capture());
         assertThat(captor.getValue().getAuthorId()).isEqualTo(77L);
+    }
+
+    @Test
+    void 같은_커밋에_대한_웹훅_재전송은_무시한다() {
+        GithubRepository repo = repo("owner/repo-name");
+        PullRequest existing = PullRequest.open(REPO_ID, 42, "제목", null, null);
+        setField(existing, "id", 500L);
+        existing.markProcessing("sha-1"); //이미 이 커밋으로 한 번 처리됨
+
+        when(githubRepositoryRepository.findByGithubRepoId("999")).thenReturn(Optional.of(repo));
+        when(pullRequestRepository.findByRepoIdAndGithubPrNumber(REPO_ID, 42)).thenReturn(Optional.of(existing));
+
+        service.handlePullRequestEvent(payload("synchronize", 42, "제목", null, 999L, "owner/repo-name", "sha-1"));
+
+        verify(pullRequestRepository, never()).save(any());
+        verify(reviewService, never()).createFromPr(any());
+    }
+
+    @Test
+    void 새_커밋이면_같은_PR이라도_재전송으로_보지_않고_처리한다() {
+        GithubRepository repo = repo("owner/repo-name");
+        PullRequest existing = PullRequest.open(REPO_ID, 42, "제목", null, null);
+        setField(existing, "id", 500L);
+        existing.markProcessing("sha-1"); //이전 커밋
+
+        when(githubRepositoryRepository.findByGithubRepoId("999")).thenReturn(Optional.of(repo));
+        when(pullRequestRepository.findByRepoIdAndGithubPrNumber(REPO_ID, 42)).thenReturn(Optional.of(existing));
+        when(pullRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.handlePullRequestEvent(payload("synchronize", 42, "제목", null, 999L, "owner/repo-name", "sha-2"));
+
+        verify(pullRequestRepository).save(any());
+        verify(reviewService).createFromPr(500L);
+    }
+
+    @Test
+    void pull_request_필드가_없는_payload는_조용히_무시한다() {
+        GithubPullRequestEventPayload malformed = new GithubPullRequestEventPayload(
+                "opened", 1, null,
+                new GithubPullRequestEventPayload.GithubRepoPayload(999L, "owner/repo"));
+
+        service.handlePullRequestEvent(malformed);
+
+        verify(githubRepositoryRepository, never()).findByGithubRepoId(any());
+        verify(pullRequestRepository, never()).save(any());
+        verify(reviewService, never()).createFromPr(any());
     }
 
 }

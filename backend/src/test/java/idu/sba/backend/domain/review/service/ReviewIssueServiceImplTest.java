@@ -120,6 +120,34 @@ class ReviewIssueServiceImplTest {
     }
 
     @Test
+    void 팀장_아닌_레포_멤버도_웹훅_PR_리뷰_이슈를_처리할_수_있다() {
+        // 버그였던 시나리오: 웹훅 PR 리뷰는 review.userId가 항상 레포 팀장(OWNER_ID)으로 저장되는데,
+        // 팀장이 아닌 멤버(USER_ID)가 자기 PR의 이슈를 처리하려 해도 예전엔 본인 일치 검사로 막혔었음
+        ReviewIssue issue = issue(IssueSeverity.MAJOR);
+        when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
+        when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(OWNER_ID))); //팀장 명의로 저장된 리뷰
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true); //호출자는 팀장이 아닌 멤버
+
+        service.finalizeIssue(USER_ID, ISSUE_ID, "RESOLVED");
+
+        assertThat(issue.getStatus()).isEqualTo(IssueStatus.RESOLVED);
+    }
+
+    @Test
+    void 레포_멤버가_아니면_웹훅_PR_리뷰_이슈에_ISSUE_ACCESS_DENIED() {
+        ReviewIssue issue = issue(IssueSeverity.MAJOR);
+        when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
+        when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(OWNER_ID)));
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false); //이 레포 멤버가 아닌 사용자
+
+        assertThatThrownBy(() -> service.finalizeIssue(USER_ID, ISSUE_ID, "RESOLVED"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ISSUE_ACCESS_DENIED);
+    }
+
+    @Test
     void 유효하지_않은_verdict면_INVALID_INPUT() {
         when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue()));
         when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(reviewOwnedBy(USER_ID)));
@@ -171,6 +199,7 @@ class ReviewIssueServiceImplTest {
         when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
         when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(USER_ID)));
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(githubRepository()));
 
         service.finalizeIssue(USER_ID, ISSUE_ID, "RESOLVED");
@@ -188,6 +217,7 @@ class ReviewIssueServiceImplTest {
         when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
         when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(USER_ID)));
         when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(githubRepository()));
 
         service.finalizeIssue(USER_ID, ISSUE_ID, "IGNORED");
@@ -202,6 +232,8 @@ class ReviewIssueServiceImplTest {
         ReviewIssue issue = issue(IssueSeverity.MAJOR);
         when(reviewIssueRepository.findById(ISSUE_ID)).thenReturn(Optional.of(issue));
         when(reviewRepository.findById(REVIEW_ID)).thenReturn(Optional.of(prReviewOwnedBy(USER_ID)));
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pullRequest()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
 
         service.finalizeIssue(USER_ID, ISSUE_ID, "RESOLVED");
 
