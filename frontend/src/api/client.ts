@@ -356,6 +356,12 @@ export const askReviewQuestion = (reviewId, question) =>
     ? mock({ answer: `좋은 질문이에요! "${question.slice(0, 24)}" 관련해서: 옵셔널 체이닝(user?.email)을 쓰면 user가 null이어도 undefined로 안전하게 흘러가요. 다만 "왜 null이 오는지"를 찾아 근본 원인을 막는 게 더 중요합니다.` }, 800)
     : http('POST', `/api/reviews/${reviewId}/questions`, { question });
 
+// [설계 추론] 이슈 재검증 — 참고용 판정만 돌려주고 이슈 상태는 안 바뀐다(반영은 finalizeIssue를 따로 호출해야 함)
+export const reverifyIssue = (issueId, fixedCode) =>
+  USE_MOCK
+    ? mock({ stillPresent: false, explanation: '옵셔널 체이닝(user?.name)으로 바꿔서 이제 null이 와도 안전해요. 잘 고치셨어요!' }, 800)
+    : http('POST', `/api/issues/${issueId}/reverify`, { fixedCode });
+
 // API-039-1 POST /api/guest/local-review/{reviewId}/claim — 가입/로그인 직후 게스트 리뷰를 내 계정으로 매핑
 // AuthContext.signIn 한 곳에서만 부른다(이메일/카카오/GitHub 어느 경로든 로그인은 거길 지나므로).
 export const claimGuestReview = (reviewId, guestToken) =>

@@ -51,6 +51,27 @@ public class PromptBuilder {
         return levelPrompt + "\n" + override;
     }
 
+    // 이슈 재검증 [설계 추론] — 새 리뷰가 아니라 "이슈 하나가 고쳐졌는지"만 좁게 판정.
+    // 후속 질문과 마찬가지로 새 프롬프트 파일 없이 리뷰용 수준별 지침을 재사용하되, 이번엔
+    // 대화체 텍스트도 아니고 최소 JSON({"stillPresent":...,"explanation":...})만 응답하게 한다.
+    public String buildReverify(Level level) {
+        String levelPrompt = resolveLevelGuideline(level);
+        String override = """
+
+                ─────────────────────────────
+                [이슈 재검증 모드 — 위 출력 형식 규칙은 이번 요청에는 적용하지 않습니다]
+                지금 요청은 새 리뷰가 아니라, 아래 [원래 이슈]에서 지적된 문제 딱 하나가
+                사용자가 새로 제출한 [수정된 코드]에서 여전히 남아있는지만 판정하는 것입니다.
+                - 다른 새로운 문제를 찾아서 지적하지 않습니다. 오직 원래 이슈가 해결됐는지만 봅니다.
+                - 다른 텍스트 없이 반드시 다음 JSON 형식으로만 답합니다(키 이름 그대로, camelCase):
+                  {"stillPresent": true 또는 false, "explanation": "판단 이유를 한두 문장으로"}
+                - stillPresent는 원래 문제가 여전히 있으면 true, 실제로 고쳐졌으면 false입니다.
+                - explanation은 위에 있는 "수준별" 설명 방식(용어 풀어쓰기·비유·평가하지 않는 어투)을
+                  그대로 지켜서 씁니다. JSON으로 감싸는 것 외엔 마크다운 코드펜스를 쓰지 않습니다.
+                """;
+        return levelPrompt + "\n" + override;
+    }
+
     // 레벨 지침: DB에 있으면 그 값, 없으면 파일 폴백. 관리자 조회(GET)도 이걸 재사용해
     // "리뷰가 실제로 쓰는 값"을 그대로 화면에 보여준다.
     public String resolveLevelGuideline(Level level) {
