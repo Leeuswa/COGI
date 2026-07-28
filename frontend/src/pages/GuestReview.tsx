@@ -36,6 +36,7 @@ export default function GuestReview() {
   const [busy, setBusy] = useState(false);
   const [level, setLevel] = useState('BEGINNER'); // 수준에 따라 설명 깊이가 달라진다 (ADM-004 지침)
   const [issues, setIssues] = useState(null);
+  const [summary, setSummary] = useState('');   // 실서버 리뷰 요약 — 이슈가 없어도 이 문장은 보여준다
   const [err, setErr] = useState('');            // AI 호출 실패(502 등) — 결과 영역에 인라인으로 보여준다
   const [used, setUsed] = useState(readUsed);
 
@@ -47,6 +48,7 @@ export default function GuestReview() {
     // 3회 다 쓴 뒤(4번째 클릭) — 결과까지 지우고 가입 유도로 전환
     if (used >= LIMIT) {
       setIssues(null);
+      setSummary('');
       const next = used + 1;
       setUsed(next);
       writeUsed(next);
@@ -58,6 +60,7 @@ export default function GuestReview() {
     try {
       const res = await api.guestReview(code, level);
       setIssues(res.comments ?? res.issues); // 실서버는 comments, 목은 issues
+      setSummary(res.summary ?? '');          // 이슈가 0건이어도 요약은 보여준다
       // 가입하면 이 리뷰를 계정으로 가져갈 수 있게 식별자를 남긴다 (API-039-1, 24시간 뒤 서버가 폐기)
       // guestToken은 HttpOnly 쿠키(guest_token)로 자동 전송되므로 reviewId만 남긴다
       if (res.reviewId) localStorage.setItem('cogi-guest-review', JSON.stringify({ reviewId: res.reviewId }));
@@ -68,11 +71,13 @@ export default function GuestReview() {
       // 서버가 403(체험 3회 소진) 등으로 거절한 경우 — 결과 지우고 가입 유도로 전환
       if (e?.status === 403) {
         setIssues(null);
+        setSummary('');
         setUsed(LIMIT + 1);
         writeUsed(LIMIT + 1);
       } else {
         // 502 등 — 결과 영역에 인라인으로 노출(alert는 놓치기 쉬워 "아무 일도 안 일어난" 것처럼 보였음)
         setIssues(null);
+        setSummary('');
         setErr(e?.message || '리뷰 요청에 실패했어요. 잠시 후 다시 시도해주세요.');
       }
     } finally {
@@ -145,8 +150,20 @@ export default function GuestReview() {
       {!expired && issues && (
         <div className="panel">
           <h3>리뷰 결과</h3>
-          {/* 답변 틀은 로그인 스튜디오와 동일 — 이슈별 코기 말풍선 + 마크다운 코드 렌더링 */}
+          {/* 답변 틀은 로그인 스튜디오와 동일 — 요약·안내도 코기 말풍선으로(chat-bubble cogi) 통일 */}
           <div className="chat-thread">
+            {/* 요약 — 이슈가 0건이어도 코기가 뭐라고 봤는지는 보여준다 */}
+            {summary && (
+              <div className="chat-bubble cogi">
+                <p style={{ whiteSpace: 'pre-line' }}>{summary}</p>
+              </div>
+            )}
+            {/* 지적할 문제가 없는 깨끗한 코드 — 빈 박스 대신 코기 말풍선으로 안내 */}
+            {issues.length === 0 && (
+              <div className="chat-bubble cogi">
+                <p style={{ whiteSpace: 'pre-line' }}>코기가 짚을 문제를 찾지 못했어요. 깔끔한 코드예요! 👍</p>
+              </div>
+            )}
             {issues.map((it, i) => (
               <div key={i} className="chat-bubble cogi">
                 <div className="row" style={{ gap: 8, marginBottom: 8, alignItems: 'center' }}>

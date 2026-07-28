@@ -48,8 +48,11 @@ import idu.sba.backend.domain.review.entity.IssueStatus;
 import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
+import idu.sba.backend.domain.review.entity.ReviewGuideline;
+import idu.sba.backend.domain.review.repository.ReviewGuidelineRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
+import idu.sba.backend.domain.review.service.PromptBuilder;
 import idu.sba.backend.domain.terms.entity.UserAgreement;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
 import idu.sba.backend.domain.user.entity.Level;
@@ -99,6 +102,8 @@ public class DataInitializer implements CommandLineRunner {
     private final PullRequestRepository pullRequestRepository;
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
+    private final ReviewGuidelineRepository reviewGuidelineRepository;
+    private final PromptBuilder promptBuilder;
     private final LearningCardRepository learningCardRepository;
     private final LearningCardQuizRepository learningCardQuizRepository;
     private final QuizSubmissionRepository quizSubmissionRepository;
@@ -124,6 +129,7 @@ public class DataInitializer implements CommandLineRunner {
 
         seedPlans();
         seedTerms();
+        seedGuidelines();
 
         // 팀장 admin, 팀원 user·kim·lee. githubUsername을 채워야 팀·성장추이 화면이 이름을 제대로 띄운다
         // (연동 흐름을 직접 밟아볼 user@a.a만 예외로 비워 둔다).
@@ -302,6 +308,16 @@ public class DataInitializer implements CommandLineRunner {
     private void insertTerm(String type, String title, String content, boolean required) {
         jdbc.update("INSERT INTO terms (type,version,title,content,is_required,effective_date) VALUES (?,'1.0',?,?,?,'2026-01-01')",
                 type, title, content, required);
+    }
+
+    // ── 수준별 리뷰 지침 (ADM-004). DB에 있으면 파일(prompt_level_*.txt)보다 우선 →
+    // 관리자 화면에서 바로 고칠 수 있게 시드해 둔다. 초기값은 파일 내용 그대로.
+    // (DB가 비어 있을 때 PromptBuilder가 읽는 파일을 그대로 가져오므로 텍스트를 중복하지 않는다)
+    private void seedGuidelines() {
+        for (Level level : Level.values()) {
+            reviewGuidelineRepository.save(
+                    ReviewGuideline.of(level, promptBuilder.resolveLevelGuideline(level)));
+        }
     }
 
     // ── 계정. 온보딩까지 끝낸 상태로 만들어 로그인 직후 바로 모든 메뉴가 열리게 한다 ──
