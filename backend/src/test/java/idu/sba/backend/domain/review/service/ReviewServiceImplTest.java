@@ -29,6 +29,7 @@ import idu.sba.backend.global.ai.AiReviewIssue;
 import idu.sba.backend.global.ai.AiReviewResult;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -60,6 +61,7 @@ class ReviewServiceImplTest {
     @Mock private GithubRepositoryRepository githubRepositoryRepository;
     @Mock private GithubApiClient githubApiClient;
     @Mock private RepoMemberRepository repoMemberRepository;
+    @Mock private ObjectMapper objectMapper;
 
     @InjectMocks
     private ReviewServiceImpl service;
@@ -590,6 +592,78 @@ class ReviewServiceImplTest {
                 .thenThrow(new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED));
 
         assertThatThrownBy(() -> service.askQuestion(USER_ID, 10L, "왜 문제인가요?"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.AI_MODEL_CALL_FAILED);
+
+        verify(creditUsageService).checkAndConsumeFixed(USER_ID, 1);
+        verify(creditUsageService).refundFixed(USER_ID, 1);
+        verify(aiUsageLogRepository, never()).save(any());
+    }
+
+    // ---------- 이슈 재검증 [설계 추론] ----------
+
+    private ReviewIssue issueOn(Long reviewId, Long issueId) {
+        ReviewIssue issue = ReviewIssue.of(reviewId, IssueCategory.BUG, IssueSeverity.CRITICAL,
+                "Foo.java", 10, "null 체크 누락");
+        setField(issue, "id", issueId);
+        return issue;
+    }
+
+    @Test
+    void reverifyIssue_존재하지_않으면_ISSUE_NOT_FOUND() {
+        when(reviewIssueRepository.findById(100L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.reverifyIssue(USER_ID, 100L, "fixed code"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ISSUE_NOT_FOUND);
+
+        verify(creditUsageService, never()).checkAndConsumeFixed(any(), anyInt());
+    }
+
+    @Test
+    void reverifyIssue_본인_리뷰가_아니면_REVIEW_ACCESS_DENIED() {
+        when(reviewIssueRepository.findById(100L)).thenReturn(Optional.of(issueOn(10L, 100L)));
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, OWNER_ID)));
+
+        assertThatThrownBy(() -> service.reverifyIssue(USER_ID, 100L, "fixed code"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_ACCESS_DENIED);
+
+        verify(creditUsageService, never()).checkAndConsumeFixed(any(), anyInt());
+    }
+
+    @Test
+    void reverifyIssue_정상_케이스면_판정을_반환하고_이슈_status는_안_바꾸고_고정크레딧_1만_소모한다() {
+        ReviewIssue issue = issueOn(10L, 100L);
+        when(reviewIssueRepository.findById(100L)).thenReturn(Optional.of(issue));
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, USER_ID)));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
+        when(promptBuilder.buildReverify(any())).thenReturn("system-prompt");
+        when(aiReviewClient.generate(any(), any(), any()))
+                .thenReturn(new idu.sba.backend.global.ai.AiGenerationResult(
+                        "{\"stillPresent\":false,\"explanation\":\"이제 옵셔널 체이닝으로 안전해요\"}", 40, 20, 0.001));
+        when(objectMapper.readValue(anyString(), any(Class.class)))
+                .thenReturn(new ReviewServiceImpl.ReverifyContent(false, "이제 옵셔널 체이닝으로 안전해요"));
+
+        var result = service.reverifyIssue(USER_ID, 100L, "fixed code");
+
+        assertThat(result.isStillPresent()).isFalse();
+        assertThat(result.getExplanation()).isEqualTo("이제 옵셔널 체이닝으로 안전해요");
+        assertThat(issue.getStatus()).isEqualTo(idu.sba.backend.domain.review.entity.IssueStatus.OPEN); //재검증만으로는 status 안 바뀜
+        verify(creditUsageService).checkAndConsumeFixed(USER_ID, 1);
+        verify(aiUsageLogRepository).save(any());
+    }
+
+    @Test
+    void reverifyIssue_AI_호출_실패시_고정크레딧이_환불된다() {
+        when(reviewIssueRepository.findById(100L)).thenReturn(Optional.of(issueOn(10L, 100L)));
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, USER_ID)));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
+        when(promptBuilder.buildReverify(any())).thenReturn("system-prompt");
+        when(aiReviewClient.generate(any(), any(), any()))
+                .thenThrow(new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED));
+
+        assertThatThrownBy(() -> service.reverifyIssue(USER_ID, 100L, "fixed code"))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.AI_MODEL_CALL_FAILED);
 
