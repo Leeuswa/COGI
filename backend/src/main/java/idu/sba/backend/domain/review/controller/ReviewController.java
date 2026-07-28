@@ -1,5 +1,7 @@
 package idu.sba.backend.domain.review.controller;
 
+import idu.sba.backend.domain.review.dto.AskQuestionRequestDTO;
+import idu.sba.backend.domain.review.dto.AskQuestionResponseDTO;
 import idu.sba.backend.domain.review.dto.ModelSelectRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
@@ -75,6 +77,15 @@ public class ReviewController {
             @Valid @RequestBody ModelSelectRequestDTO request) {
         reviewService.selectPrModel(userId, prId, request);
         return ApiResponse.ok("리뷰에 사용할 모델을 선택했어요.");
+    }
+
+    // [설계 추론] 리뷰 후속 질문 — Studio.tsx가 리뷰 시작 후 채팅으로 묻는 질문에 답한다(⚡1)
+    @PostMapping("/{reviewId}/questions")
+    public ApiResponse<AskQuestionResponseDTO> askQuestion(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long reviewId,
+            @Valid @RequestBody AskQuestionRequestDTO request) {
+        return ApiResponse.ok(reviewService.askQuestion(userId, reviewId, request.getQuestion()));
     }
 
     private String readFileContent(MultipartFile file) {
