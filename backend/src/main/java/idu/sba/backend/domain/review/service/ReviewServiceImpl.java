@@ -10,7 +10,9 @@ import idu.sba.backend.domain.repo.client.GithubApiClient;
 import idu.sba.backend.domain.repo.entity.GithubRepository;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
+import idu.sba.backend.domain.review.dto.AskQuestionResponseDTO;
 import idu.sba.backend.domain.review.dto.ModelSelectRequestDTO;
+import idu.sba.backend.domain.review.dto.ReverifyIssueResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
@@ -28,6 +30,7 @@ import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.Level;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
+import idu.sba.backend.global.ai.AiGenerationResult;
 import idu.sba.backend.global.ai.AiInputType;
 import idu.sba.backend.global.ai.AiModel;
 import idu.sba.backend.global.ai.AiReviewClient;
@@ -40,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Arrays;
 import java.util.List;
@@ -52,6 +56,9 @@ import java.util.stream.Collectors;
 public class ReviewServiceImpl implements ReviewService {
 
     private static final String REQUEST_TYPE_REVIEW = "REVIEW";
+    private static final String REQUEST_TYPE_QUESTION = "QUESTION";
+    private static final String REQUEST_TYPE_REVERIFY = "REVERIFY";
+    private static final int FOLLOWUP_CREDIT_WEIGHT = 1; //후속 질문·이슈 재검증은 원본 리뷰 모델 등급과 무관하게 항상 1
 
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
@@ -65,6 +72,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final GithubRepositoryRepository githubRepositoryRepository;
     private final GithubApiClient githubApiClient;
     private final RepoMemberRepository repoMemberRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -325,6 +333,114 @@ public class ReviewServiceImpl implements ReviewService {
         String modelName = resolveModelName(request.getModelName(), ownerPlan);
 
         pr.selectModel(modelName);
+    }
+
+    // 리뷰 후속 질문 [설계 추론] — 새 이슈를 만들지 않고, 원본 코드+이미 발견된 이슈를 맥락으로 줘서
+    // 짧은 대화체 답만 받는다. 크레딧은 원본 리뷰가 어떤 모델을 썼든 항상 고정 1(⚡1, Studio.tsx와 일치)
+    @Override
+    @Transactional
+    public AskQuestionResponseDTO askQuestion(Long userId, Long reviewId, String question) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
+        if (!userId.equals(review.getUserId())) {
+            throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
+        }
+
+        creditUsageService.checkAndConsumeFixed(userId, FOLLOWUP_CREDIT_WEIGHT);
+        try {
+            User user = requireUser(userId);
+            Level level = user.getLevel() != null ? user.getLevel() : Level.BEGINNER;
+            String systemPrompt = promptBuilder.buildFollowUpQuestion(level);
+            String userContent = buildFollowUpInput(review, reviewIssueRepository.findByReviewId(reviewId), question);
+
+            AiModel model = resolveAiModel(review.getModelName());
+            AiGenerationResult result = aiReviewClient.generate(model, systemPrompt, userContent);
+
+            aiUsageLogRepository.save(AiUsageLog.of(userId, review.getModelName(),
+                    result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_QUESTION));
+
+            return AskQuestionResponseDTO.of(result.content());
+        } catch (BusinessException e) {
+            creditUsageService.refundFixed(userId, FOLLOWUP_CREDIT_WEIGHT);
+            throw e;
+        }
+    }
+
+    private String buildFollowUpInput(Review review, List<ReviewIssue> issues, String question) {
+        String sourceCode = review.getSourceCode() != null ? review.getSourceCode() : "(원본 코드 스냅샷 없음)";
+        String issueList = issues.isEmpty() ? "(없음)"
+                : issues.stream()
+                        .map(i -> "- [%s/%s] %s:%s — %s".formatted(
+                                i.getCategory(), i.getSeverity(), i.getFilePath(), i.getLineNumber(), i.getDescription()))
+                        .collect(Collectors.joining("\n"));
+
+        return """
+                [리뷰 맥락 — 원본 코드]
+                %s
+
+                [이미 발견된 이슈 목록]
+                %s
+
+                [사용자의 후속 질문]
+                %s
+                """.formatted(sourceCode, issueList, question);
+    }
+
+    // 이슈 재검증 [설계 추론] — 참고용 판정만 돌려주고 이슈 status는 안 바꾼다. 실제 RESOLVED/IGNORED
+    // 반영은 여전히 finalizeIssue(판정 버튼)를 거쳐야 함 — CRITICAL PR 이슈의 팀장 승인 흐름을
+    // 이 경로로 우회하지 못하게 하려는 의도적 설계(사용자 확인, 2026-07-28)
+    record ReverifyContent(boolean stillPresent, String explanation) {} //package-private — 테스트에서 스텁하려고
+
+    @Override
+    @Transactional
+    public ReverifyIssueResponseDTO reverifyIssue(Long userId, Long issueId, String fixedCode) {
+        ReviewIssue issue = reviewIssueRepository.findById(issueId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ISSUE_NOT_FOUND));
+        Review review = reviewRepository.findById(issue.getReviewId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
+        if (!userId.equals(review.getUserId())) {
+            throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
+        }
+
+        creditUsageService.checkAndConsumeFixed(userId, FOLLOWUP_CREDIT_WEIGHT);
+        try {
+            User user = requireUser(userId);
+            Level level = user.getLevel() != null ? user.getLevel() : Level.BEGINNER;
+            String systemPrompt = promptBuilder.buildReverify(level);
+            String userContent = buildReverifyInput(issue, fixedCode);
+
+            AiModel model = resolveAiModel(review.getModelName());
+            AiGenerationResult result = aiReviewClient.generate(model, systemPrompt, userContent);
+
+            aiUsageLogRepository.save(AiUsageLog.of(userId, review.getModelName(),
+                    result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_REVERIFY));
+
+            ReverifyContent parsed = parseReverify(result.content());
+            return ReverifyIssueResponseDTO.of(parsed.stillPresent(), parsed.explanation());
+        } catch (BusinessException e) {
+            creditUsageService.refundFixed(userId, FOLLOWUP_CREDIT_WEIGHT);
+            throw e;
+        }
+    }
+
+    private String buildReverifyInput(ReviewIssue issue, String fixedCode) {
+        return """
+                [원래 이슈]
+                [%s/%s] %s:%s
+                %s
+
+                [수정된 코드]
+                %s
+                """.formatted(issue.getCategory(), issue.getSeverity(), issue.getFilePath(),
+                issue.getLineNumber(), issue.getDescription(), fixedCode);
+    }
+
+    private ReverifyContent parseReverify(String content) {
+        try {
+            return objectMapper.readValue(content, ReverifyContent.class);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
     }
 
     private Long resolveAuthorId(String authorLogin) {

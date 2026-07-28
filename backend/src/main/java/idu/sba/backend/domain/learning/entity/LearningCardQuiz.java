@@ -38,6 +38,7 @@ public class LearningCardQuiz {
 
     // explain은 MariaDB 예약어라 그대로 쓰면 테이블 생성 DDL부터 깨진다. 컬럼명만 바꾸고 필드명은 유지.
     // length를 안 주면 @Lob이 기본 255를 물어 tinytext가 되고, 해설 몇 문장에 바로 넘친다
+
     @Lob
     @Column(name = "explanation", length = 65535)
     private String explain; // 해설 — 정답이든 오답이든 학습용으로 보여준다

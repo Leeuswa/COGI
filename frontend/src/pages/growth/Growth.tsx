@@ -6,7 +6,6 @@
  */
 import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
-import { useGame } from '../../context/GameContext';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { PageHead } from '../../components/ui';
@@ -14,8 +13,8 @@ import { PageHead } from '../../components/ui';
 const COMPARE_COLORS = ['#ff6b57', '#4ec9a4', '#1b2a4a', '#c9862e', '#8b96b5', '#e06fae'];
 
 export default function Growth() {
-  const { S } = useGame();
   const { user } = useAuth();
+  const [streak, setStreak] = useState(0); // 서버 연속 학습일 (retention-status)
   const [trend, setTrend] = useState(null);
   const [compare, setCompare] = useState(null); // { labels, series }
   const [period, setPeriod] = useState('4W');
@@ -30,6 +29,8 @@ export default function Growth() {
       setRepos(list);
       if (list.length > 0) setRepoId(list[0].repoId);
     });
+    // 연속 학습일 — 서버(user_streaks) 값. 없으면 0
+    api.getRetentionStatus().then((r) => setStreak(r?.currentStreak ?? 0)).catch(() => setStreak(0));
   }, []);
 
   // 선택한 레포의 팀원 목록. 레포 바뀌면 팀원 필터는 '팀 전체'로 초기화
@@ -226,7 +227,7 @@ export default function Growth() {
               <p className="note xs">해결 완료</p>
             </div>
             <div className="panel stat-card">
-              <span className="stat-num" style={{ color: 'var(--coral)' }}>{S.streak}<span className="unit">일</span></span>
+              <span className="stat-num" style={{ color: 'var(--coral)' }}>{streak}<span className="unit">일</span></span>
               <p className="note xs">연속 학습</p>
             </div>
           </div>

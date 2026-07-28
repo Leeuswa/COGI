@@ -36,9 +36,31 @@ public class CreditUsageServiceImpl implements CreditUsageService {
     @Override
     @Transactional
     public void checkAndConsume(Long userId, String modelName) {
-        LocalDate today = LocalDate.now(KST);
-        int weight = resolveModelWeight(modelName);
+        consumeFixed(userId, resolveModelWeight(modelName));
+    }
 
+    @Override
+    @Transactional
+    public void refund(Long userId, String modelName) {
+        refundFixed(userId, resolveModelWeight(modelName));
+    }
+
+    @Override
+    @Transactional
+    public void checkAndConsumeFixed(Long userId, int weight) {
+        consumeFixed(userId, weight);
+    }
+
+    @Override
+    @Transactional
+    public void refundFixed(Long userId, int weight) {
+        LocalDate today = LocalDate.now(KST);
+        creditUsageRepository.findByUserIdAndUsageDate(userId, today)
+                .ifPresent(usage -> usage.refund(weight));
+    }
+
+    private void consumeFixed(Long userId, int weight) {
+        LocalDate today = LocalDate.now(KST);
         CreditUsage usage = creditUsageRepository.findByUserIdAndUsageDate(userId, today)
                 .orElseGet(() -> {
                     Plan plan = subscriptionService.getCurrentPlanEntity(userId);
@@ -51,15 +73,6 @@ public class CreditUsageServiceImpl implements CreditUsageService {
             throw new BusinessException(ErrorCode.CREDIT_LIMIT_EXCEEDED);
         }
         usage.consume(weight);
-    }
-
-    @Override
-    @Transactional
-    public void refund(Long userId, String modelName) {
-        LocalDate today = LocalDate.now(KST);
-        int weight = resolveModelWeight(modelName);
-        creditUsageRepository.findByUserIdAndUsageDate(userId, today)
-                .ifPresent(usage -> usage.refund(weight));
     }
 
     @Override

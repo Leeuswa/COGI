@@ -126,9 +126,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             }
         }
 
-        //동의 약관 DB에 저장
+        //동의 약관 DB에 저장 (동의 당시 버전 함께 기록 — 재동의 판정용)
+        Map<Long, String> versionById = allTerms.stream()
+                .collect(Collectors.toMap(Term::getId, Term::getVersion));
         dto.agreeTerms().forEach(termId ->
-                userAgreementRepository.save(UserAgreement.of(userId, termId)));
+                userAgreementRepository.save(UserAgreement.of(userId, termId, versionById.get(termId))));
 
         // 새로 구독할 플랜 조회
         Plan newPlan = planRepository.findById(dto.planId())
