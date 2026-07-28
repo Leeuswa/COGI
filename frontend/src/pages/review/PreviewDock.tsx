@@ -11,6 +11,7 @@
  * 한계선: iframe 정적 렌더(HTML/CSS/JS). React 등 빌드 필요 코드는 리뷰만.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as api from "../../api/client";
 
 /* ── iframe 편집 엔진: 선택·드래그·리사이즈·키보드·명령 수신·직렬화 ── */
 const ENGINE = `<script id="__cogi_engine">
@@ -312,28 +313,163 @@ const SHADOWS_T = [
   ["0 0 10px currentColor", "네온"],
 ];
 
-export default function PreviewDock({ code, onCode }) {
+/* ── 부족한 파일 자동 감지: PR엔 없는 로컬 참조(css/js/img)만 골라낸다 ── */
+const isExternalRef = (src: string) => /^(https?:)?\/\//i.test(src) || /^data:/i.test(src); // http(s)://, //, data: 는 제외
+function parseLocalRefs(html: string): string[] {
+  const dom = new DOMParser().parseFromString(html, "text/html");
+  const refs = new Set<string>();
+  dom.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => refs.add(el.getAttribute("href") || ""));
+  dom.querySelectorAll("script[src]").forEach((el) => refs.add(el.getAttribute("src") || ""));
+  dom.querySelectorAll("img[src]").forEach((el) => refs.add(el.getAttribute("src") || ""));
+  return [...refs].filter((src) => src && !isExternalRef(src));
+}
+
+/* ── 가져온 파일을 코드 안에 직접 박아넣기: css→style, js→script, 이미지→data URI ── */
+const MIME_BY_EXT: Record<string, string> = {
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
+  svg: "image/svg+xml", webp: "image/webp", ico: "image/x-icon", bmp: "image/bmp",
+};
+const guessMime = (path: string) => MIME_BY_EXT[(path.split(".").pop() || "").toLowerCase()] || "application/octet-stream";
+type FetchedAsset = { content: string; encoding: string };
+function inlineFetchedAssets(html: string, fetched: Record<string, FetchedAsset>): string {
+  const dom = new DOMParser().parseFromString(html, "text/html");
+  const body = dom.body;
+  let touched = false;
+  body.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => {
+    const href = el.getAttribute("href") || "";
+    const f = fetched[href];
+    if (!f) return;
+    const style = dom.createElement("style");
+    style.textContent = f.content;
+    el.replaceWith(style);
+    touched = true;
+  });
+  body.querySelectorAll("script[src]").forEach((el) => {
+    const src = el.getAttribute("src") || "";
+    const f = fetched[src];
+    if (!f) return;
+    const script = dom.createElement("script");
+    script.textContent = f.content;
+    el.replaceWith(script);
+    touched = true;
+  });
+  body.querySelectorAll("img[src]").forEach((el) => {
+    const src = el.getAttribute("src") || "";
+    const f = fetched[src];
+    if (!f) return;
+    el.setAttribute("src", `data:${guessMime(src)};base64,${f.content}`);
+    touched = true;
+  });
+  return touched ? body.innerHTML : html;
+}
+
+const NO_LINES = new Set<number>(); // 빈 변경 라인 집합 재사용(렌더마다 새로 만들지 않게)
+
+// 가져온 파일 하나의 상태 — 성공하면 content/size/encoding, 실패하면 error만 채워진다
+type AssetEntry = { content: string; size: number; encoding: string; status: "ok" | "error"; error?: string };
+
+export default function PreviewDock({ code, onCode, repoId }: { code: any; onCode: any; repoId?: any }) {
   const [picked, setPicked] = useState(null);
   const [text, setText] = useState("");
   const [dim, setDim] = useState(null); // 선택 요소 W×H
   const [rotVal, setRotVal] = useState(0); // 회전(마우스 핸들 ↔ 슬라이더 양방향)
-  const [changed, setChanged] = useState(new Set()); // #3 방금 바뀐 코드 라인 번호
-  const prevCode = useRef(code);
-  // 코드가 바뀔 때마다 이전 스냅샷과 라인 비교 → 달라진 줄만 하이라이트 (2초 후 소멸)
-  useEffect(() => {
-    const before = prevCode.current.split("\n");
-    const after = code.split("\n");
+
+  /* ── 파일별 변경 라인 추적: "main"(메인 HTML) + 가져온 자산 경로별로 각각 스냅샷을 둔다 ── */
+  const [activeTab, setActiveTab] = useState("main"); // "main" | 가져온 파일 경로
+  const [changedByTab, setChangedByTab] = useState<Record<string, Set<number>>>({}); // { [탭키]: Set<라인번호> } — 2초 후 소멸
+  const [assets, setAssets] = useState<Record<string, AssetEntry>>({}); // 경로별 가져오기 결과
+  const [fetching, setFetching] = useState(false);
+  const prevByTab = useRef({ main: code });
+  const chgTimers = useRef({});
+  const noteChange = (tabKey, newText) => {
+    const before = (prevByTab.current[tabKey] ?? "").split("\n");
+    const after = newText.split("\n");
     const diff = new Set();
-    after.forEach((ln, i) => {
-      if (ln !== before[i]) diff.add(i);
+    after.forEach((ln, i) => { if (ln !== before[i]) diff.add(i); });
+    prevByTab.current[tabKey] = newText;
+    if (!diff.size) return;
+    setChangedByTab((m) => ({ ...m, [tabKey]: diff }));
+    clearTimeout(chgTimers.current[tabKey]);
+    chgTimers.current[tabKey] = setTimeout(() => {
+      setChangedByTab((m) => { const n = { ...m }; delete n[tabKey]; return n; });
+    }, 2000);
+    setActiveTab((cur) => (cur === tabKey ? cur : tabKey)); // 지금 보던 탭이 아니면 바뀐 탭으로 전환
+  };
+  // 메인 HTML이 바뀔 때마다(드래그 편집·직접 타이핑·자산 인라인 반영 등) 라인 비교
+  useEffect(() => { noteChange("main", code); }, [code]);
+
+  /* ── 미리보기 부족 파일: 승인 전엔 파싱만, 네트워크는 버튼을 눌러야만 나간다 ── */
+  const missingRefs = useMemo(() => parseLocalRefs(code), [code]); // DOMParser만 쓰는 순수 파싱 — 여기선 절대 fetch 안 함
+  const fileTabs = useMemo(
+    () => ["main", ...Object.keys(assets).filter((p) => assets[p].status === "ok")],
+    [assets],
+  );
+
+  // 어느 레포에서 가져올지 — 스튜디오가 안 알려줘서 여기서 직접 고른다
+  const [repos, setRepos] = useState([]);
+  const [pickedRepo, setPickedRepo] = useState(null);
+  const srcRepoId = repoId ?? pickedRepo; // prop으로 오면 그걸 쓰고, 없으면 고른 값
+
+  // 부족한 파일이 있을 때만 내 레포 목록을 받는다. 멀쩡한 미리보기에서 괜히 요청하지 않게
+  // (파일 내용을 실제로 받는 건 아래 버튼을 눌러야만 한다 — 이건 선택지를 채우는 조회일 뿐)
+  useEffect(() => {
+    if (missingRefs.length === 0 || repoId || repos.length > 0) return;
+    api.getMyLinkedRepos().then((list) => {
+      setRepos(list ?? []);
+      if (list?.length === 1) setPickedRepo(list[0].repoId); // 하나뿐이면 고를 것도 없다
+    }).catch(() => setRepos([]));
+  }, [missingRefs, repoId, repos.length]);
+
+  // [승인 버튼 클릭 시에만 호출] — 부족한 파일을 레포에서 받아 결과 목록에 남기고, 성공한 것만 코드에 인라인
+  const handleFetchAssets = async () => {
+    if (!srcRepoId || fetching || missingRefs.length === 0) return;
+    const targets = missingRefs;
+    setFetching(true);
+    const results = await Promise.allSettled(targets.map((p) => api.getRepoFileContent(srcRepoId, p)));
+    const fetchedOk: Record<string, FetchedAsset> = {};
+    setAssets((prev) => {
+      const next = { ...prev };
+      results.forEach((r, i) => {
+        const p = targets[i];
+        if (r.status === "fulfilled") {
+          const f = r.value;
+          next[p] = { content: f.content, size: f.size, encoding: f.encoding, status: "ok" };
+          fetchedOk[p] = { content: f.content, encoding: f.encoding };
+        } else {
+          const err = r.reason;
+          const reason = err?.status
+            ? `${err.status}${err.message ? " " + err.message : ""}`
+            : err?.message || "가져오기 실패";
+          next[p] = { content: "", size: 0, encoding: "utf-8", status: "error", error: reason };
+        }
+      });
+      return next;
     });
-    prevCode.current = code;
-    if (diff.size) {
-      setChanged(diff);
-      const t = setTimeout(() => setChanged(new Set()), 2000);
-      return () => clearTimeout(t);
+    Object.entries(fetchedOk).forEach(([p, f]) => noteChange(p, f.content)); // 새 탭도 "방금 바뀜"으로 표시
+    if (Object.keys(fetchedOk).length > 0) {
+      const inlined = inlineFetchedAssets(code, fetchedOk);
+      if (inlined !== code) onCode(inlined); // main 쪽 노트가 이 effect 뒤에 돌아서 최종 탭은 다시 main으로
     }
-  }, [code]);
+    setFetching(false);
+  };
+
+  const isMainTab = activeTab === "main";
+  const activeContent = isMainTab ? code : (assets[activeTab]?.content ?? "");
+  const activeChangedLines = changedByTab[activeTab] ?? NO_LINES;
+
+  // 바뀐 첫 줄이 화면 밖이면 코드 영역 안에서만 스크롤(페이지 스크롤 금지, scrollIntoView 금지)
+  const activeTaRef = useRef(null);
+  const lineElsRef = useRef({});
+  useEffect(() => {
+    if (!activeChangedLines.size) return;
+    const firstLine = Math.min(...activeChangedLines);
+    const ta = activeTaRef.current;
+    const lineEl = lineElsRef.current[firstLine];
+    if (!ta || !lineEl) return;
+    const target = lineEl.offsetTop - ta.clientHeight / 2;
+    ta.scrollTop = Math.max(0, Math.min(target, ta.scrollHeight - ta.clientHeight));
+  }, [activeChangedLines, activeTab]);
+
   const [full, setFull] = useState(false);
   const [openSect, setOpenSect] = useState("text"); // 아코디언: 열려있는 섹션 하나
   const [cols, setCols] = useState({ code: 30, props: 22 }); // 전체화면 3열 비율(%) — 리사이저로 조절
@@ -461,6 +597,24 @@ export default function PreviewDock({ code, onCode }) {
   const srcDoc = useMemo(() => doc + ENGINE, [doc]);
   const st = picked?.style;
 
+  // 파일 탭 — 메인 HTML 하나뿐이면 아예 안 그린다(기존 화면 그대로)
+  const fileTabsBar = fileTabs.length > 1 && (
+    <div className="tabs dock-file-tabs">
+      {fileTabs.map((t) => (
+        <button
+          key={t}
+          type="button"
+          className={activeTab === t ? "on" : ""}
+          title={t === "main" ? "메인 HTML" : t}
+          onClick={() => setActiveTab(t)}
+        >
+          {t === "main" ? "메인 HTML" : t.split("/").pop()}
+          {changedByTab[t]?.size ? <i className="dock-tab-dot" /> : null}
+        </button>
+      ))}
+    </div>
+  );
+
   // 전체화면 리사이저: 경계선을 잡고 끌면 좌/우 열 너비(%)가 바뀐다
   const stageRef = useRef(null);
   const startResize = (side) => (e) => {
@@ -567,6 +721,54 @@ export default function PreviewDock({ code, onCode }) {
         </button>
       </div>
 
+      {/* ── 부족한 파일 안내: 승인 버튼을 누르기 전엔 여기서 fetch를 절대 만들지 않는다 ── */}
+      {missingRefs.length > 0 && (
+        <div className="dock-fetch-bar">
+          <span className="dock-fetch-msg">
+            미리보기에 필요한 파일 {missingRefs.length}개가 아직 없어요 — {missingRefs.join(", ")}
+          </span>
+          {/* 레포가 두 개 이상이면 어디서 가져올지 고른다. prop으로 이미 정해져 오면 안 띄운다 */}
+          {!repoId && repos.length > 1 && (
+            <select className="dock-fetch-repo" value={pickedRepo ?? ""}
+              onChange={(e) => setPickedRepo(Number(e.target.value))} aria-label="가져올 레포">
+              <option value="">레포 선택</option>
+              {repos.map((r) => <option key={r.repoId} value={r.repoId}>{r.repoName}</option>)}
+            </select>
+          )}
+          {srcRepoId ? (
+            <button className="dock-fetch-btn" disabled={fetching} onClick={handleFetchAssets}>
+              {fetching ? "가져오는 중…" : "깃허브에서 가져오기"}
+            </button>
+          ) : (
+            <span className="note sm">
+              {repos.length > 1 ? "가져올 레포를 고르세요" : "레포를 먼저 연동하면 가져올 수 있어요"}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── 가져온 결과 확인: 성공/실패와 크기, 펼치면 원문까지 ── */}
+      {Object.keys(assets).length > 0 && (
+        <div className="dock-fetch-log">
+          {Object.entries(assets).map(([path, a]) => (
+            <details key={path} className="dock-fetch-item">
+              <summary>
+                <span className={`chip sm ${a.status === "ok" ? "low" : "hi"}`}>
+                  {a.status === "ok" ? "성공" : "실패"}
+                </span>
+                <b title={path}>{path}</b>
+                <span className="note sm">
+                  {a.status === "ok" ? `${a.size.toLocaleString()} B` : a.error}
+                </span>
+              </summary>
+              <pre className="dock-fetch-body">
+                {a.status === "ok" ? a.content : a.error || "알 수 없는 오류"}
+              </pre>
+            </details>
+          ))}
+        </div>
+      )}
+
       <div
         className="dock-stage"
         ref={stageRef}
@@ -581,24 +783,34 @@ export default function PreviewDock({ code, onCode }) {
         {/* 전체화면 전용: 코드가 제일 왼쪽 — 크게 보면서 수정 */}
         {full && (
           <>
-            <div className="dock-code-wrap side">
-              <pre className="dock-code-hl" aria-hidden="true">
-                {code.split("\n").map((ln, i) => (
-                  <div key={i} className={changed.has(i) ? "chg" : ""}>
-                    {ln || " "}
-                  </div>
-                ))}
-              </pre>
-              <textarea
-                className="dock-code side"
-                value={code}
-                spellCheck={false}
-                onChange={(e) => {
-                  onCode(e.target.value);
-                  pushHist(e.target.value);
-                }}
-                aria-label="코드 (실시간 동기화)"
-              />
+            <div className="dock-code-col side">
+              {fileTabsBar}
+              <div className="dock-code-wrap side">
+                <pre className="dock-code-hl" aria-hidden="true">
+                  {activeContent.split("\n").map((ln, i) => (
+                    <div
+                      key={i}
+                      ref={(el) => { lineElsRef.current[i] = el; }}
+                      className={activeChangedLines.has(i) ? "chg" : ""}
+                    >
+                      {ln || " "}
+                    </div>
+                  ))}
+                </pre>
+                <textarea
+                  ref={activeTaRef}
+                  className="dock-code side"
+                  value={activeContent}
+                  spellCheck={false}
+                  readOnly={!isMainTab}
+                  onChange={(e) => {
+                    if (!isMainTab) return; // 가져온 파일 탭은 이미 메인에 인라인됐으니 읽기 전용
+                    onCode(e.target.value);
+                    pushHist(e.target.value);
+                  }}
+                  aria-label="코드 (실시간 동기화)"
+                />
+              </div>
             </div>
             <div
               className="dock-resizer"
@@ -1220,27 +1432,37 @@ export default function PreviewDock({ code, onCode }) {
         </aside>
       </div>
 
-      {/* 변경 라인 하이라이트: 뒤에 색칠된 레이어를 깔고 그 위에 투명 textarea */}
+      {/* 변경 라인 하이라이트: 뒤에 색칠된 레이어를 깔고 그 위에 투명 textarea. 파일이 여럿이면 탭으로 옮겨 다닌다 */}
       {!full && (
-        <div className="dock-code-wrap">
-          <pre className="dock-code-hl" aria-hidden="true">
-            {code.split("\n").map((ln, i) => (
-              <div key={i} className={changed.has(i) ? "chg" : ""}>
-                {ln || " "}
-              </div>
-            ))}
-          </pre>
-          <textarea
-            className="dock-code"
-            value={code}
-            spellCheck={false}
-            onChange={(e) => {
-              onCode(e.target.value);
-              pushHist(e.target.value);
-            }}
-            aria-label="미리보기 코드 (실시간 동기화)"
-          />
-        </div>
+        <>
+          {fileTabsBar}
+          <div className="dock-code-wrap">
+            <pre className="dock-code-hl" aria-hidden="true">
+              {activeContent.split("\n").map((ln, i) => (
+                <div
+                  key={i}
+                  ref={(el) => { lineElsRef.current[i] = el; }}
+                  className={activeChangedLines.has(i) ? "chg" : ""}
+                >
+                  {ln || " "}
+                </div>
+              ))}
+            </pre>
+            <textarea
+              ref={activeTaRef}
+              className="dock-code"
+              value={activeContent}
+              spellCheck={false}
+              readOnly={!isMainTab}
+              onChange={(e) => {
+                if (!isMainTab) return; // 가져온 파일 탭은 이미 메인에 인라인됐으니 읽기 전용
+                onCode(e.target.value);
+                pushHist(e.target.value);
+              }}
+              aria-label="미리보기 코드 (실시간 동기화)"
+            />
+          </div>
+        </>
       )}
     </div>
   );

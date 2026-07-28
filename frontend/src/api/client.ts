@@ -323,6 +323,12 @@ export const getRepoPrs = (repoId) =>
 export const getRepoPrFiles = (repoId, prNumber) =>
   USE_MOCK ? mock(M.mockPrFiles) : http('GET', `/api/repos/${repoId}/prs/${prNumber}/files`);
 
+// 미리보기 도크가 부족한 로컬 참조(css/js/이미지)를 GitHub에서 가져올 때 씀 — 승인 버튼을 누른 뒤에만 호출
+export const getRepoFileContent = (repoId, path) =>
+  USE_MOCK
+    ? mock({ path, content: '/* mock */', size: 12, encoding: 'utf-8' })
+    : http('GET', `/api/repos/${repoId}/file-content?path=${encodeURIComponent(path)}`);
+
 // 스튜디오 'PR 가져오기' 피커 3단계(리뷰 실행) [설계 추론] — target_type=PR로 저장돼 PR 리뷰 목록에도 뜬다
 export const reviewImportedPr = (repoId, prNumber, code, modelName, title, authorLogin) =>
   USE_MOCK
