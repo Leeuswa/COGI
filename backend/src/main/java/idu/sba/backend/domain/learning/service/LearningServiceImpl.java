@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.learning.service;
 
+import idu.sba.backend.domain.learning.dto.AiSkillResponseDTO;
 import idu.sba.backend.domain.learning.dto.CardHistoryResponseDTO;
 import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardCreateRequestDTO;
@@ -8,10 +9,13 @@ import idu.sba.backend.domain.learning.dto.QuizResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmissionResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
 import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
+import idu.sba.backend.domain.learning.entity.AiSkillFavorite;
 import idu.sba.backend.domain.learning.entity.LearningCard;
 import idu.sba.backend.domain.learning.entity.LearningCardQuiz;
 import idu.sba.backend.domain.learning.entity.QuizSubmission;
 import idu.sba.backend.domain.learning.entity.WeaknessStat;
+import idu.sba.backend.domain.learning.repository.AiSkillFavoriteRepository;
+import idu.sba.backend.domain.learning.repository.AiSkillRepository;
 import idu.sba.backend.domain.learning.repository.CourseRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardRepository;
@@ -37,6 +41,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -45,6 +50,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -69,6 +75,8 @@ public class LearningServiceImpl implements LearningService {
     private final RetentionService retentionService;
     private final CourseRepository courseRepository;
     private final LearningPromptBuilder promptBuilder;
+    private final AiSkillRepository aiSkillRepository;
+    private final AiSkillFavoriteRepository aiSkillFavoriteRepository;
 
     // (카테고리 코드, 언어)로 이슈를 묶는 집계 키 — 언어는 null 가능
     private record StatKey(String category, String language) {}
@@ -223,7 +231,7 @@ public class LearningServiceImpl implements LearningService {
 
     @Override
     @Transactional
-    public LearningCardResponseDTO createStudyPlan(Long userId, Long cardId) {
+    public LearningCardResponseDTO createStudyPlan(Long userId, Long cardId, int days) {
         LearningCard card = requireOwnedCard(userId, cardId);
 
         // 계획은 카드를 만든 모델로 짠다. 퀴즈와 달리 따로 고르게 하지 않았다
@@ -232,7 +240,7 @@ public class LearningServiceImpl implements LearningService {
 
         AiModel model = resolveAiModel(modelName);
         AiGenerationResult result = aiReviewClient.generate(model,
-                promptBuilder.buildStudyPlan(modelName), buildStudyPlanInput(card));
+                promptBuilder.buildStudyPlan(modelName), buildStudyPlanInput(card, days));
         aiUsageLogRepository.save(AiUsageLog.of(userId, modelName,
                 result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_STUDY_PLAN));
 
@@ -323,6 +331,29 @@ public class LearningServiceImpl implements LearningService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<AiSkillResponseDTO> getAiSkills(Long userId, String provider) {
+        // 내가 찜한 스킬 id를 먼저 모아두고 목록에 별을 칠한다 (스킬마다 조회하면 N+1)
+        Set<Long> favoriteIds = aiSkillFavoriteRepository.findByUserId(userId).stream()
+                .map(AiSkillFavorite::getSkillId)
+                .collect(Collectors.toSet());
+
+        return aiSkillRepository.findByProvider(provider).stream()
+                .map(skill -> AiSkillResponseDTO.of(skill, favoriteIds.contains(skill.getId())))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void toggleSkillFavorite(Long userId, Long skillId) {
+        if (aiSkillFavoriteRepository.existsByUserIdAndSkillId(userId, skillId)) {
+            aiSkillFavoriteRepository.deleteByUserIdAndSkillId(userId, skillId);
+        } else {
+            aiSkillFavoriteRepository.save(AiSkillFavorite.of(userId, skillId));
+        }
+    }
+
     // 퀴즈에 쓸 모델 결정 — 안 골랐으면 카드 모델, 골랐으면 내 플랜에 있는지 확인하고 통과시킨다
     private String resolveQuizModel(Long userId, String requestedModel, String cardModel) {
         if (requestedModel == null || requestedModel.isBlank()) {
@@ -371,9 +402,11 @@ public class LearningServiceImpl implements LearningService {
         }
     }
 
-    // 학습 계획 입력 — 등급과 누적 정답 수를 같이 넘겨야 AI가 간격을 조절한다 (study_plan.txt 1번 규칙)
-    private String buildStudyPlanInput(LearningCard card) {
-        return "주제: " + card.getCategory()
+    // 학습 계획 입력 — 기간이 단계 수를 정하고, 등급은 무엇을 채울지를 정한다 (study_plan.txt 규칙)
+    private String buildStudyPlanInput(LearningCard card, int days) {
+        return "계획 기간: " + days + "일"
+                + "\n시작 날짜: " + LocalDate.now() // 실제 날짜로 계획을 세우게 오늘을 알려준다
+                + "\n주제: " + card.getCategory()
                 + "\n현재 등급: " + card.getGrade()
                 + "\n누적 정답: " + card.getCorrectCount() + "회"
                 + "\n개념: " + card.getConceptContent();

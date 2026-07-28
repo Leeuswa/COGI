@@ -225,6 +225,11 @@ export const getTerms = () =>
 export const getMyAgreements = () =>
   USE_MOCK ? mock([1, 2]) : http('GET', '/api/users/me/agreements');
 
+// GET /api/users/me/agreements/versions — 내 동의 약관 + 동의 당시 버전(개정 배지/선택약관 재동의 판정)
+export const getMyAgreementVersions = () =>
+  USE_MOCK ? mock([{ termId: 1, agreedVersion: '1.0' }, { termId: 2, agreedVersion: '1.0' }])
+           : http('GET', '/api/users/me/agreements/versions');
+
 // API-064 POST /api/users/me/agreements — 약관 동의 제출
 export const submitAgreements = (agreements) =>
   USE_MOCK ? mock({ ok: true }) : http('POST', '/api/users/me/agreements', { agreements });
@@ -304,15 +309,7 @@ export const finalizeIssue = (issueId, verdict) =>
 export const decideResolveRequest = (issueId, approve) =>
   USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/issues/${issueId}/decision`, { approve });
 
-// API-035 GET /api/prs/{prId}/export — MD/TXT 내보내기. 목 모드는 프론트에서 파일을 만들어 내려준다
-export const exportReview = (prId, format) =>
-  USE_MOCK ? mock({ ok: true }) : http('GET', `/api/prs/${prId}/export?format=${format}`);
-
-// API-036 / API-037 — Notion / PDF (MVP 이후 검토 항목)
-export const exportNotion = (prId, workspaceId) =>
-  USE_MOCK ? mock({ notionPageUrl: null, pending: true }) : http('POST', `/api/prs/${prId}/export/notion`, { workspaceId });
-export const exportPdf = (prId) =>
-  USE_MOCK ? mock({ pending: true }) : http('POST', `/api/prs/${prId}/export/pdf`);
+// 리뷰 내보내기(MD/PDF/Notion)는 전부 프론트에서 처리 → 별도 export API 없음 (PrDetail.tsx)
 
 // API-038 GET /api/prs/{prId}/preview — 프론트엔드 변경 실시간 미리보기 (FR-47~49)
 // ponytail: 명세상 [불확실]·MVP 제외 후보라 404 응답(미지원 사유)만 다루는 스텁. WebContainer 붙일 때 확장
@@ -358,6 +355,12 @@ export const askReviewQuestion = (reviewId, question) =>
   USE_MOCK
     ? mock({ answer: `좋은 질문이에요! "${question.slice(0, 24)}" 관련해서: 옵셔널 체이닝(user?.email)을 쓰면 user가 null이어도 undefined로 안전하게 흘러가요. 다만 "왜 null이 오는지"를 찾아 근본 원인을 막는 게 더 중요합니다.` }, 800)
     : http('POST', `/api/reviews/${reviewId}/questions`, { question });
+
+// [설계 추론] 이슈 재검증 — 참고용 판정만 돌려주고 이슈 상태는 안 바뀐다(반영은 finalizeIssue를 따로 호출해야 함)
+export const reverifyIssue = (issueId, fixedCode) =>
+  USE_MOCK
+    ? mock({ stillPresent: false, explanation: '옵셔널 체이닝(user?.name)으로 바꿔서 이제 null이 와도 안전해요. 잘 고치셨어요!' }, 800)
+    : http('POST', `/api/issues/${issueId}/reverify`, { fixedCode });
 
 // API-039-1 POST /api/guest/local-review/{reviewId}/claim — 가입/로그인 직후 게스트 리뷰를 내 계정으로 매핑
 // AuthContext.signIn 한 곳에서만 부른다(이메일/카카오/GitHub 어느 경로든 로그인은 거길 지나므로).

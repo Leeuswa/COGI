@@ -53,6 +53,12 @@ function DesktopStudio() {
     const [picker, setPicker] = useState(null); // PR 가져오기 모달 — 레포→PR→파일 3단계 { step, repos, repo, prs, pr, files, checked:Set }
     const [previewCode, setPreviewCode] = useState(null); // 미리보기 대상 (프론트 파일)
     const [dockOpen, setDockOpen] = useState(false);
+    const [reverifyByIssue, setReverifyByIssue] = useState({}); // 이슈 재검증 { [issueId]: {open, code, busy, result} } — 이슈별로 독립이라 issue가 바뀌면 자연히 새 항목
+    const setReverifyFor = (issueId, patch) =>
+        setReverifyByIssue((prev) => ({
+            ...prev,
+            [issueId]: { ...(prev[issueId] || { open: false, code: "", busy: false, result: null }), ...patch },
+        }));
     const actionCost = reviewId === null ? modelWeight(model) : 1; // 리뷰 시작=모델 등급, 후속 질문=1
     const insufficientCredit = remainingCredit < actionCost;
 
@@ -393,7 +399,60 @@ function DesktopStudio() {
                                         >
                                             ✔ 고칠게요
                                         </button>
+                                        <button
+                                            className="btn wh sm"
+                                            onClick={() => {
+                                                const rv = reverifyByIssue[next.id];
+                                                setReverifyFor(next.id, { open: !rv?.open, result: null });
+                                            }}
+                                        >
+                                            🔁 수정한 코드로 확인
+                                        </button>
                                     </div>
+                                    {/* 이슈 재검증 [설계 추론] — 참고용 판정만 보여줄 뿐, 판정(RESOLVED/IGNORED)은
+                                        여전히 위 버튼으로 직접 눌러야 확정됨(승인 흐름을 우회하지 않으려는 의도) */}
+                                    {reverifyByIssue[next.id]?.open && (() => {
+                                        const rv = reverifyByIssue[next.id];
+                                        return (
+                                            <div style={{ marginTop: 8 }}>
+                                                <textarea
+                                                    rows={4}
+                                                    placeholder="수정한 코드를 붙여넣으세요"
+                                                    value={rv.code}
+                                                    onChange={(e) => setReverifyFor(next.id, { code: e.target.value })}
+                                                    style={{ width: "100%" }}
+                                                />
+                                                <div className="row" style={{ gap: 8, marginTop: 6, alignItems: "center" }}>
+                                                    <button
+                                                        className="btn co sm"
+                                                        disabled={rv.busy || !rv.code.trim() || insufficientCredit}
+                                                        onClick={async () => {
+                                                            if (!spendCredit(1)) return;
+                                                            setReverifyFor(next.id, { busy: true, result: null });
+                                                            try {
+                                                                const res = await api.reverifyIssue(next.id, rv.code);
+                                                                setReverifyFor(next.id, { busy: false, result: res });
+                                                            } catch {
+                                                                refundCredit(1);
+                                                                setReverifyFor(next.id, { busy: false, result: { error: true } });
+                                                            }
+                                                        }}
+                                                    >
+                                                        {rv.busy ? "확인 중…" : "확인하기 (⚡1)"}
+                                                    </button>
+                                                    {rv.result && !rv.result.error && (
+                                                        <span className="note sm">
+                                                            {rv.result.stillPresent ? "⚠️ 아직 남아있어요 — " : "✅ 고쳐진 것 같아요 — "}
+                                                            {rv.result.explanation}
+                                                        </span>
+                                                    )}
+                                                    {rv.result?.error && (
+                                                        <span className="note sm">확인 중 문제가 생겼어요. 크레딧은 안 깎였어요.</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                             <button

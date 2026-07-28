@@ -14,6 +14,13 @@ public interface CreditUsageService {
     // 애초에 소모가 안 된 경우) 조용히 무시한다.
     void refund(Long userId, String modelName);
 
+    // 모델 등급과 무관하게 고정 크레딧만 소모(예: 리뷰 후속 질문 ⚡1) — 프론트가 이미 이 값으로
+    // 크레딧을 표시하고 있어서, 원본 리뷰 모델의 등급(최대 3)이 아니라 항상 이 고정값으로 맞춘다
+    void checkAndConsumeFixed(Long userId, int weight);
+
+    // checkAndConsumeFixed의 반대
+    void refundFixed(Long userId, int weight);
+
     // API-055: 오늘 사용량/한도 조회(사용 이력이 아직 없으면 0/플랜의 daily_credit_limit로 응답)
     CreditUsageResponseDTO getStatus(Long userId);
 
