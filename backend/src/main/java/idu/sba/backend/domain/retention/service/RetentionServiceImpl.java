@@ -7,18 +7,23 @@ import idu.sba.backend.domain.retention.entity.PetState;
 import idu.sba.backend.domain.retention.entity.UserStreak;
 import idu.sba.backend.domain.retention.repository.PetStateRepository;
 import idu.sba.backend.domain.retention.repository.UserStreakRepository;
+import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class RetentionServiceImpl implements RetentionService {
 
+    private static final int CALENDAR_DAYS = 34; // 대시보드 달력이 최근 4~5주만 그린다
+
     private final UserStreakRepository userStreakRepository;
     private final PetStateRepository petStateRepository;
+    private final QuizSubmissionRepository quizSubmissionRepository;
 
     @Override
     @Transactional
@@ -34,10 +39,22 @@ public class RetentionServiceImpl implements RetentionService {
     @Transactional(readOnly = true)
     public RetentionStatusResponseDTO getRetentionStatus(Long userId) {
         LocalDate today = LocalDate.now();
+        List<String> submitDays = submitDaysSince(userId, today.minusDays(CALENDAR_DAYS));
         // 없으면 아직 제출 이력 없는 사용자 → streak 0
         return userStreakRepository.findByUserId(userId)
-                .map(streak -> RetentionStatusResponseDTO.of(streak.effectiveStreak(today), streak.submittedToday(today)))
-                .orElseGet(() -> RetentionStatusResponseDTO.of(0, false));
+                .map(streak -> RetentionStatusResponseDTO.of(
+                        streak.effectiveStreak(today), streak.submittedToday(today), submitDays))
+                .orElseGet(() -> RetentionStatusResponseDTO.of(0, false, submitDays));
+    }
+
+    // 제출 달력 점 — quiz_submissions가 원천이라 DB를 비우면 같이 사라진다.
+    // 따로 저장하지 않는다. 저장하면 제출 이력과 어긋날 자리가 하나 더 생긴다
+    private List<String> submitDaysSince(Long userId, LocalDate from) {
+        return quizSubmissionRepository.findByUserIdAndSubmittedAtGreaterThanEqual(userId, from.atStartOfDay()).stream()
+                .map(s -> s.getSubmittedAt().toLocalDate().toString())
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     @Override

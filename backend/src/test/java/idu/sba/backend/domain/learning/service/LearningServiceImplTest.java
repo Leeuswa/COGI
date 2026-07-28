@@ -63,15 +63,8 @@ class LearningServiceImplTest {
         return issue;
     }
 
-    // 저장 결과를 그대로 돌려주도록(saveAll이 인자 리스트를 반환) 스텁
-    private void stubSaveEcho() {
-        when(weaknessStatRepository.saveAll(anyList()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-    }
-
     @Test
     void 같은_카테고리가_3회_이상이면_통계에_잡힌다() {
-        stubSaveEcho();
         Review review = review(10L, "Java");
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
         when(reviewIssueRepository.findByReviewIdIn(any())).thenReturn(List.of(
@@ -90,7 +83,6 @@ class LearningServiceImplTest {
 
     @Test
     void 같은_카테고리라도_3회_미만이면_제외된다() {
-        stubSaveEcho();
         Review review = review(10L, "Java");
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
         when(reviewIssueRepository.findByReviewIdIn(any())).thenReturn(List.of(
@@ -104,7 +96,6 @@ class LearningServiceImplTest {
 
     @Test
     void acknowledged_이슈는_카운트에서_빠진다() {
-        stubSaveEcho();
         Review review = review(10L, "Java");
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
 
@@ -123,7 +114,6 @@ class LearningServiceImplTest {
 
     @Test
     void 언어가_다르면_따로_집계된다() {
-        stubSaveEcho();
         Review java = review(10L, "Java");
         Review python = review(20L, "Python");
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(java, python));
@@ -144,7 +134,6 @@ class LearningServiceImplTest {
 
     @Test
     void 강의추천은_약점_카테고리로_큐레이션_강의를_매칭한다() {
-        stubSaveEcho();
         Review review = review(10L, "Java");
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(review));
         when(reviewIssueRepository.findByReviewIdIn(any())).thenReturn(List.of(
@@ -167,7 +156,6 @@ class LearningServiceImplTest {
 
     @Test
     void 약점이_없으면_강의추천도_빈_목록이다() {
-        stubSaveEcho();
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
         when(reviewIssueRepository.findByReviewIdIn(any())).thenReturn(List.of());
 
@@ -176,7 +164,6 @@ class LearningServiceImplTest {
 
     @Test
     void 리뷰가_없으면_빈_목록이다() {
-        stubSaveEcho();
         when(reviewRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
         when(reviewIssueRepository.findByReviewIdIn(any())).thenReturn(List.of());
 

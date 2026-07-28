@@ -39,3 +39,5 @@ public class AdminFaqController {
         return ApiResponse.ok("FAQ를 삭제했습니다.");
     }
 }
+
+// pr테스트

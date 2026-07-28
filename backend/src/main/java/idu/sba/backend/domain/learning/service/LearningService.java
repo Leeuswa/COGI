@@ -10,7 +10,7 @@ import idu.sba.backend.domain.learning.dto.QuizSubmissionResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
 import idu.sba.backend.domain.learning.dto.SkillByWeaknessResponseDTO;
 import idu.sba.backend.domain.learning.dto.SkillRecommendRequestDTO;
-import idu.sba.backend.domain.learning.dto.SkillRecommendResponseDTO;
+import idu.sba.backend.domain.learning.dto.SkillByWeaknessResponseDTO;
 import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
 
 import java.util.List;
@@ -46,8 +46,7 @@ public interface LearningService {
     LearningCardResponseDTO createStudyPlan(Long userId, Long cardId, int days);
 
     // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 AI 호출도 크레딧도 없다
-    // category는 약점 카테고리(BUG 등). null이면 provider만으로 거른다
-    List<AiSkillResponseDTO> getAiSkills(Long userId, String provider, String category);
+    List<AiSkillResponseDTO> getAiSkills(Long userId, String provider);
 
     // 내가 즐겨찾기한 스킬 전체 — provider 안 가리고 전부. AI 호출도 크레딧도 없다
     List<AiSkillResponseDTO> getFavoriteSkills(Long userId);
@@ -56,10 +55,13 @@ public interface LearningService {
     void toggleSkillFavorite(Long userId, Long skillId);
 
     // AI 스킬 추천 (API-049) — 약점/요구사항을 넣으면 AI 호출 + 크레딧 소모로 추천 텍스트를 만든다
-    SkillRecommendResponseDTO recommendSkill(Long userId, SkillRecommendRequestDTO request);
+    SkillByWeaknessResponseDTO recommendSkill(Long userId, SkillRecommendRequestDTO request);
 
     // 약점 기반 AI별 스킬 추천 (신규) — 입력 없이 내 약점 통계로 도구별 추천 4건을 만든다. 고정 크레딧 2
     SkillByWeaknessResponseDTO recommendSkillByWeakness(Long userId);
+
+    // 마지막 약점 기반 추천 다시 꺼내기 — 화면을 나갔다 와도 남게. 크레딧도 AI 호출도 없다. 없으면 null
+    SkillByWeaknessResponseDTO getLatestSkillRecommendation(Long userId, String kind);
 
     // 퀴즈 제출·채점 (API-046) — 정답이면 신호등 승급
     QuizSubmitResultDTO submitQuiz(Long userId, Long cardId, Long quizId, String answer);
