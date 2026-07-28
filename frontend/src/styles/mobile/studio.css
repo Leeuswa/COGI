@@ -24,6 +24,12 @@
     font-size: 13px; line-height: 1.85; word-break: keep-all; overflow-wrap: break-word;
   }
   .mst-bub p { white-space: pre-line; }
+  /* 후속 답변은 마크다운이라 코드펜스·제목·굵게가 섞여 온다 */
+  .mst-bub .q-text { white-space: pre-line; margin: 0; }
+  .mst-bub .q-text + .codebox, .mst-bub .codebox + .q-text { margin-top: 9px; }
+  .mst-bub .codebox { font-size: 11px; padding: 11px 12px; border-radius: 9px; }
+  .mst-bub .md-h { display: block; margin: 10px 0 4px; font-size: 13px; }
+  .mst-bub .q-text:first-child .md-h:first-child { margin-top: 0; }
   .mst-bub.cogi { align-self: flex-start; background: var(--white); border: 2px solid var(--navy); color: var(--navy); }
   .mst-bub.me { align-self: flex-end; background: var(--navy); color: var(--white); }
   /* 붙여넣은 코드도 옆으로 넘기면 오른쪽이 잘린 줄 모른다 — 줄을 접는다 */
@@ -85,6 +91,17 @@
     border: 2px solid #dfe5f0; border-radius: 10px; background: var(--white); color: var(--navy);
   }
   /* 즐겨찾기 스킬 칩 — 입력창 바로 위. 넘치면 줄을 접는다(가로 스크롤 금지) */
+  /* 즐겨찾기 스킬 — 버튼으로 접어 둔다 */
+  .mst-fav { margin-bottom: 8px; }
+  .mst-fav-btn {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    font: inherit; font-size: 11.5px; font-weight: 700; padding: 7px 11px;
+    border-radius: 999px; background: var(--white); color: var(--navy); border: 2px solid var(--navy);
+  }
+  .mst-fav-btn.on { background: var(--yellow); }
+  .mst-fav-btn i { font-style: normal; font-size: 8px; color: var(--sub); }
+  .mst-fav .mst-skills { margin-top: 8px; }
+
   .mst-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .mst-skill {
     font: inherit; font-size: 11.5px; font-weight: 700; line-height: 1.4;

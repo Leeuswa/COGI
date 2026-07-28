@@ -327,6 +327,12 @@ export const getRepoPrs = (repoId) =>
 export const getRepoPrFiles = (repoId, prNumber) =>
   USE_MOCK ? mock(M.mockPrFiles) : http('GET', `/api/repos/${repoId}/prs/${prNumber}/files`);
 
+// 미리보기 도크가 부족한 로컬 참조(css/js/이미지)를 GitHub에서 가져올 때 씀 — 승인 버튼을 누른 뒤에만 호출
+export const getRepoFileContent = (repoId, path) =>
+  USE_MOCK
+    ? mock({ path, content: '/* mock */', size: 12, encoding: 'utf-8' })
+    : http('GET', `/api/repos/${repoId}/file-content?path=${encodeURIComponent(path)}`);
+
 // 스튜디오 'PR 가져오기' 피커 3단계(리뷰 실행) [설계 추론] — target_type=PR로 저장돼 PR 리뷰 목록에도 뜬다
 export const reviewImportedPr = (repoId, prNumber, code, modelName, title, authorLogin) =>
   USE_MOCK
@@ -449,9 +455,8 @@ export const createStudyPlan = (cardId, days = 7) =>
   USE_MOCK ? mock({ studyPlan: [] }, 900) : http('POST', `/api/learning-cards/${cardId}/study-plan?days=${days}`);
 
 // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 크레딧을 안 쓴다
-// category를 넘기면 그 약점 카테고리에 걸린 스킬만 걸러서 내려온다 (약점 화면의 "AI 스킬 추천" 버튼)
-export const getAiSkills = (provider = 'CLAUDE', category = null) =>
-  USE_MOCK ? mock([]) : http('GET', `/api/ai-skills?provider=${provider}${category ? `&category=${category}` : ''}`);
+export const getAiSkills = (provider = 'CLAUDE') =>
+  USE_MOCK ? mock([]) : http('GET', `/api/ai-skills?provider=${provider}`);
 
 // 즐겨찾기한 스킬 전부 — provider를 안 가린다. 후속 질문 칩이 이걸 쓴다
 export const getFavoriteSkills = () =>
@@ -486,14 +491,14 @@ export const getCardSubmissions = (cardId) =>
   USE_MOCK ? mock([]) : http('GET', `/api/learning-cards/${cardId}/submissions`);
 
 // API-049 POST /api/ai-skill-recommendations — AI 스킬 추천 (FR-70, 크레딧 소모)
+// 약점 기반 추천과 같은 { weaknesses, items } 모양으로 온다 — 화면도 같은 카드를 쓴다.
+// 예전엔 AI 글을 통째로 받아 문단 하나로 뿌렸는데, 복사할 프롬프트도 즐겨찾기할 대상도 없었다
 export const recommendSkill = (weaknessOrRequirement) =>
   USE_MOCK
     ? mock({
-        result:
-          '입력하신 약점 기준으로 추천드려요.\n\n' +
-          '① Claude Code + 정적분석 스킬 — PR 올리기 전 자가 점검\n' +
-          '② ESLint strict-null 룰셋 — 저장할 때마다 자동으로 잡아줌\n' +
-          '③ COGI 학습카드 — "null 안전성" 카드 반복 풀이',
+        weaknesses: [],
+        items: [{ provider: 'CLAUDE', title: 'Claude Code의 코드 분석 및 제안', why: 'null 체크 누락 지점을 먼저 훑어준다.',
+          howTo: '터미널에서 claude 실행 후 파일을 붙여넣고 물어본다', prompt: '이 코드에서 null 체크가 빠진 곳을 전부 찾아서 고쳐줘.' }],
       }, 1100)
     : http('POST', '/api/ai-skill-recommendations', { weaknessOrRequirement });
 
@@ -507,6 +512,12 @@ export const recommendSkillByWeakness = () =>
           howTo: '터미널에서 claude 실행 후 /review 입력', prompt: '이 코드에서 null이 들어올 수 있는 경로를 전부 찾아줘.' }],
       }, 1400)
     : http('POST', '/api/ai-skill-recommendations/by-weakness');
+
+// 마지막 추천을 다시 꺼낸다. 크레딧 안 쓴다 — 화면을 나갔다 와도 결과가 남게 하려고.
+// 두 종류가 한 화면에 같이 떠 있어서 따로 꺼낸다. 한 번도 안 했으면 null
+// kind: 'BY_WEAKNESS'(기본) | 'FREE_TEXT'
+export const getLatestSkillRecommendation = (kind = 'BY_WEAKNESS') =>
+  USE_MOCK ? mock(null) : http('GET', `/api/ai-skill-recommendations/latest?kind=${kind}`);
 
 /* ══════════ 성장/리텐션 (GRW/RET) ══════════ */
 

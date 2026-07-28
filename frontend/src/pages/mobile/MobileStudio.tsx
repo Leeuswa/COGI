@@ -11,11 +11,20 @@ import * as api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
 import { renderDescription } from "../../components/ui";
+import { renderQuestion } from "../../components/cardText";
 import { MODEL_TIERS, PLAN_TIER, catKo, sevKo } from "../../data/constants";
 import PreviewDock from "../review/PreviewDock";
 import "../../styles/mobile/studio.css";
 
 const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend";
+// 미리보기는 iframe에 문서를 통째로 넣는 방식이라 뿌리가 될 수 있는 건 HTML뿐이다
+const isPreviewable = (f) => /\.html?$/i.test(f.path);
+// 붙여넣은 글이 HTML 문서인지. 예전엔 /<[a-z][^>]*>/ 하나로 봐서 자바 제네릭(List<String>)까지
+// 걸렸고, 프론트가 한 줄도 없는 PR에도 "미리보기를 여세요"가 떴다
+const looksHtml = (t) =>
+  /<(!doctype\s+html|html|head|body|div|section|main|header|footer|nav|form|table|ul|ol|p|span|button|img|h[1-6])\b/i.test(t);
+// 작업대 상태를 담아두는 자리 (데스크톱과 같은 키 — 화면만 다르고 같은 작업대다)
+const STUDIO_KEY = "cogi-studio";
 
 export default function MobileStudio() {
   const { user } = useAuth();
@@ -29,18 +38,26 @@ export default function MobileStudio() {
   const modelWeight = (m) => MODEL_TIERS.find((t) => t.name === m)?.tier ?? 1;
   const remainingCredit = creditLimit - S.creditUsed;
 
-  const [msgs, setMsgs] = useState([]);
-  const [input, setInput] = useState("");
-  const [model, setModel] = useState(MODEL_TIERS[0].name);
+  // 화면을 떠나면 컴포넌트가 언마운트돼 대화가 날아갔다. 탭 안에서만 살아 있으면 되니 sessionStorage
+  const saved = (() => {
+    try { return JSON.parse(sessionStorage.getItem(STUDIO_KEY) || "null") ?? {}; }
+    catch { return {}; }
+  })();
+
+  const [msgs, setMsgs] = useState(saved.msgs ?? []);
+  const [input, setInput] = useState(saved.input ?? "");
+  const [model, setModel] = useState(saved.model ?? MODEL_TIERS[0].name);
   const [busy, setBusy] = useState(false);
-  const [reviewId, setReviewId] = useState(null); // null = 시작 전 (모델 변경 가능)
-  const [verdicts, setVerdicts] = useState({});
-  const [finalized, setFinalized] = useState(false);
-  const [isPrReview, setIsPrReview] = useState(false);
+  const [reviewId, setReviewId] = useState(saved.reviewId ?? null); // null = 시작 전 (모델 변경 가능)
+  const [verdicts, setVerdicts] = useState(saved.verdicts ?? {});
+  const [finalized, setFinalized] = useState(saved.finalized ?? false);
+  const [isPrReview, setIsPrReview] = useState(saved.isPrReview ?? false);
   const [picker, setPicker] = useState(null);
-  const [previewCode, setPreviewCode] = useState(null);
-  const [dockOpen, setDockOpen] = useState(false);
+  const [previewCode, setPreviewCode] = useState(saved.previewCode ?? null);
+  const [dockOpen, setDockOpen] = useState(saved.dockOpen ?? false);
+  const [previewRepoId, setPreviewRepoId] = useState(saved.previewRepoId ?? null); // 부족한 파일을 찾을 레포
   const [favSkills, setFavSkills] = useState(null); // 즐겨찾기 스킬. null = 아직 안 받음
+  const [favOpen, setFavOpen] = useState(false); // 즐겨찾기 목록 열림 여부
 
   const actionCost = reviewId === null ? modelWeight(model) : 1;
   const insufficientCredit = remainingCredit < actionCost;
@@ -53,12 +70,35 @@ export default function MobileStudio() {
 
   const push = (m) => setMsgs((prev) => [...prev, m]);
 
-  // 후속 질문은 리뷰가 시작돼야 열린다. 그때 즐겨찾기 스킬을 한 번만 받아 칩으로 깐다
-  // 실패하면 칩만 안 보이게 둔다 — 채팅 자체를 막을 이유는 없다
+  // 대화·리뷰 맥락을 담아둔다. busy와 picker는 뺐다 — 떠나는 순간 끝난 상태라 되살리면 버튼이 잠긴 채로 뜬다
   useEffect(() => {
-    if (reviewId === null || favSkills !== null) return;
-    api.getFavoriteSkills().then(setFavSkills).catch(() => setFavSkills([]));
-  }, [reviewId, favSkills]);
+    try {
+      sessionStorage.setItem(STUDIO_KEY, JSON.stringify({
+        msgs, input, model, reviewId, verdicts, finalized, isPrReview,
+        previewCode, dockOpen, previewRepoId,
+      }));
+    } catch { /* 용량 초과 등 — 저장 못 해도 화면은 그대로 돈다 */ }
+  }, [msgs, input, model, reviewId, verdicts, finalized, isPrReview, previewCode, dockOpen, previewRepoId]);
+
+  // 즐겨찾기 목록은 [★ 즐겨찾기]를 열 때 받는다. 열 때마다 다시 받아야
+  // 스킬 추천 화면에서 방금 별을 단 게 이 목록에도 바로 뜬다
+  const openFavSkills = async () => {
+    if (favOpen) return setFavOpen(false);
+    setFavOpen(true);
+    try { setFavSkills(await api.getFavoriteSkills()); }
+    catch { setFavSkills([]); } // 목록만 비운다 — 채팅 자체를 막을 이유는 없다
+  };
+
+  // AI가 만들어 준 스킬은 붙여넣을 프롬프트를 들고 있으니 그걸 그대로 쓰고,
+  // 큐레이션 스킬은 prompt가 없어서 제목으로 문장을 만든다.
+  // 리뷰 시작 전에는 붙여넣은 코드가 이미 있을 수 있어 덮지 않고 뒤에 붙인다
+  const useFavSkill = (s) => {
+    const line = s.prompt?.trim() || `${s.title} 관점에서 이 코드를 점검해줘.`;
+    setInput((prev) => (prev.trim() ? `${prev.trimEnd()}
+
+${line}` : line));
+    setFavOpen(false);
+  };
 
   // PR 상세에서 넘어오면 새 리뷰 대신 그 PR의 미판정(OPEN) 이슈만 이어받는다
   useEffect(() => {
@@ -86,17 +126,41 @@ export default function MobileStudio() {
 
   /* ── ① PR 가져오기: 레포 → PR → 파일 ── */
   const openPicker = async () => {
-    const repos = await api.getMyLinkedRepos();
+    // 데스크톱과 같다 — 연동해 둔 레포 + 내 GitHub 레포를 함께 띄운다.
+    // 연동분만 보이면 아직 안 붙인 레포의 PR을 가져올 길이 없다
+    const [linked, mine] = await Promise.all([
+      api.getMyLinkedRepos().catch(() => []),
+      api.getGithubRepos().catch(() => []), // GitHub 미연동이면 400 — 그땐 연동분만
+    ]);
+    const repoIdByGh = Object.fromEntries(linked.map((r) => [String(r.githubRepoId), r.repoId]));
+    const repos = mine.map((g) => ({
+      githubRepoId: g.githubRepoId,
+      repoName: g.repoName,
+      repoId: repoIdByGh[String(g.githubRepoId)] ?? null,
+    }));
+    // 초대로 들어온 팀 레포처럼 내 GitHub 목록엔 없지만 연동된 것도 빠뜨리지 않는다
+    linked.forEach((r) => {
+      if (!repos.some((x) => String(x.githubRepoId) === String(r.githubRepoId))) {
+        repos.push({ githubRepoId: r.githubRepoId, repoName: r.repoName, repoId: r.repoId });
+      }
+    });
     if (repos.length === 0) {
-      notify("연동된 레포가 없어요. 레포 연동 화면에서 먼저 연동해주세요.");
+      notify("레포가 없어요. 마이페이지에서 GitHub을 먼저 연동해주세요.");
       return;
     }
     setPicker({ step: "repo", repos });
   };
 
   const pickRepo = async (repo) => {
-    const prs = await api.getRepoPrs(repo.repoId);
-    setPicker((p) => ({ ...p, step: "pr", repo, prs }));
+    // 아직 안 붙은 레포면 여기서 붙이고 이어간다
+    let repoId = repo.repoId;
+    try {
+      if (!repoId) repoId = (await api.linkRepo(repo.githubRepoId)).repoId;
+      const prs = await api.getRepoPrs(repoId);
+      setPicker((p) => ({ ...p, step: "pr", repo: { ...repo, repoId }, prs }));
+    } catch (e) {
+      notify(e.message || "이 레포의 PR을 가져오지 못했어요");
+    }
   };
 
   const pickPr = async (pr) => {
@@ -104,13 +168,27 @@ export default function MobileStudio() {
     setPicker((p) => ({ ...p, step: "files", pr, files, checked: new Set(files.map((f) => f.path)) }));
   };
 
+  // 피커가 주는 f.code는 전체 내용이 아니라 GitHub의 patch(diff)다. 그대로 띄우면 +/- 글자만 나온다.
+  // 그래서 HTML 원본을 다시 받아온다. 폰에서는 도크를 자동으로 펴지 않는다 — 채팅이 가려진다
+  const openPreviewFor = async (files, repoId) => {
+    const front = files.find(isPreviewable);
+    if (!front) return;
+    setPreviewCode(front.code); // 원본이 오기 전까진 diff라도
+    try {
+      const file = await api.getRepoFileContent(repoId, front.path);
+      if (file?.content) setPreviewCode(file.content);
+    } catch (e) {
+      notify(e.message || "원본 파일을 못 받아 diff 상태로 보여드려요");
+    }
+  };
+
   const importFiles = () => {
     const files = picker.files.filter((f) => picker.checked.has(f.path));
     const { repo, pr } = picker;
     setPicker(null);
     if (files.length === 0) return;
-    const front = files.find(isFrontend);
-    if (front) setPreviewCode(front.code); // 폰에서는 도크를 자동으로 펴지 않는다 — 채팅이 가려진다
+    setPreviewRepoId(repo.repoId); // 미리보기가 부족한 파일을 이 레포에서 찾는다
+    openPreviewFor(files, repo.repoId);
     runReview(files.map((f) => `// ${f.path}\n${f.code}`).join("\n\n"), files, {
       repoId: repo.repoId, prNumber: pr.number, title: pr.title, authorLogin: pr.authorLogin,
     });
@@ -119,7 +197,9 @@ export default function MobileStudio() {
   /* ── ② 리뷰 시작 — 여기서부터 모델 잠금 ── */
   const runReview = async (codeText: string, files?: any[], prMeta?: any) => {
     if (!spendCredit(modelWeight(model))) return;
-    const hasFront = files?.some(isFrontend) || /<[a-z][^>]*>/i.test(codeText);
+    // 안내 문구는 "미리보기를 실제로 열 수 있을 때"만 띄운다.
+    // isFrontend(css 포함)로 보면 CSS만 있는 PR에도 뜨는데, 그건 뿌리 문서가 없어 못 연다
+    const hasFront = files ? files.some(isPreviewable) : looksHtml(codeText);
     if (files) {
       push({ who: "me", text: `🐙 PR #${prMeta.prNumber} 에서 ${files.length}개 파일 가져옴:\n${files.map((f) => "· " + f.path).join("\n")}` });
       setIsPrReview(true);
@@ -173,7 +253,7 @@ export default function MobileStudio() {
     if (!v || busy) return;
     setInput("");
     if (reviewId === null) {
-      if (/<[a-z][^>]*>/i.test(v)) setPreviewCode(v);
+      if (looksHtml(v)) setPreviewCode(v);
       runReview(v);
     } else runQuestion(v);
   };
@@ -203,10 +283,12 @@ export default function MobileStudio() {
   };
 
   const resetAll = () => {
+    sessionStorage.removeItem(STUDIO_KEY); // 담아둔 것도 같이 버린다
     setMsgs([]);
     setReviewId(null);
     setPreviewCode(null);
     setDockOpen(false);
+    setPreviewRepoId(null);
     setInput("");
     setFinalized(false);
     setIsPrReview(false);
@@ -241,7 +323,7 @@ export default function MobileStudio() {
         </button>
       )}
       {previewCode !== null && dockOpen && (
-        <div className="mst-dockbody"><PreviewDock code={previewCode} onCode={setPreviewCode} /></div>
+        <div className="mst-dockbody"><PreviewDock code={previewCode} onCode={setPreviewCode} repoId={previewRepoId} /></div>
       )}
 
       <div className="mst-thread" ref={threadRef}>
@@ -277,7 +359,14 @@ export default function MobileStudio() {
             </div>
           ) : (
             <div key={i} className={`mst-bub ${m.who}`}>
-              {m.isCode ? <pre className="mst-mycode">{m.text}</pre> : <p>{m.text}</p>}
+              {m.isCode ? (
+                <pre className="mst-mycode">{m.text}</pre>
+              ) : m.who === "cogi" ? (
+                // 후속 답변은 마크다운으로 온다. 그냥 뿌리면 ```펜스와 #제목이 글자로 찍힌다
+                renderQuestion(m.text)
+              ) : (
+                <p>{m.text}</p>
+              )}
             </div>
           ),
         )}
@@ -320,17 +409,32 @@ export default function MobileStudio() {
 
       {/* 입력 — 화면 아래 고정 */}
       <div className="mst-input">
-        {/* 즐겨찾기해 둔 스킬 — 누르면 질문 문장이 입력창에 채워진다. 보내기 전에 고칠 수 있다 */}
-        {reviewId !== null && favSkills?.length > 0 && (
-          <div className="mst-skills">
-            {favSkills.map((s) => (
-              <button key={s.id} className="mst-skill" disabled={busy || insufficientCredit}
-                onClick={() => setInput(`${s.title} 관점에서 이 코드를 점검해줘.`)}>
-                ★ {s.title}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* 즐겨찾기해 둔 스킬 — 버튼으로 접어 둔다. 칩을 늘 깔면 좁은 화면에서 입력창이 밀린다.
+            리뷰 시작 전에도 연다 — 어떤 관점으로 볼지 코드와 같이 적어 보낼 수 있다 */}
+        <div className="mst-fav">
+            <button type="button" className={`mst-fav-btn ${favOpen ? "on" : ""}`} onClick={openFavSkills}>
+              ★ 즐겨찾기 스킬{favSkills?.length ? ` ${favSkills.length}` : ""}
+              <i>{favOpen ? "▲" : "▼"}</i>
+            </button>
+            {favOpen && (
+              favSkills === null ? (
+                <p className="mst-hint">불러오는 중…</p>
+              ) : favSkills.length === 0 ? (
+                <p className="mst-hint">
+                  아직 즐겨찾기한 스킬이 없어요. <Link to="/app/skills">AI 스킬 추천</Link>에서 별을 달면 여기 뜹니다.
+                </p>
+              ) : (
+                <div className="mst-skills">
+                  {favSkills.map((s) => (
+                    <button key={s.id} className="mst-skill" disabled={busy || insufficientCredit}
+                      onClick={() => useFavSkill(s)}>
+                      ★ {s.title}
+                    </button>
+                  ))}
+                </div>
+              )
+          )}
+        </div>
         <textarea
           rows={2}
           value={input}
@@ -386,10 +490,15 @@ export default function MobileStudio() {
             {picker.step === "repo" && (
               <>
                 <h3>어느 레포의 PR을 가져올까요?</h3>
+                <p className="mnote">아직 연동 안 한 것도 고르면 그 자리에서 붙여드려요.</p>
                 <ul className="mst-opts">
                   {picker.repos.map((r) => (
-                    <li key={r.repoId}>
-                      <button onClick={() => pickRepo(r)}><b>{r.repoName}</b></button>
+                    <li key={r.githubRepoId}>
+                      <button onClick={() => pickRepo(r)}>
+                        <b>{r.repoName}</b>
+                        {/* 이미 붙은 것과 지금 붙일 것을 구분해 준다 */}
+                        <i>{r.repoId ? "연동됨" : "연동 필요"}</i>
+                      </button>
                     </li>
                   ))}
                 </ul>

@@ -1,5 +1,8 @@
 /* 모바일 AI 스킬 추천 — AI 선택을 2×2로, 카드는 세로로 */
 @media (max-width: 640px) {
+  /* 큰 갈래 3칸. .mapp를 붙여 공통 .mseg(4칸)보다 특이도를 올린다 */
+  .mapp .msk-seg { grid-template-columns: repeat(3, 1fr); }
+
   .msk-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .msk-tabs button {
     padding: 12px 0; font: inherit; font-size: 13px; color: var(--navy);
@@ -45,6 +48,8 @@
 
   /* 약점 기준 추천 결과 — AI 네 곳이 한 카드 안에 쌓인다 */
   .msk-rec { display: flex; flex-direction: column; gap: 8px; }
+  /* 배지와 별을 한 줄에 — 별은 오른쪽 끝 */
+  .msk-rec-item > .msk-head { align-self: stretch; justify-content: space-between; align-items: center; }
   .msk-rec-item {
     display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
     padding: 13px 14px; margin-top: 10px;
