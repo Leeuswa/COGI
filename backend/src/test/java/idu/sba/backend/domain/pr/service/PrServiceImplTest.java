@@ -326,7 +326,7 @@ class PrServiceImplTest {
         when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
         when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(false);
 
-        assertThatThrownBy(() -> service.listReviewedPrs(USER_ID, REPO_ID))
+        assertThatThrownBy(() -> service.listReviewedPrs(USER_ID, REPO_ID, null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.NOT_REPO_MEMBER);
     }
@@ -343,11 +343,53 @@ class PrServiceImplTest {
                 ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.MINOR, "Foo.java", 1, "설명1"),
                 ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 2, "설명2")));
 
-        var result = service.listReviewedPrs(USER_ID, REPO_ID);
+        var result = service.listReviewedPrs(USER_ID, REPO_ID, null, null);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getIssueCount()).isEqualTo(2);
         assertThat(result.get(0).getTopSeverity()).isEqualTo("CRITICAL");
+    }
+
+    @Test
+    void listReviewedPrs_severity로_거르면_다른_PR은_빠진다() {
+        PullRequest matching = pr(); // topSeverity=CRITICAL로 세팅될 PR
+        PullRequest other = PullRequest.open(REPO_ID, 77, "다른 PR", null, null);
+        setField(other, "id", 888L);
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(REPO_ID)).thenReturn(List.of(matching, other));
+
+        Review review = Review.createFromPr(USER_ID, PR_ID, "claude-haiku-4-5");
+        setField(review, "id", 900L);
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.of(review));
+        when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of(
+                ReviewIssue.of(900L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 2, "설명2")));
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(888L)).thenReturn(Optional.empty()); // 이슈 없음(MINOR도 아님)
+
+        var result = service.listReviewedPrs(USER_ID, REPO_ID, "CRITICAL", null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(PR_ID);
+    }
+
+    @Test
+    void listReviewedPrs_author로_거르면_다른_작성자_PR은_빠진다() {
+        User author = User.createByGithub("gh-1", "author-a", "a@test.com", "token");
+        setField(author, "id", 55L);
+        PullRequest matching = pr(); // authorId=null인 기본 pr() — 아래에서 authorId를 55L로 오버라이드해 사용
+        setField(matching, "authorId", 55L);
+        PullRequest other = PullRequest.open(REPO_ID, 77, "다른 PR", null, "other-login");
+        setField(other, "id", 888L);
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.existsByRepoIdAndUserId(REPO_ID, USER_ID)).thenReturn(true);
+        when(pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(REPO_ID)).thenReturn(List.of(matching, other));
+        when(userRepository.findById(55L)).thenReturn(Optional.of(author));
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
+
+        var result = service.listReviewedPrs(USER_ID, REPO_ID, null, "author-a");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getAuthorName()).isEqualTo("author-a");
     }
 
 }

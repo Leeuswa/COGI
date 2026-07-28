@@ -299,9 +299,13 @@ export const transferOwnership = (repoId, targetUserId) =>
 /* ══════════ 리뷰 대시보드 (RDB) ══════════ */
 
 // API-032 GET /api/repos/{repoId}/prs/reviewed — PR 리뷰 대시보드(팀 대신 레포 기준으로 축소) [설계 추론]
-// 원래 명세는 팀 단위(teamId)였지만 백엔드에 "팀" 개념이 따로 없어(레포+팀원이 곧 팀) 레포 기준으로 구현
-export const getRepoReviewedPrs = (repoId) =>
-  USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/repos/${repoId}/prs/reviewed`);
+// 원래 명세는 팀 단위(teamId)였지만 백엔드에 "팀" 개념이 따로 없어(레포+팀원이 곧 팀) 레포 기준으로 구현.
+// filters={severity, author}는 둘 다 선택(FR-41/42) — 서버가 걸러서 내려줌(예전엔 프론트에서 직접 걸렀음)
+export const getRepoReviewedPrs = (repoId, filters: Record<string, string> = {}) => {
+  const entries = Object.entries(filters).filter(([, v]) => v && v !== 'ALL') as [string, string][];
+  const qs = new URLSearchParams(entries).toString();
+  return USE_MOCK ? mock([M.mockPr]) : http('GET', `/api/repos/${repoId}/prs/reviewed${qs ? `?${qs}` : ''}`);
+};
 
 // API-031 PATCH /api/issues/{issueId}/acknowledge — 의도한 코드 응답 (FR-40)
 // [설계 추론] 스튜디오 판정 확정 — 의도(IGNORED)는 바로 반영. 고침(RESOLVED)은 PR 리뷰의 CRITICAL

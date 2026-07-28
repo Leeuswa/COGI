@@ -12,7 +12,9 @@ import "../../styles/mobile/pr-list.css";
 export default function MobilePrList() {
   const [repos, setRepos] = useState(null);
   const [repoId, setRepoId] = useState(null);
-  const [prs, setPrs] = useState(null);
+  const [prs, setPrs] = useState(null); // 서버가 이미 걸러서 내려준, 화면에 실제로 보여줄 목록
+  const [authors, setAuthors] = useState<string[]>([]); // 담당자 필터 옵션(FR-42) — 필터 전 전체 목록에서 뽑음
+  const [hasAnyPr, setHasAnyPr] = useState(true);
   const [sev, setSev] = useState("ALL");
   const [author, setAuthor] = useState("ALL"); // 담당자 필터 (FR-42) — 데스크톱과 같은 기능
 
@@ -25,16 +27,21 @@ export default function MobilePrList() {
 
   useEffect(() => {
     if (repoId == null) return;
-    setPrs(null);
-    api.getRepoReviewedPrs(repoId).then(setPrs);
+    setSev("ALL");
+    setAuthor("ALL");
+    api.getRepoReviewedPrs(repoId).then((list) => {
+      setAuthors([...new Set<string>(list.map((p) => p.authorName).filter(Boolean))]);
+      setHasAnyPr(list.length > 0);
+    });
   }, [repoId]);
 
-  const shown = (prs || []).filter((pr) => {
-    if (sev !== "ALL" && pr.topSeverity !== sev) return false;
-    if (author !== "ALL" && pr.authorName !== author) return false;
-    return true;
-  });
-  const authors: string[] = [...new Set<string>((prs || []).map((p) => p.authorName).filter(Boolean))];
+  useEffect(() => {
+    if (repoId == null) return;
+    setPrs(null);
+    api.getRepoReviewedPrs(repoId, { severity: sev, author }).then(setPrs);
+  }, [repoId, sev, author]);
+
+  const shown = prs || [];
 
   if (repos && repos.length === 0) {
     return (
@@ -76,7 +83,7 @@ export default function MobilePrList() {
         <p className="mnote">불러오는 중…</p>
       ) : shown.length === 0 ? (
         <section className="mcard mempty">
-          <p>{prs.length === 0 ? "아직 리뷰한 PR이 없어요." : "조건에 맞는 PR이 없어요."}</p>
+          <p>{!hasAnyPr ? "아직 리뷰한 PR이 없어요." : "조건에 맞는 PR이 없어요."}</p>
           <Link className="btn wh sm full" to="/app/paste">리뷰 스튜디오 열기</Link>
         </section>
       ) : (
