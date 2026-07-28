@@ -39,10 +39,16 @@ function DesktopSkills() {
   const [searchParams, setSearchParams] = useSearchParams();
   const category = searchParams.get('category'); // 약점 화면에서 넘어온 필터 — 탭을 바꿔도 유지된다
 
-  useEffect(() => { api.getAiSkills(provider, category).then(setSkills); }, [provider, category]);
-
+  // 실패를 안 잡으면 콘솔에만 뜨고 화면은 "불러오는 중…"에서 멈춘다
   useEffect(() => {
-    api.getWeaknessStats().then((ws) => setWeakness(ws.map((w) => w.category)));
+    api.getAiSkills(provider, category)
+      .then(setSkills)
+      .catch((e) => { setSkills([]); notify(e.message || '스킬 목록을 불러오지 못했어요'); });
+  }, [provider, category]);
+
+  // 약점은 목록에 "내 약점" 표시를 다는 부가 정보라 실패해도 화면은 그대로 쓴다
+  useEffect(() => {
+    api.getWeaknessStats().then((ws) => setWeakness(ws.map((w) => w.category))).catch(() => setWeakness([]));
   }, []);
 
   // 별을 누르면 바로 화면에 반영하고 서버에도 저장한다

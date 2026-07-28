@@ -2,6 +2,7 @@ package idu.sba.backend.domain.retention.service;
 
 import idu.sba.backend.domain.retention.dto.RetentionStatusResponseDTO;
 import idu.sba.backend.domain.retention.entity.UserStreak;
+import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
 import idu.sba.backend.domain.retention.repository.UserStreakRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.when;
 class RetentionServiceImplTest {
 
     @Mock private UserStreakRepository userStreakRepository;
+    @Mock private QuizSubmissionRepository quizSubmissionRepository; // 제출 달력 점을 여기서 유도한다
 
     @InjectMocks
     private RetentionServiceImpl service;

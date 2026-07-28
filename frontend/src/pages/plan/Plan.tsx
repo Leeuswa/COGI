@@ -62,9 +62,11 @@ function DesktopPlan() {
   };
 
   useEffect(() => {
-    api.getPlans().then(setPlans);
-    api.getMyPlan().then(setMine);
-    api.getSubHistory().then(setHistory);
+    // 실패를 안 잡으면 콘솔에만 뜨고 화면은 빈 채로 멈춘다. 요금제는 이 화면의 본문이라 알려준다
+    api.getPlans().then(setPlans)
+      .catch((e) => { setPlans([]); notify(e.message || '요금제를 불러오지 못했어요'); });
+    api.getMyPlan().then(setMine).catch(() => setMine(null));
+    api.getSubHistory().then(setHistory).catch(() => setHistory([]));
   }, []);
 
   // 결제 확정. FREE로 내려가는 건 해지(DELETE), 나머지는 시작/전환

@@ -17,4 +17,8 @@ public interface QuizSubmissionRepository extends JpaRepository<QuizSubmission, 
     // 주간 리포트용 — 기간 [from, to) 내 제출 수 / 정답 수
     long countByUserIdAndSubmittedAtGreaterThanEqualAndSubmittedAtLessThan(Long userId, LocalDateTime from, LocalDateTime to);
     long countByUserIdAndIsCorrectTrueAndSubmittedAtGreaterThanEqualAndSubmittedAtLessThan(Long userId, LocalDateTime from, LocalDateTime to);
+
+    // 제출 달력 점 — 최근 몇 주치만 가져와 서비스에서 날짜로 접는다.
+    // DB에서 distinct date로 뽑으면 벤더 함수를 타야 해서, 몇 주 분량은 그냥 다 읽는 게 싸다
+    List<QuizSubmission> findByUserIdAndSubmittedAtGreaterThanEqual(Long userId, LocalDateTime from);
 }

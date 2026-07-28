@@ -217,6 +217,38 @@ class LearningCardServiceTest {
     }
 
     @Test
+    void 퀴즈생성_해설에_날_줄바꿈이_섞여와도_파싱된다() {
+        // 프롬프트가 explain 안에 코드블록을 넣으라고 시켜서 모델이 줄바꿈을 그대로 흘리는 일이 있다.
+        // JSON 문자열 안의 날 줄바꿈은 위법이라 코드블록이 든 문제만 골라서 500이 났다
+        when(learningCardRepository.findById(CARD_ID)).thenReturn(Optional.of(cardOwnedBy(USER_ID)));
+        String aiJson = "{\"question\":\"빈칸은?\",\"options\":[],\"answer\":\"?.\","
+                + "\"explain\":\"이렇게 쓴다\n```js\nuser?.name\n```\"}"; // 진짜 줄바꿈이 들어간 응답
+        when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
+                .thenReturn(new AiGenerationResult(aiJson, 50, 80, 0.005));
+        when(learningCardQuizRepository.save(any(LearningCardQuiz.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        QuizResponseDTO result = service.createQuiz(USER_ID, CARD_ID, "FILL_BLANK", null);
+
+        assertThat(result.getAnswer()).isEqualTo("?.");
+        assertThat(result.getExplain()).contains("user?.name"); // 코드블록이 살아서 넘어온다
+    }
+
+    @Test
+    void 퀴즈생성_모르는_키가_섞여와도_파싱된다() {
+        // 모델이 스키마에 없는 키를 하나 얹었다고 통째로 실패하면 안 된다
+        when(learningCardRepository.findById(CARD_ID)).thenReturn(Optional.of(cardOwnedBy(USER_ID)));
+        String aiJson = "{\"question\":\"?\",\"options\":[\"O\",\"X\"],\"answer\":\"O\",\"explain\":\"해설\","
+                + "\"difficulty\":\"EASY\"}"; // difficulty는 우리가 안 쓰는 키
+        when(aiReviewClient.generate(any(AiModel.class), anyString(), anyString()))
+                .thenReturn(new AiGenerationResult(aiJson, 50, 80, 0.005));
+        when(learningCardQuizRepository.save(any(LearningCardQuiz.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        QuizResponseDTO result = service.createQuiz(USER_ID, CARD_ID, "OX", null);
+
+        assertThat(result.getAnswer()).isEqualTo("O");
+    }
+
+    @Test
     void 정답_제출이면_정답수가_오르고_신호등이_승급한다() {
         LearningCard card = cardOwnedBy(USER_ID);
         card.recordCorrect();
