@@ -1,0 +1,16 @@
+{
+  "name": "COGI · Code Guide",
+  "short_name": "COGI",
+  "description": "머지 버튼을 누르기 전에, 코기가 먼저 읽습니다.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#cfe8ff",
+  "theme_color": "#cfe8ff",
+  "lang": "ko",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

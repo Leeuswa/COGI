@@ -440,9 +440,24 @@ export const createQuiz = (cardId, questionType = 'MULTIPLE_CHOICE', modelName =
     ? mock(M.mockQuizzes.find((q) => q.questionType === questionType) ?? M.mockQuizzes[0], 700)
     : http('POST', `/api/learning-cards/${cardId}/quiz`, { questionType, modelName });
 
-// 학습 계획 생성 — 카드 등급에 맞춘 복습 일정. 응답은 studyPlan이 채워진 카드 전체
-export const createStudyPlan = (cardId) =>
-  USE_MOCK ? mock({ studyPlan: [] }, 900) : http('POST', `/api/learning-cards/${cardId}/study-plan`);
+// 학습 계획 생성 — 고른 기간(3·5·7·14일)만큼 짠다. 응답은 studyPlan이 채워진 카드 전체
+export const createStudyPlan = (cardId, days = 7) =>
+  USE_MOCK ? mock({ studyPlan: [] }, 900) : http('POST', `/api/learning-cards/${cardId}/study-plan?days=${days}`);
+
+// AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 크레딧을 안 쓴다
+export const getAiSkills = (provider = 'CLAUDE') =>
+  USE_MOCK ? mock([]) : http('GET', `/api/ai-skills?provider=${provider}`);
+
+// 스킬 즐겨찾기 토글 — 나중에 후속질문에서 꺼내 쓸 목록이 된다
+export const toggleSkillFavorite = (skillId) =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', `/api/ai-skills/${skillId}/favorite`);
+
+// 다마고치 상태 — 계정별로 DB에 저장돼 기기를 바꿔도 이어진다
+export const getPetState = () =>
+  USE_MOCK ? mock(null) : http('GET', '/api/users/me/pet');
+
+export const savePetState = (pet) =>
+  USE_MOCK ? mock(pet) : http('PUT', '/api/users/me/pet', pet);
 
 // API-046 POST .../quiz/{quizId}/submit — 정답 제출 → 등급 승급 + streak 갱신 (RET-001 통합)
 export const submitQuiz = (cardId, quizId, answer) => {

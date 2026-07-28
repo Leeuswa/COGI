@@ -9,10 +9,22 @@ import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { PageHead } from '../../components/ui';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileGrowth from '../mobile/MobileGrowth';
 
 const COMPARE_COLORS = ['#ff6b57', '#4ec9a4', '#1b2a4a', '#c9862e', '#8b96b5', '#e06fae'];
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function Growth() {
+
+  return useIsMobile() ? <MobileGrowth /> : <DesktopGrowth />;
+}
+
+function DesktopGrowth() {
+  const { S } = useGame();
+
   const { user } = useAuth();
   const [streak, setStreak] = useState(0); // 서버 연속 학습일 (retention-status)
   const [trend, setTrend] = useState(null);
@@ -63,6 +75,7 @@ export default function Growth() {
   const first = trend?.[0]?.issueCount ?? 0;
   const last = trend?.[trend.length - 1]?.issueCount ?? 0;
   const improving = last < first;
+
 
   return (
     <main className="app-main">

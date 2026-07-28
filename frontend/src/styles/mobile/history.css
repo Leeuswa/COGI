@@ -1,0 +1,48 @@
+/* 모바일 리뷰 히스토리 — 표 + 팝업을 카드 아코디언으로 */
+@media (max-width: 640px) {
+  .mhist { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .mhist li {
+    background: var(--white); border: 2px solid var(--navy);
+    border-radius: 14px; overflow: hidden;
+  }
+  .mhist li.on { border-color: var(--coral); }
+
+  /* 접힌 줄 — 카드 전체가 버튼이다 */
+  .mh-row {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    padding: 13px 14px; background: none; border: none; cursor: pointer;
+    font: inherit; text-align: left; color: var(--navy);
+  }
+  .mh-row:active { background: #f6f9ff; }
+  .mh-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .mh-main b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mh-main i { font-style: normal; font-size: 11.5px; color: var(--sub); }
+  .mh-caret { flex-shrink: 0; font-size: 10px; color: #b6c0d8; }
+
+  /* 심각도 알약 — PR 목록과 같은 규칙 */
+  .mh-sev {
+    flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--white);
+    padding: 3px 9px; border-radius: 999px; background: var(--sub);
+  }
+  .mh-sev.critical { background: var(--coral); }
+  .mh-sev.major { background: #c9862e; }
+  .mh-sev.minor { background: var(--mint); }
+
+  /* 펼친 상세 */
+  .mh-detail { padding: 0 14px 14px; border-top: 2px solid #eef2fa; }
+  .mh-meta { display: flex; gap: 6px; padding: 10px 0; font-size: 11.5px; color: var(--sub); }
+  .mh-meta .dot { color: #c3cbdd; }
+
+  .mh-issue { border-top: 2px solid #eef2fa; padding: 12px 0; }
+  .mh-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 7px; }
+  .mh-cat, .mh-st {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    border: 2px solid var(--navy); color: var(--navy); background: var(--white);
+  }
+  .mh-st { border-color: #dfe5f0; color: var(--sub); }
+  .mh-file { font-family: 'GalmuriMono11', monospace; font-size: 11px; color: var(--sub); margin-bottom: 6px; overflow-wrap: anywhere; }
+  /* 설명은 한글 문장이라 어절 한가운데서 끊으면 안 읽힌다 — 띄어쓰기에서만 끊는다 */
+  .mh-desc { font-size: 12.5px; line-height: 1.85; word-break: keep-all; overflow-wrap: break-word; }
+  /* 설명 안 코드블록은 카드 안에서만 넘긴다 */
+  .mh-desc .codebox { font-size: 11px; padding: 10px 11px; border-radius: 8px; }
+}

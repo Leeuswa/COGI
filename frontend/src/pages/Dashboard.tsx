@@ -1,182 +1,189 @@
 /*
  * 대시보드 — 로그인 후 홈.
- * 왼쪽엔 코기 다마고치(진짜 게임), 오른쪽엔 오늘의 상태 요약:
- *   - streak + 최근 4주 제출 달력 점 (RET-001)
- *   - 일일 크레딧 게이지 (SYS-003, 90% 넘으면 빨간색)
- *   - 약점 요약 (LRN-001) + 바로가기
- * 다마고치가 메인인 이유: 리텐션 장치가 곧 서비스 정체성이라서.
+ * 100% 배율에서 한 화면에 들어오는 게 전제라 2열 고정으로 짰다.
+ *   왼쪽  코기 다마고치 + 지금 나의 약점 (LRN-001)
+ *   오른쪽 학습 달력(RET-001) + 주간 이슈 추이
+ * 로그인 후 홈은 대시보드와 푸터로 끝난다 — 랜딩의 서비스 안내는 붙이지 않는다.
  */
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import * as api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useGame } from "../context/GameContext";
-import { InfoSections } from "./Landing";
 import CorgiDevice from "../components/CorgiDevice";
+import TrendChart from "../components/TrendChart";
 import { PageHead } from "../components/ui";
+import { catKo } from "../data/constants";
+import useIsMobile from "../hooks/useIsMobile";
+import MobileDashboard from "./mobile/MobileDashboard";
 
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function Dashboard() {
+  return useIsMobile() ? <MobileDashboard /> : <DesktopDashboard />;
+}
+
+function DesktopDashboard() {
   const { user } = useAuth();
   const { S, creditLimit, syncServer, checkIn } = useGame();
 
-  // 서버가 집계한 크레딧(API-055)·스트릭(API-051)으로 로컬 게임 상태를 보정.
-  // 목 모드에선 로컬과 같은 값이 와서 변화가 없고, 실서버에선 기기 간 불일치가 여기서 맞춰진다
+  const [weakness, setWeakness] = useState([]);
+  const [trend, setTrend] = useState(null);
+
+  // 서버가 집계한 크레딧(API-055)·스트릭(API-051)으로 로컬 게임 상태를 보정
   useEffect(() => {
     Promise.all([api.getCreditUsage(), api.getRetentionStatus()])
       .then(([c, r]) => syncServer(c, r))
       .catch(() => {});
     checkIn(); // 매일 첫 방문에 출석 코인 +10 (하루 1회)
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [weakness, setWeakness] = useState([]);
 
   useEffect(() => {
-    api.getWeaknessStats().then(setWeakness);
+    api.getWeaknessStats().then(setWeakness).catch(() => {});
   }, []);
 
-  // 최근 28일 달력 점. submitDays 에 있는 날만 초록
-  const days = [...Array(28)].map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (27 - i));
-    return d.toISOString().slice(0, 10);
-  });
+  // 이슈 추이는 성장추이 화면이 쓰는 API를 그대로 재사용한다
+  useEffect(() => {
+    api.getMyLinkedRepos()
+      .then((repos) => {
+        if (!repos?.length) return setTrend([]);
+        return api.getGrowthTrend(repos[0].repoId, { period: "4w", memberId: user.userId }).then(setTrend);
+      })
+      .catch(() => setTrend([]));
+  }, [user.userId]);
+
+  // 이번 달 달력. 1일 앞 빈칸을 채워 요일을 맞춘다
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const pad = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const ymd = (d: number) =>
+    `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const todayKey = ymd(now.getDate());
 
   const pct = Math.min(100, Math.round((S.creditUsed / creditLimit) * 100));
+  const dropped = trend?.length > 1 ? trend[0].issueCount - trend[trend.length - 1].issueCount : 0;
+
 
   return (
     <>
-
       <main className="app-main dash">
-        <PageHead
-          badge="DASHBOARD"
-          badgeCls="co"
-          title={`안녕하세요, ${user.name || user.email?.split('@')[0] || '코기'}님`}
-          lead={
-            "오늘도 코기 밥 주고 가세요.\n퀴즈 한 번 제출이면 연속 학습일이 채워집니다."
-          }
-        />
+        <div className="dash-top">
+          <PageHead
+            badge="DASHBOARD"
+            badgeCls="co"
+            title={`안녕하세요, ${user.name || user.email?.split("@")[0] || "코기"}님`}
+            lead={"오늘도 코기 밥 주고 가세요.\n출석과 학습카드의 문제풀이로 코인을 얻을 수 있습니다."}
+          />
+          {/* 크레딧 게이지는 뺐다 — 바로 아래 [남은 크레딧] 카드와 상단 네비가 같은 값을 이미 보여준다 */}
+        </div>
 
-{/*     <main className="app-main">
-      <PageHead
-        badge="DASHBOARD" badgeCls="co"
-        title={`안녕하세요, ${user.name || user.email?.split('@')[0] || '코기'}님`}
-        lead={"오늘도 코기 밥 주고 가세요.\n퀴즈 한 번 제출이면 연속 학습일이 채워집니다."}
-      /> -->
-*/}
+        {/* 오늘 상태 한 줄 요약 — 숫자만 훑고 지나갈 수 있게 */}
+        <div className="hud-row">
+          <div className="hud-card">
+            <span className="sc-label">연속 학습</span>
+            <b className="sc-value">{S.streak}<em>일</em></b>
+          </div>
+          <div className={`hud-card ${pct >= 90 ? "warn" : ""}`}>
+            <span className="sc-label">남은 크레딧</span>
+            <b className="sc-value">{creditLimit - S.creditUsed}<em>개</em></b>
+          </div>
+          <div className="hud-card">
+            <span className="sc-label">지금 약점</span>
+            <b className="sc-value">{weakness.length}<em>개</em></b>
+          </div>
+          <div className="hud-card">
+            <span className="sc-label">이번 달 학습</span>
+            <b className="sc-value">{S.submitDays.length}<em>일</em></b>
+          </div>
+        </div>
 
-        <div className="panel-grid c2" style={{ alignItems: "start" }}>
-          {/* 코기 다마고치 본체 */}
-          <CorgiDevice />
+        <div className="dash-grid">
+          {/* ── 왼쪽: 코기와 약점 ── */}
+          <div className="dash-col">
+            <CorgiDevice />
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* 연속 학습 (FR-73~74: 제출 기준, 정답 무관) — 최근 14일을 사슬로. 이어지면 불이 붙는다 */}
-            <div className="panel">
-              <div className="streak-head">
-                <span className="flame">🔥</span>
-                <span className="num">{S.streak}</span>
-                <span className="unit">일 연속</span>
-                <span className="note sm">
-                  퀴즈를 <b>제출만 해도</b> 이어져요 — 정답이 아니어도 OK
-                </span>
+            <div className="panel weak-panel">
+              <div className="dash-head">
+                <h3>🎯 지금 나의 약점</h3>
+                <Link className="link-line" to="/app/weakness">전체 보기 →</Link>
               </div>
-              <div className="chain" style={{ marginTop: 10 }}>
-                {days.slice(-14).map((d, i, arr) => {
-                  const hit = S.submitDays.includes(d);
-                  const prevHit = i > 0 && S.submitDays.includes(arr[i - 1]);
-                  const today = i === arr.length - 1;
-                  return (
-                    <Fragment key={d}>
-                      {i > 0 && (
-                        <i className={`link ${hit && prevHit ? "lit" : ""}`} />
-                      )}
-                      <span
-                        className={["day", hit && "hit", today && "today"]
-                          .filter(Boolean)
-                          .join(" ")}
-                        title={`${d}${hit ? " — 제출 ✓" : ""}`}
-                      >
-                        <b>{Number(d.slice(8))}</b>
-                        {hit && <em>🔥</em>}
+
+              {weakness.length === 0 ? (
+                <p className="note">아직 데이터가 없어요.<br />리뷰를 받으면 반복 실수가 여기 쌓입니다.</p>
+              ) : (
+                <div className="weak-list">
+                  {weakness.map((w) => (
+                    <div key={w.id} className="weak-tile">
+                      <span className="wt-count">{w.occurrenceCount}회</span>
+                      <span className="wt-body">
+                        <b>{catKo(w.category)}</b>
+                        <em>{w.language}</em>
                       </span>
-                    </Fragment>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="dash-foot">
+                <Link className="btn co sm" to="/app/cards">학습카드 풀기</Link>
+                <Link className="btn wh sm" to="/app/paste">코드 리뷰 받기</Link>
+              </div>
+            </div>
+          </div>
+
+          {/* ── 오른쪽: 학습 달력과 이슈 추이 ── */}
+          <div className="dash-col">
+            <div className="panel cal-panel">
+              <div className="dash-head">
+                <h3>🔥 연속 학습 {S.streak}일</h3>
+                <span className="note sm">{year}년 {month + 1}월</span>
+              </div>
+
+              <div className="cal-grid">
+                {WEEKDAYS.map((w) => <span key={w} className="cal-wd">{w}</span>)}
+                {Array.from({ length: pad }, (_, i) => <span key={`p${i}`} className="cal-pad" />)}
+                {Array.from({ length: lastDate }, (_, i) => {
+                  const key = ymd(i + 1);
+                  const hit = S.submitDays.includes(key);
+                  return (
+                    <span key={key}
+                      className={["cal-day", hit && "hit", key === todayKey && "today"].filter(Boolean).join(" ")}
+                      title={`${key}${hit ? " — 퀴즈 제출함" : ""}`}>
+                      {hit ? "🔥" : i + 1}
+                    </span>
                   );
                 })}
               </div>
-              <p className="note xs" style={{ marginTop: 8 }}>
-                최근 14일 · 불이 이어진 만큼이 연속 기록 · 오늘 칸은 노란 테두리
-              </p>
+
             </div>
 
-            {/* 일일 크레딧 (FR-81/85) */}
-            <div className="panel">
-              <h3>
-                ⚡ 오늘의 크레딧 {S.creditUsed} / {creditLimit}
-              </h3>
-              <div className={`credit-bar ${pct >= 90 ? "warn" : ""}`}>
-                <i style={{ width: pct + "%" }} />
+            <div className="panel trend-panel">
+              <div className="dash-head">
+                <h3>📉 주간 이슈 빈도</h3>
+                {dropped > 0 && <span className="trend-badge">▼ {dropped}건 줄었어요</span>}
               </div>
-              <p className="note sm" style={{ marginTop: 8 }}>
-                {user.planName} 플랜은 하루 {creditLimit}개 — 매일 자정에 다시
-                채워져요. 리뷰, 학습카드, 퀴즈, 스킬 추천에 각각 1개씩 쓰입니다.
-                {pct < 100 ? "" : " — 오늘치 소진!"}
-              </p>
-              {user.planName === "FREE" && (
-                <Link
-                  className="btn wh sm"
-                  style={{ marginTop: 8, display: "inline-block" }}
-                  to="/app/plan"
-                >
-                  더 필요하면 PRO →
-                </Link>
-              )}
-            </div>
-
-            {/* 약점 요약 (LRN-001) */}
-            <div className="panel">
-              <h3>🎯 지금 나의 약점</h3>
-              {weakness.length === 0 ? (
-                <p className="note">
-                  아직 데이터가 없어요. 리뷰를 받으면 반복 실수가 여기 쌓입니다.
-                </p>
+              {!trend ? (
+                <p className="note">집계 중…</p>
+              ) : trend.length === 0 ? (
+                <p className="note">아직 집계할 리뷰가 없어요.<br />PR이 쌓이면 주 단위로 그려집니다.</p>
               ) : (
-                weakness.map((w) => (
-                  <div key={w.id} className="weak-mini">
-                    <div
-                      className={`weak-count ${w.occurrenceCount < 4 ? "mild" : ""}`}
-                    >
-                      <b>{w.occurrenceCount}회</b>
-                    </div>
-                    <div className="weak-body">
-                      <b style={{ fontSize: 14.5 }}>{w.category}</b>
-                      <p className="note sm">{w.language}</p>
-                    </div>
+                <>
+                  <TrendChart data={trend} height={230} />
+                  <div className="chart-legend">
+                    <span><i style={{ background: "var(--coral)" }} />발생</span>
+                    <span><i style={{ background: "var(--mint)" }} />해결</span>
                   </div>
-                ))
+                </>
               )}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 10,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Link className="btn co sm" to="/app/weakness">
-                  약점 통계
-                </Link>
-                <Link className="btn wh sm" to="/app/cards">
-                  학습카드
-                </Link>
-                <Link className="btn wh sm" to="/app/paste">
-                  코드 리뷰 받기
-                </Link>
-              </div>
             </div>
           </div>
         </div>
       </main>
-
-      {/* 로그인 상태에서도 하단엔 서비스 안내 유지 (요구: 대시보드 + 안내 결합) */}
-      <InfoSections />
     </>
   );
 }

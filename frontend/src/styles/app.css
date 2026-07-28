@@ -6,7 +6,8 @@
 /* 앱 쉘: 로그인 후 공통 레이아웃. 상단 GNB + 본문 */
 .app-main { max-width: 1080px; margin: 0 auto; padding: 26px 22px 70px; }
 .page-head { margin-bottom: 22px; }
-.page-head .sec-lead { margin-bottom: 0; }
+/* lead 문구의 \n 은 "여기서 끊어 읽으라"는 뜻이라 그대로 살린다 */
+.page-head .sec-lead { margin-bottom: 0; white-space: pre-line; }
 
 /* 픽셀 패널 (범용 흰 박스) */
 .panel {
@@ -79,6 +80,16 @@
 .tbl tr:last-child td { border-bottom: none; }
 .tbl tr:hover td { background: #fffbe8; }
 .tbl .mono { font-family: 'GalmuriMono11', monospace; }
+
+/* ── 팀 ── */
+/* 제목·안내와 [+ 새 팀 만들기]를 한 줄에. 버튼이 아래 줄을 차지하면 목록이 그만큼 밀린다 */
+/* 버튼은 안내 문구 마지막 줄 오른쪽 끝에 — 위로 붙이면 제목과 나란해져 딴 줄처럼 보인다 */
+.tm-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 18px; }
+.tm-top .page-head { flex: 1; min-width: 0; margin-bottom: 0; }
+.tm-top .btn { flex-shrink: 0; }
+/* 액션 열이 왼쪽에 붙어 행마다 버튼 위치가 달라 보였다. 오른쪽으로 모은다 */
+.tm-acts { gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+.tm-me { margin-left: 7px; }
 
 /* 상태/카테고리 칩 */
 .chip {
@@ -422,7 +433,7 @@
 .dash { padding-top: 18px; padding-bottom: 28px; }
 .dash .page-head { margin-bottom: 14px; }
 .dash .page-head h1, .dash .page-head h2 { font-size: 26px; }
-.dash .page-head .sec-lead, .dash .page-head .lead { font-size: 13px; line-height: 1.6; }
+.dash .page-head .sec-lead, .dash .page-head .lead { font-size: 13px; line-height: 1.6; white-space: pre-line; max-width: none; }
 .dash .panel { padding: 16px 18px; }
 .dash .panel h3 { margin-bottom: 10px; }
 .dash .panel-grid { margin-bottom: 0; }
@@ -632,3 +643,287 @@
 
 /* 셀프 체크는 번호 대신 체크박스 모양으로 */
 .keypoints.selfcheck li::before { content: '☐'; color: var(--navy); }
+
+/* 카드 상세로 들어오면 나갈 길이 없어서 맨 위에 두는 복귀 링크 */
+.back-link {
+  display: inline-block; margin-bottom: 14px; font-size: 12.5px;
+  border-bottom: 2px solid var(--navy); padding-bottom: 2px;
+}
+.back-link:hover { color: var(--coral); border-color: var(--coral); }
+
+/* 퀴즈 유형·모델 셀렉트 — 어느 컨테이너에도 안 속해 브라우저 기본 모양으로 나오던 것 */
+.quiz-tools select {
+  font-family: 'Galmuri11', sans-serif; font-size: 12.5px;
+  background: var(--white); color: var(--navy);
+  border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy);
+  padding: 9px 12px; cursor: pointer;
+}
+.quiz-tools select:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+.quiz-tools select:disabled { background: #f1efe6; cursor: not-allowed; }
+
+/* 카드 본문 강조 — AI가 굵게(별표 두 개)나 형광(등호 두 개)으로 보내면 여기로 그려진다.
+   마크다운 기호를 그대로 쓰면 별표+빗금이 주석을 먼저 닫아버려서 말로 적는다 */
+mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
+.inline-code {
+  font-family: 'GalmuriMono11', monospace; font-size: 12px;
+  background: var(--navy); color: var(--sky); padding: 1px 6px;
+}
+
+/* 학습 계획 타임라인 — 단계가 시간 순으로 이어지는 걸 세로선으로 보여준다 */
+.plan-timeline { list-style: none; position: relative; padding-left: 4px; }
+.plan-timeline::before {
+  content: ''; position: absolute; left: 27px; top: 16px; bottom: 16px;
+  width: 4px; background: var(--navy);
+}
+.plan-step { position: relative; display: flex; gap: 18px; padding-bottom: 18px; align-items: flex-start; }
+.plan-step:last-child { padding-bottom: 0; }
+/* 단계 번호 + 소요시간을 원형 눈금 하나에 담는다 */
+.ps-dot {
+  flex-shrink: 0; z-index: 1; width: 58px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--yellow); border: 3px solid var(--navy); padding: 8px 0;
+}
+.ps-dot b { font-family: 'Silkscreen', monospace; font-size: 17px; line-height: 1; color: var(--navy); }
+.ps-dot em { font-family: 'Galmuri11', sans-serif; font-style: normal; font-size: 10px; color: var(--navy); }
+.ps-body { flex: 1; min-width: 0; border: 3px solid var(--navy); background: var(--white); padding: 14px 16px; box-shadow: 4px 4px 0 var(--navy); }
+.ps-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.ps-head b { font-size: 14.5px; }
+.ps-date { font-size: 12px; color: var(--coral); font-weight: 700; white-space: nowrap; }
+.ps-res { font-size: 12.5px; line-height: 1.8; margin-top: 8px; background: #f6f4ec; border-left: 5px solid var(--mint); padding: 8px 12px; }
+.ps-check { font-size: 12px; color: var(--navy); margin-top: 8px; }
+
+/* 퀴즈 문제 — 코드가 섞여도 문단과 코드블록이 또렷하게 갈리도록 */
+.quiz-question { margin-bottom: 16px; }
+.quiz-question .q-text { font-size: 14px; line-height: 1.95; white-space: pre-line; }
+.quiz-question .q-text + .codebox, .quiz-question .codebox + .q-text { margin-top: 12px; }
+.explain-box .q-text { white-space: pre-line; }
+.explain-box .codebox { margin-top: 10px; }
+
+/* AI 스킬 카드 */
+.skill-card .star {
+  background: none; border: none; font-size: 24px; line-height: 1;
+  color: var(--navy); padding: 0 4px;
+}
+.skill-card .star.on { color: var(--coral); }
+.skill-how {
+  margin-top: 12px; border-left: 6px solid var(--mint);
+  background: #f6f4ec; padding: 10px 14px;
+}
+.skill-how b { font-size: 12px; }
+.skill-how p { font-size: 12.5px; line-height: 1.9; margin-top: 4px; }
+
+/* 코인 추가(테스트용) — 인라인 스타일 대신 다른 픽셀 버튼과 같은 톤으로 */
+.coin-add {
+  margin-left: 6px; font-family: 'Silkscreen', monospace; font-size: 10px;
+  background: var(--yellow); color: var(--navy);
+  border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy);
+  padding: 2px 7px; line-height: 1.4;
+}
+.coin-add:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--navy); }
+
+/* 상단 코인·크레딧·타이머 — 박스가 둘로 갈려 어색했다. 테두리를 없애고 아이콘+숫자만 남긴다 */
+.nav-wallet, .nav-timer {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+.nav-wallet { gap: 14px; }
+.nav-wallet b, .nav-timer b {
+  font-family: 'Silkscreen', monospace; font-size: 14px; line-height: 1;
+  color: var(--navy); white-space: nowrap;
+}
+.nav-timer b { color: var(--sub); font-size: 13px; margin-right: 6px; }
+
+/* ── 대시보드 ──
+   첫 화면에 코기·약점·스트릭·크레딧·추이가 다 들어오고,
+   아래 서비스 안내(InfoSections)는 스크롤해야 나오게 한다.
+   고정 높이 대신 min-height라 어떤 비율에서도 안 잘린다. */
+
+
+/* ═══════════ 대시보드 ═══════════
+   100% 배율 한 화면이 목표지만 높이를 강제로 자르지는 않는다.
+   내용 자체를 작게 잡아 자연스럽게 들어오게 하고, 넘치면 잘리지 말고 스크롤되게 둔다. */
+/* 세로가 큰 모니터(2560x1440 등)에서 아래 InfoSections가 미리 보이지 않게 한 화면을 채운다 */
+.dash { padding: 20px 22px 40px; min-height: 100vh; min-height: 100dvh; }
+.dash .panel { padding: 15px 17px; }
+.dash .panel h3 { font-size: 15px; margin-bottom: 0; }
+
+.dash-grid { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 18px; align-items: start; }
+.dash-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dash-col > .panel { margin-top: 0; }
+
+/* 패널 머리 — 제목과 링크를 한 줄에 */
+.dash-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 11px; }
+.dash-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* ── 약점 ──
+   횟수가 이 카드의 핵심인데 14px 도트로 눌러 두니 눈에 안 들어왔다.
+   숫자를 키우고 단위를 붙여 한 번에 읽히게 한다 */
+.weak-list { display: flex; flex-direction: column; gap: 8px; }
+.weak-tile {
+  display: flex; align-items: center; gap: 13px;
+  border: 2px solid var(--navy); background: #fdfcf7; padding: 10px 12px;
+}
+.wt-count {
+  flex-shrink: 0; min-width: 48px; padding: 6px 0; text-align: center;
+  /* 숫자와 단위를 크기까지 갈라 놓으니 '회'가 따로 놀았다. 한 덩어리로 읽히게 같은 크기 */
+  font-family: 'GalmuriMono11', monospace; font-size: 15px; line-height: 1.3; color: var(--navy);
+  background: var(--yellow); border: 2px solid var(--navy);
+}
+.wt-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wt-body b { font-size: 15px; color: var(--navy); }
+.wt-body em { font-style: normal; font-size: 12.5px; color: var(--sub); }
+
+/* ── 학습 달력 — 행 높이를 못 박아야 칸이 세로로 늘어나지 않는다 ── */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 32px; gap: 4px; }
+/* 요일 머리 — 색·굵기는 원래대로 두고 크기만 키웠다 */
+/* 첫 행이 다른 칸과 같은 높이(1fr)로 늘어나 위에 여백이 몰렸다. 내용만큼만 차지하게 한다 */
+.cal-wd { font-size: 16px; color: var(--sub); text-align: center; padding: 2px 0 5px; height: auto; }
+.cal-grid { grid-template-rows: auto; }
+.cal-wd:first-child { color: var(--coral); }
+.cal-day, .cal-pad {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Silkscreen', monospace; font-size: 14px; color: var(--navy);
+  background: #f2f4f8; border: 2px solid transparent; border-radius: 4px;
+}
+.cal-pad { background: transparent; }
+.cal-day.hit { background: #ffe9c7; border-color: var(--coral); }
+.cal-day.today { border-color: var(--yellow); border-width: 3px; font-weight: 700; }
+.cal-credit { margin-top: 12px; }
+.cal-credit .credit-bar { margin-top: 5px; }
+
+/* 오늘 상태 요약 — 숫자만 훑고 지나갈 수 있게. 세로를 아끼려고 한 줄 높이로 눕혔다 */
+.hud-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.hud-card {
+  background: var(--white); border: 3px solid var(--navy); box-shadow: 4px 4px 0 var(--navy);
+  padding: 11px 15px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.sc-label { font-size: 12px; color: var(--sub); }
+.sc-value { font-family: 'Galmuri11', sans-serif; font-size: 22px; color: var(--navy); line-height: 1; }
+.sc-value em { font-family: 'Galmuri11', sans-serif; font-size: 13px; font-style: normal; margin-left: 3px; color: var(--navy); font-weight: 700; }
+.hud-card.warn .sc-value { color: var(--coral); }
+
+/* 두 열을 같은 높이로. 각 열의 마지막 패널이 남는 세로를 채워 빈 공간이 안 생긴다 */
+.dash-grid { align-items: stretch; }
+.dash-col > .panel.cal-panel { flex: 1; display: flex; flex-direction: column; }
+.cal-panel .cal-grid { flex: 1; min-height: 0; grid-auto-rows: minmax(30px, 1fr); }
+.trend-panel .gchart { margin-top: 6px; }
+
+/* ── 대시보드 게임 느낌 ──
+   .stat-card는 요금제 화면에서 이미 쓰는 이름이라(min-height 118px) .hud-card로 분리했다 */
+.hud-card {
+  position: relative;
+  min-height: 0; padding: 12px 16px;
+}
+.sc-label { letter-spacing: -.2px; }
+
+
+
+/* 패널 제목 앞 픽셀 마커 — 카드마다 같은 리듬을 준다 */
+.dash-head h3 { display: flex; align-items: center; gap: 7px; }
+
+/* 달력 칸에 눌리는 맛 */
+.cal-day { transition: transform .06s; }
+.cal-day.hit:hover { transform: translateY(-2px); }
+/* 오늘 칸은 살짝 깜빡이게 — 게임 UI의 커서 느낌 */
+.cal-day.today { animation: todayblink 1.6s steps(2) infinite; }
+@keyframes todayblink {
+  0%, 60% { border-color: var(--yellow); }
+  61%, 100% { border-color: #f3d27a; }
+}
+/* 약점 타일도 누르는 느낌 */
+.weak-tile { transition: transform .08s, box-shadow .08s; }
+.weak-tile:hover { transform: translate(-2px, -2px); box-shadow: 3px 3px 0 var(--navy); }
+
+/* ── 대시보드를 코기 본체와 같은 언어로 ──
+   코기(.device)는 둥근 모서리 + 9px 그림자 + Silkscreen 라벨을 쓴다.
+   나머지 패널이 각진 상자라 코기만 따로 노는 느낌이었다. 같은 규칙을 준다 */
+.dash .panel, .dash .hud-card {
+  border-radius: 20px;
+  box-shadow: 7px 7px 0 var(--navy);
+}
+/* 패널 제목 — Silkscreen은 한글 글리프가 없어 흐릿하게 깨진다.
+   요약 카드 라벨과 같은 본문 폰트·네이비로 맞춘다 */
+.dash .dash-head h3 {
+  font-family: 'Galmuri11', sans-serif; font-size: 16px;
+  letter-spacing: 0; color: var(--navy); font-weight: 700;
+}
+/* 오른쪽 부제(2026년 7월)도 제목과 완전히 같은 서체·크기·굵기로 */
+.dash .dash-head .note {
+  font-family: 'Galmuri11', sans-serif; font-size: 16px;
+  color: var(--navy); font-weight: 700; letter-spacing: 0;
+}
+
+/* Silkscreen 10px는 한글 글리프가 없어 흐릿하게 깨진다. 본문 폰트로 키워 또렷하게 */
+.sc-label {
+  font-family: 'Galmuri11', sans-serif; font-size: 13px;
+  letter-spacing: 0; color: var(--navy); font-weight: 700;
+}
+
+/* 달력·추이는 코기 LCD처럼 액자에 넣는다. 어두운 네이비는 안 쓴다 */
+.cal-grid, .trend-panel .gchart { border-radius: 12px; padding: 8px 10px; }
+.cal-grid { background: #f0e6dc; }
+/* 차트는 선과 그라데이션이 주인공이라 바닥을 비운다 */
+.trend-panel .gchart { background: var(--white); border: 3px solid var(--sky2); }
+.cal-wd { color: var(--sub); }
+.cal-wd:first-child { color: var(--coral); }
+.cal-day, .cal-pad { border-radius: 6px; }
+.cal-pad { background: rgba(255, 255, 255, .45); }
+.cal-day { background: var(--white); }
+.cal-day.hit { background: var(--yellow); border-color: var(--yellow); }
+.cal-day.today { border-color: var(--coral); animation: none; }
+
+/* 약점 타일도 둥글게 */
+.weak-tile { border-radius: 10px; }
+.wt-count { border-radius: 6px; }
+
+/* HUD 카드 — 라벨 왼쪽, 숫자 오른쪽 끝으로 한 줄에 눕힌다 */
+.hud-card {
+  display: flex; flex-direction: row; align-items: baseline;
+  justify-content: space-between; gap: 10px; padding: 13px 16px;
+}
+.sc-value { font-size: 22px; white-space: nowrap; font-weight: 600; }
+.sc-value em { font-size: 13px; margin-left: 3px; }
+
+/* ── 머리말 옆 크레딧 HP 게이지 ── */
+.dash-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+.dash-top .page-head { flex: 1; min-width: 0; }
+
+/* 로그인 홈은 대시보드 한 덩어리로 끝난다(랜딩 안내 섹션 제거).
+   남는 높이가 있으면 위아래 가운데로 모아 해상도가 달라도 같은 자리에 보이게 한다.
+
+   display를 grid나 flex로 바꿨더니 폭이 콘텐츠에 맞춰 줄어 화면이 좁아졌다.
+   블록 레이아웃 그대로 두고 align-content만 준다 — 폭 계산에는 아무 영향이 없고,
+   .app-body가 flex:1 0 auto라 내용이 화면보다 길면 컨테이너도 같이 길어져
+   가운데 정렬이 저절로 무효가 된다(위가 잘려 못 올라가는 일 없음). */
+@media (min-width: 641px) {
+  .app-body:has(> .dash) { align-content: center; }
+}
+
+.hp-box {
+  /* 리드 문구 줄에 눈높이를 맞추되 아래 카드와는 띄운다 */
+  flex-shrink: 0; align-self: flex-end; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--white); border: 3px solid var(--navy);
+  border-radius: 14px; box-shadow: 5px 5px 0 var(--navy); padding: 10px 14px;
+}
+/* 상단 네비의 ⚡ 표기와 크기·색을 맞춘다 */
+.hp-label { font-size: 15px; line-height: 1; }
+/* 칸이 그어진 RPG 체력바. 남은 만큼 초록이 차 있고 쓰면 줄어든다 */
+.hp-bar {
+  position: relative; width: 190px; height: 16px;
+  background: #e7e2d6; border: 2px solid var(--navy); overflow: hidden;
+}
+.hp-bar i { display: block; height: 100%; background: var(--mint); transition: width .3s steps(10); }
+/* 눈금 — 게이지 위에 세로선을 얹어 칸으로 보이게 */
+.hp-bar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 17px, rgba(27, 42, 74, .28) 17px 19px);
+}
+/* 요약 카드 라벨(연속 학습)과 같은 서체·크기·굵기 */
+.hp-num { font-family: 'Galmuri11', sans-serif; font-size: 13px; color: var(--navy); font-weight: 700; }
+/* 10% 남으면 빨갛게 */
+.hp-box.low .hp-bar i { background: var(--coral); }
+.hp-box.low .hp-num { color: var(--coral); }
+
+/* 일요일 날짜를 빨갛게 — 요일 머리 7칸이 앞에 있어 8번째 자식부터 7칸마다가 일요일 열 */
+.cal-grid > .cal-day:nth-child(7n + 1) { color: var(--coral); }
+.cal-grid > .cal-day.hit:nth-child(7n + 1) { color: var(--navy); }

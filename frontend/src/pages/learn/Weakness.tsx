@@ -11,8 +11,17 @@ import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
 import { PageHead } from '../../components/ui';
 import { SPR } from '../../assets/sprites';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileWeakness from '../mobile/MobileWeakness';
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function Weakness() {
+  return useIsMobile() ? <MobileWeakness /> : <DesktopWeakness />;
+}
+
+function DesktopWeakness() {
   const { user } = useAuth();
   const { spendCredit } = useGame();
   const nav = useNavigate();
@@ -32,6 +41,7 @@ export default function Weakness() {
       nav(`/app/cards/${card.id}`);
     } finally { setCreating(null); }
   };
+
 
   return (
     <main className="app-main">

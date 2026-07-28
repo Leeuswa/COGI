@@ -1,0 +1,49 @@
+/* 모바일 성장 추이 — SVG 곡선을 주별 막대로 */
+@media (max-width: 640px) {
+  .mg-filter { display: flex; flex-direction: column; gap: 9px; }
+  /* .mapp를 붙여 특이도를 올린다 — 공통 .mseg(4칸)가 이기면 오른쪽 한 칸이 빈다 */
+  .mapp .mg-period { grid-template-columns: repeat(3, 1fr); }
+
+  .mg-drop {
+    flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--navy);
+    background: var(--mint); border-radius: 999px; padding: 4px 10px;
+  }
+
+  /* ── 막대 차트 ── */
+  .mg-bars { display: flex; align-items: stretch; gap: 4px; height: 168px; }
+  .mg-bars.mini { height: 96px; }
+  .mg-bar { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  /* 막대가 자리를 다 먹고, 숫자·주 라벨은 아래에 붙는다 */
+  .mg-plot { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 2px; }
+  .mg-plot i { width: 7px; min-height: 2px; border-radius: 3px 3px 0 0; }
+  .c-open { background: var(--coral); }
+  .c-ok { background: var(--mint); }
+  .mg-bar b { font-family: 'GalmuriMono11', monospace; font-size: 11px; line-height: 1.3; color: var(--navy); }
+  /* 주 라벨은 한글이 아니라 날짜라 좁아도 읽힌다. 빈 칸이어도 높이는 유지 */
+  .mg-bar em {
+    font-style: normal; font-size: 9.5px; color: var(--sub);
+    min-height: 12px; white-space: nowrap;
+  }
+
+  .mg-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 11.5px; color: var(--sub); }
+  .mg-legend span { display: flex; align-items: center; gap: 5px; }
+  .mg-legend i { width: 11px; height: 11px; border-radius: 3px; }
+
+  /* ── 팀원별 겹쳐보기 대체 ── */
+  .mg-sub { margin-bottom: 12px; }
+  .mg-member { border-top: 2px solid #eef2fa; padding: 12px 0 4px; }
+  .mg-member:first-of-type { border-top: none; padding-top: 0; }
+  .mg-mtop { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+  .mg-mtop i { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+  .mg-mtop b { flex: 1; min-width: 0; font-size: 13px; color: var(--navy); overflow-wrap: anywhere; }
+  .mg-mtop span { flex-shrink: 0; font-size: 11.5px; color: var(--sub); }
+
+  /* ── 요약 3칸 ── */
+  .mg-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .mg-stats .mcard { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 13px 6px; }
+  /* Silkscreen은 '4'가 앞뒤 획과 겹쳐 뭉개진다. 숫자는 본문 mono로 크게 */
+  .mg-stats b { font-family: 'GalmuriMono11', monospace; font-size: 24px; line-height: 1.25; color: var(--navy); }
+  .mg-stats b.ok { color: var(--mint); }
+  .mg-stats b.co { color: var(--coral); }
+  .mg-stats i { font-style: normal; font-size: 11px; color: var(--sub); white-space: nowrap; }
+}
