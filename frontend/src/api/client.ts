@@ -309,15 +309,7 @@ export const finalizeIssue = (issueId, verdict) =>
 export const decideResolveRequest = (issueId, approve) =>
   USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/issues/${issueId}/decision`, { approve });
 
-// API-035 GET /api/prs/{prId}/export — MD/TXT 내보내기. 목 모드는 프론트에서 파일을 만들어 내려준다
-export const exportReview = (prId, format) =>
-  USE_MOCK ? mock({ ok: true }) : http('GET', `/api/prs/${prId}/export?format=${format}`);
-
-// API-036 / API-037 — Notion / PDF (MVP 이후 검토 항목)
-export const exportNotion = (prId, workspaceId) =>
-  USE_MOCK ? mock({ notionPageUrl: null, pending: true }) : http('POST', `/api/prs/${prId}/export/notion`, { workspaceId });
-export const exportPdf = (prId) =>
-  USE_MOCK ? mock({ pending: true }) : http('POST', `/api/prs/${prId}/export/pdf`);
+// 리뷰 내보내기(MD/PDF/Notion)는 전부 프론트에서 처리 → 별도 export API 없음 (PrDetail.tsx)
 
 // API-038 GET /api/prs/{prId}/preview — 프론트엔드 변경 실시간 미리보기 (FR-47~49)
 // ponytail: 명세상 [불확실]·MVP 제외 후보라 404 응답(미지원 사유)만 다루는 스텁. WebContainer 붙일 때 확장

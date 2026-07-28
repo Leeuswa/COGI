@@ -32,6 +32,7 @@ public class LearningCardQuiz {
 
     private String answer;
 
+
     // explain은 MariaDB 예약어라 그대로 쓰면 테이블 생성 DDL부터 깨진다. 컬럼명만 바꾸고 필드명은 유지
     @Lob
     @Column(name = "explanation")

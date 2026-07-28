@@ -3,6 +3,7 @@ package idu.sba.backend.domain.learning.repository;
 import idu.sba.backend.domain.learning.entity.QuizSubmission;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface QuizSubmissionRepository extends JpaRepository<QuizSubmission, Long> {
@@ -12,4 +13,8 @@ public interface QuizSubmissionRepository extends JpaRepository<QuizSubmission, 
 
     // 지난 문제 보기 — 최근에 푼 것부터
     List<QuizSubmission> findByUserIdAndQuizIdInOrderBySubmittedAtDesc(Long userId, List<Long> quizIds);
+
+    // 주간 리포트용 — 기간 [from, to) 내 제출 수 / 정답 수
+    long countByUserIdAndSubmittedAtGreaterThanEqualAndSubmittedAtLessThan(Long userId, LocalDateTime from, LocalDateTime to);
+    long countByUserIdAndIsCorrectTrueAndSubmittedAtGreaterThanEqualAndSubmittedAtLessThan(Long userId, LocalDateTime from, LocalDateTime to);
 }
