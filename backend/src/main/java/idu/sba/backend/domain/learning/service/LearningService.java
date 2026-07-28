@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.learning.service;
 
+import idu.sba.backend.domain.learning.dto.AiSkillResponseDTO;
 import idu.sba.backend.domain.learning.dto.CardHistoryResponseDTO;
 import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardCreateRequestDTO;
@@ -37,8 +38,15 @@ public interface LearningService {
     // 퀴즈 생성 (API-045) — AI 호출 + 크레딧 소모. modelName은 사용자가 고른 모델(없으면 카드 모델)
     QuizResponseDTO createQuiz(Long userId, Long cardId, String questionType, String modelName);
 
-    // 학습 계획 생성 — AI 호출 + 크레딧 소모. 다시 만들면 이전 계획을 덮어쓴다
-    LearningCardResponseDTO createStudyPlan(Long userId, Long cardId);
+    // 학습 계획 생성 (AI 호출 + 크레딧 소모). days는 3·5·7·14 중 하나이고 그 기간만큼만 짠다.
+    // 다시 만들면 이전 계획을 덮어쓴다
+    LearningCardResponseDTO createStudyPlan(Long userId, Long cardId, int days);
+
+    // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 AI 호출도 크레딧도 없다
+    List<AiSkillResponseDTO> getAiSkills(Long userId, String provider);
+
+    // 스킬 즐겨찾기 토글 — 켜져 있으면 끄고, 꺼져 있으면 켠다
+    void toggleSkillFavorite(Long userId, Long skillId);
 
     // 퀴즈 제출·채점 (API-046) — 정답이면 신호등 승급
     QuizSubmitResultDTO submitQuiz(Long userId, Long cardId, Long quizId, String answer);
