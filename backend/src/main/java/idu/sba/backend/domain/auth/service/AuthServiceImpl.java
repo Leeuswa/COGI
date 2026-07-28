@@ -171,9 +171,11 @@ public class AuthServiceImpl implements AuthService {
                         .nickname(nickname)
                         .build());
 
-        //동의 이력 저장
+        //동의 이력 저장 (동의 당시 약관 버전 함께 기록 — 재동의 판정에 사용)
+        java.util.Map<Long, String> versionById = termRepository.findAllById(req.getTermIds()).stream()
+                .collect(java.util.stream.Collectors.toMap(Term::getId, Term::getVersion));
         List<UserAgreement> agreements = req.getTermIds().stream()
-                        .map(termId -> UserAgreement.of(user.getId(),termId))
+                        .map(termId -> UserAgreement.of(user.getId(), termId, versionById.get(termId)))
                 .toList();
         userAgreementRepository.saveAll(agreements);
 

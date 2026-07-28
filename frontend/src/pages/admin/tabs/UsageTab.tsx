@@ -40,21 +40,13 @@ export default function UsageTab({ usage, range, setRange, latency }) {
   }
   // y스케일: 보이는 벤더들의 일자별 값 중 최댓값
   const maxTokens = Math.max(1, ...days.flatMap((d) => visibleVendors.map((v) => byDay[d][v.key] || 0)));
-  // 성장추이(Growth.tsx)와 동일한 좌표계 + Catmull-Rom 부드러운 곡선 → 선이 끊기지 않는다
+  // 날짜별 밴드 좌표계 — 밴드 안에 보이는 벤더 수만큼 막대를 나란히 그린다.
   const W = 720, H = 210, PAD = 48;
   const n = days.length;
-  const xOf = (i) => PAD + ((W - PAD * 2) / Math.max(1, n - 1)) * i;
+  const band = (W - PAD * 2) / Math.max(1, n);   // 하루가 차지하는 폭
+  const cxOf = (i) => PAD + band * (i + 0.5);     // 날짜 밴드 중심
   const yOf = (v) => H - 34 - ((H - 74) * v) / maxTokens;
   const fmt = (t) => (t >= 1000 ? `${(t / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(t)); // 1840 → 1.8k
-  const smooth = (pts) => {
-    if (pts.length < 2) return pts.length ? `M${pts[0][0]},${pts[0][1]}` : '';
-    let d = `M${pts[0][0]},${pts[0][1]}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-      d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
-    }
-    return d;
-  };
 
   // 벤더별 누적 토큰/비용(기간 전체) — 진행바는 $10 예산 대비 사용률
   const vendorTok = {}, vendorCost = {};
@@ -110,31 +102,32 @@ export default function UsageTab({ usage, range, setRange, latency }) {
               {[0.25, 0.5, 0.75, 1].map((t) => (
                 <line key={t} x1={PAD} x2={W - PAD} y1={yOf(maxTokens * t)} y2={yOf(maxTokens * t)} className="grid" />
               ))}
-              {/* 선택된 벤더 곡선 (0 채움으로 끊기지 않음) + 점 + 값 라벨 */}
-              {visibleVendors.map((v) => {
-                const pts = days.map((d, i) => [xOf(i), yOf(byDay[d][v.key] || 0)]);
-                return (
-                  <g key={v.key}>
-                    <path d={smooth(pts)} fill="none" stroke={v.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                    {pts.map(([cx, cy], i) => {
-                      const t = byDay[days[i]][v.key] || 0;
-                      return (
-                        <g key={i}>
-                          <circle cx={cx} cy={cy} r="3.5" fill="#fff" stroke={v.color} strokeWidth="2.5">
-                            <title>{`${days[i]} · ${v.key}\n토큰 ${t.toLocaleString()}`}</title>
-                          </circle>
-                          {t > 0 && (
-                            <text x={cx} y={cy - 8} textAnchor="middle" fontSize="10" fontWeight="700" fill={v.color}>{fmt(t)}</text>
-                          )}
-                        </g>
-                      );
-                    })}
-                  </g>
-                );
+              {/* 날짜별 밴드 안에 보이는 벤더 막대를 나란히 */}
+              {days.map((d, i) => {
+                const groupW = band * 0.7;                       // 밴드의 70%만 막대에 사용
+                const bw = groupW / Math.max(1, visibleVendors.length);
+                const startX = cxOf(i) - groupW / 2;
+                const base = yOf(0);
+                return visibleVendors.map((v, j) => {
+                  const t = byDay[d][v.key] || 0;
+                  const x = startX + bw * j;
+                  const y = yOf(t);
+                  const w = Math.max(1, bw - 2);
+                  return (
+                    <g key={v.key}>
+                      <rect x={x} y={y} width={w} height={Math.max(0, base - y)} rx="2" fill={v.color}>
+                        <title>{`${d} · ${v.key}\n토큰 ${t.toLocaleString()}`}</title>
+                      </rect>
+                      {t > 0 && (
+                        <text x={x + w / 2} y={y - 4} textAnchor="middle" fontSize="9" fontWeight="700" fill={v.color}>{fmt(t)}</text>
+                      )}
+                    </g>
+                  );
+                });
               })}
               {/* x축 날짜 라벨 + 축 */}
               {days.map((d, i) => (
-                <text key={d} x={xOf(i)} y={H - 10} textAnchor="middle" className="xlab2">{d.slice(5)}</text>
+                <text key={d} x={cxOf(i)} y={H - 10} textAnchor="middle" className="xlab2">{d.slice(5)}</text>
               ))}
               <line x1={PAD} x2={W - PAD} y1={yOf(0)} y2={yOf(0)} className="axis" />
             </svg>

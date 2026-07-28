@@ -12,10 +12,11 @@
  *  RequireOnboarded → 온보딩 미완료면 /onboarding (메인 진입 차단)
  */
 import { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, Outlet, useLocation, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import * as api from './api/client';
 import { useAuth } from './context/AuthContext';
 import { Nav, Footer } from './components/ui';
+import ReagreeGate from './pages/auth/ReagreeGate';
 
 import Landing from './pages/Landing';
 import GuestReview from './pages/GuestReview';
@@ -57,22 +58,15 @@ function RequireAuth() {
 
 function RequireOnboarded() {
   const { user } = useAuth();
-  // 필수 약관 버전이 올라간 사용자에게 재동의 배너 (FR-91). 로그인 상태에서 1회만 조회
+  // 필수 약관이 개정된 사용자는 대시보드 진입 전 재동의 게이트를 통과해야 한다 (FR-91). 로그인 상태에서 1회 조회
   const [reagree, setReagree] = useState(null);
   useEffect(() => { api.checkReagreement().then(setReagree); }, []);
 
   if (!user.onboardingCompleted) return <Navigate to="/onboarding" replace />;
-  return (
-    <>
-      {reagree?.required && (
-        <div className="reagree-banner" role="alert">
-          「{reagree.termTitle}」이 v{reagree.newVersion}으로 개정됐어요. 계속 이용하려면 재동의가 필요합니다.
-          <Link to="/app/my" className="btn sm">약관 확인하기</Link>
-        </div>
-      )}
-      <Outlet />
-    </>
-  );
+  // 재동의 필요 → 온보딩처럼 전체를 덮는 게이트. 동의 저장 후에만 Outlet(대시보드) 노출.
+  if (reagree?.required)
+    return <ReagreeGate terms={reagree.terms} onDone={() => setReagree({ required: false, terms: [] })} />;
+  return <Outlet />;
 }
 
 export default function App() {
