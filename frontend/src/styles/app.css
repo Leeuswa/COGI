@@ -342,7 +342,8 @@
 .gchart .seg.no { fill: var(--coral); }
 .gchart .wk-bar:hover .seg { filter: brightness(1.08); }
 .gchart .val { font-family: 'Silkscreen', monospace; font-size: 13px; fill: var(--navy); }
-.gchart .xlab2 { font-family: 'Silkscreen', monospace; font-size: 12px; fill: var(--sub); }
+/* viewBox(720)가 실제 칸 너비로 줄면서 같이 작아진다. 좁은 칸에서 10px쯤으로 그려져 안 읽혔다 */
+.gchart .xlab2 { font-family: 'Silkscreen', monospace; font-size: 16px; fill: var(--navy); }
 .gchart .trendline { fill: none; stroke: var(--navy); stroke-width: 2.5; stroke-dasharray: 6 5; opacity: .55; }
 
 /* 리포트 카테고리 미니 바 */
@@ -954,6 +955,10 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 }
 .cal-grid > .cal-day.hit:nth-child(7n + 1) { color: var(--navy); }
 
+/* landing.css의 .sec-lead가 max-width:32em이라 앱 화면 안내문이 반으로 접혔다.
+   문구에 넣은 줄바꿈(\n)이 곧 의도한 줄 수라 앱 안에서는 폭 제한을 푼다 (대시보드는 이미 풀려 있었다) */
+.app-main .page-head .sec-lead { max-width: none; }
+
 /* 제목 줄 오른쪽 끝에 붙는 약점 추천 버튼 — 팀 화면의 .tm-top과 같은 방식 */
 .skill-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
 .skill-head .page-head { flex: 1; min-width: 0; }
@@ -997,3 +1002,106 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .chat-skill:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
 .chat-skill:disabled { color: var(--sub); border-color: #cdd8ea; box-shadow: 2px 2px 0 #cdd8ea; cursor: default; }
 
+/* ── GNB 드롭다운 그룹 — 큰 키워드 아래 하위 메뉴를 접어 넣는다. absolute라 펼쳐도 아래 콘텐츠를 안 민다 ── */
+/* 네비 높이만큼 세로로 꽉 채운다. 버튼만 감싸면 버튼 아래에 hover가 안 걸리는 빈 띠가 생겨
+   마우스를 내리는 도중에 닫혀버린다. 그룹이 네비 바닥까지 닿아야 패널까지 끊김 없이 이어진다 */
+.gnb-group { position: relative; align-self: stretch; display: flex; align-items: center; }
+.gnb-group > button {
+  font: inherit; font-size: inherit; color: inherit; background: none; border: none;
+  border-bottom: 3px solid transparent; padding: 4px 1px; white-space: nowrap; cursor: pointer;
+}
+/* 눌러서 펼쳐지는 메뉴라는 표시 */
+.gnb-group > button::after { content: '▾'; margin-left: 5px; font-size: 10px; vertical-align: 1px; }
+.gnb-group > button:hover, .gnb-group > button.on { border-bottom-color: var(--coral); }
+
+/* 네비 바닥선에 딱 붙여서 연다 — 사이를 띄우면 그 틈에서 hover가 끊긴다 */
+.gnb-drop {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%); z-index: 60;
+  display: flex; flex-direction: column; min-width: 158px; padding: 7px 0;
+  background: var(--white); border: 3px solid var(--navy); box-shadow: 6px 6px 0 var(--navy);
+}
+/* nav.gnb .links a 의 코랄 밑줄이 드롭다운 항목까지 따라와 줄줄이 그어졌다. 여기선 끈다 */
+nav.gnb .links .gnb-drop > a {
+  display: block; padding: 9px 17px; border-bottom: none;
+  white-space: nowrap; word-break: keep-all; color: var(--navy);
+}
+nav.gnb .links .gnb-drop > a + a { border-top: 2px dashed #d9e4f5; } /* 굵은 실선은 표처럼 보인다 */
+nav.gnb .links .gnb-drop > a:hover { background: #fffbe8; border-bottom: none; }
+/* 지금 보고 있는 항목 — 왼쪽에 코랄 막대를 세워 한눈에 */
+nav.gnb .links .gnb-drop > a.on {
+  background: var(--sky); font-weight: 700; box-shadow: inset 4px 0 0 var(--coral);
+}
+
+/* ───── 미리보기: 부족한 파일 가져오기(승인 후에만 GitHub 조회) ─────
+   가져올 게 없으면 아래 것들은 아예 렌더되지 않는다 */
+
+/* 팝업을 "나중에"로 닫았을 때 남는 흔적. 다시 누르면 팝업이 열린다 */
+.dock-fetch-reopen {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 700; color: var(--navy); word-break: keep-all;
+  padding: 9px 14px; background: #fff4d6; border: none; border-bottom: 3px solid var(--navy);
+}
+.dock-fetch-reopen:hover { background: var(--yellow); }
+
+/* 어느 레포에서 가져올지 */
+.dock-fetch-repo {
+  font: inherit; font-size: 12px; padding: 6px 9px; flex-shrink: 0; max-width: 200px;
+  border: 2px solid var(--navy); background: var(--white); color: var(--navy);
+}
+
+/* 부족한 파일 팝업 — 공용 .modal 위에 얹는다 */
+.dock-ask { max-width: 520px; }
+.dock-ask .note { line-height: 1.9; }
+.dock-ask .note b { color: var(--coral); }
+.dock-ask-list {
+  list-style: none; margin: 14px 0; padding: 12px 14px;
+  background: var(--navy); border: 3px solid var(--navy);
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; line-height: 1.95; color: var(--sky);
+  overflow-wrap: anywhere; /* 파일 경로라 어디서 끊어도 된다 */
+}
+/* 올릴 때 고를 파일명이 눈에 띄어야 한다. 앞쪽 경로는 흐리게 */
+.dock-ask-list .dock-ask-dir { color: #8fa6c9; }
+.dock-ask-list b { color: var(--yellow); }
+.dock-ask-warn {
+  margin-top: 10px; font-size: 12.5px; line-height: 1.8; color: #d92d20;
+  overflow-wrap: anywhere;
+}
+.dock-ask-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
+/* 가져온 결과 목록 — 항목을 펼치면 원문을 그대로 볼 수 있다 */
+/* 머리줄은 목록이 스크롤돼도 같이 밀리면 안 된다. 목록 밖에 둔다 */
+.dock-fetch-panel { border-bottom: 3px solid var(--navy); background: #f6f2e8; }
+.dock-fetch-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px 6px 14px; border-bottom: 2px dashed #d9e4f5;
+}
+.dock-fetch-head b { flex: 1; min-width: 0; font-size: 12px; color: var(--navy); }
+.dock-fetch-close {
+  flex-shrink: 0; width: 24px; height: 24px; line-height: 1; cursor: pointer;
+  font: inherit; font-size: 17px; color: var(--navy);
+  background: #fff; border: 2px solid var(--navy);
+}
+.dock-fetch-close:hover { background: var(--coral); color: var(--white); }
+.dock-fetch-log { background: #f6f2e8; max-height: 220px; overflow-y: auto; }
+.dock-fetch-item { border-top: 2px dashed #d9e4f5; }
+.dock-fetch-item summary {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; font-size: 12.5px; list-style: none;
+}
+.dock-fetch-item summary b {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: break-all;
+}
+.dock-fetch-item summary .note { flex-shrink: 0; word-break: keep-all; }
+.dock-fetch-body {
+  margin: 0 14px 10px; padding: 10px 12px; background: var(--navy); color: #d8e6ff;
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;
+}
+
+/* 파일 탭 — 가져온 파일이 여러 개면 코드 영역 위에서 옮겨 다닌다. .tabs 톤 그대로, 줄바꿈만 허용해 가로 스크롤 없음 */
+.dock-file-tabs { margin-bottom: 0; border-bottom: 3px solid var(--navy); padding: 8px 12px; }
+.dock-file-tabs button { display: inline-flex; align-items: center; gap: 5px; word-break: keep-all; }
+.dock-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--coral); display: inline-block; }
+
+/* 전체화면 좌측 코드 열 — 탭 바(고정 높이) + 코드 래프(나머지 전부)를 세로로 쌓는다 */
+.dock-code-col.side { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dock-code-col.side .dock-code-wrap.side { flex: 1; min-height: 0; }

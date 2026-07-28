@@ -261,9 +261,14 @@ public class UserServiceImpl implements UserService{
                 githubRepositoryRepository.findById(repoId)
                         .ifPresent(repo -> repo.changeOwner(next.getUserId())); // 연동 등록자도 갱신
             } else {
-                // 팀원 0명 → 팀 해체: 내 멤버십 + 대기 초대만 삭제. 레포/PR/리뷰 이력은 보존.
+                // 팀원 0명 → 팀 해체: 내 멤버십 + 대기 초대 + 레포 연동 자체를 삭제.
+                // repositories row를 남겨두면 existsByGithubRepoId가 계속 true라서 아무도 접근 못 하는
+                // 이 GitHub 레포를 COGI에서 영원히 재연동할 수 없게 되는 문제가 있었음 — PR/리뷰 이력은
+                // repoId만 남은 채(조회 불가) 그대로 보존되고, 실제로 그 레포에 대한 접근 권한이 없던 것과
+                // 동일하므로 문제 없음
                 repoMemberRepository.delete(myMembership);
                 repoInvitationRepository.deleteByRepoId(repoId);
+                githubRepositoryRepository.deleteById(repoId);
             }
         }
 

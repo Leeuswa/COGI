@@ -85,7 +85,8 @@ function DesktopDashboard() {
         {/* 오늘 상태 한 줄 요약 — 숫자만 훑고 지나갈 수 있게 */}
         <div className="hud-row">
           <div className="hud-card">
-            <span className="sc-label">연속 학습</span>
+            {/* 끊겨도 줄지 않으니 "연속"이 아니다. 실제로 세는 건 학습한 날 수 */}
+            <span className="sc-label">총 학습일</span>
             <b className="sc-value">{S.streak}<em>일</em></b>
           </div>
           <div className={`hud-card ${pct >= 90 ? "warn" : ""}`}>
@@ -140,7 +141,7 @@ function DesktopDashboard() {
           <div className="dash-col">
             <div className="panel cal-panel">
               <div className="dash-head">
-                <h3>🔥 연속 학습 {S.streak}일</h3>
+                <h3>🔥 총 학습일 {S.streak}일</h3>
                 <span className="note sm">{year}년 {month + 1}월</span>
               </div>
 

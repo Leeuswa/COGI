@@ -63,6 +63,19 @@ export function GameProvider({ children }) {
       }));
       loaded.current = true;
     }).catch(() => { /* 조회 실패면 캐시된 값으로 계속 */ });
+
+    // streak과 제출 달력도 DB(user_streaks·quiz_submissions)가 원천이다.
+    // 예전엔 캐시가 이겨서 DB를 새로 심어도 옛 기록이 그대로 남아 있었다
+    api.getRetentionStatus().then((r) => {
+      if (!alive || !r) return;
+      const days = r.submitDays ?? [];
+      setS((prev) => ({
+        ...prev,
+        streak: r.streak ?? 0,
+        submitDays: days,
+        lastSubmitDate: days.length > 0 ? days[days.length - 1] : null, // 오름차순이라 마지막이 최근
+      }));
+    }).catch(() => { /* 조회 실패면 캐시된 값으로 계속 */ });
     return () => { alive = false; };
   }, [user?.userId ?? user?.email]);
 
@@ -151,6 +164,7 @@ export function GameProvider({ children }) {
       ...p,
       creditUsed: credit?.usedCredits ?? p.creditUsed,
       streak: retention?.streak ?? p.streak,
+      submitDays: retention?.submitDays ?? p.submitDays, // 달력 점도 서버 값으로
     })),
   };
 
