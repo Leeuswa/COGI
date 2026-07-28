@@ -18,7 +18,8 @@ public interface PrService {
     // Studio "PR 가져오기" 피커 2단계 — 특정 PR의 변경 파일 목록(코드는 diff 근사치, PrFileResponseDTO 참고)
     List<PrFileResponseDTO> listPrFiles(Long currentUserId, Long repoId, int prNumber);
 
-    // PR 리뷰 대시보드(API-032, 팀 대신 레포 기준으로 축소) [설계 추론]: 우리 DB에 실제로 리뷰가 기록된 PR 목록
-    List<PrListItemResponseDTO> listReviewedPrs(Long currentUserId, Long repoId);
+    // PR 리뷰 대시보드(API-032, 팀 대신 레포 기준으로 축소) [설계 추론]: 우리 DB에 실제로 리뷰가 기록된 PR 목록.
+    // severity(CRITICAL/MAJOR/MINOR)·author(PR 작성자 표시명) 둘 다 nullable — null이면 그 조건은 안 걺
+    List<PrListItemResponseDTO> listReviewedPrs(Long currentUserId, Long repoId, String severity, String author);
 
 }
