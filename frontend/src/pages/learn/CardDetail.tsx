@@ -103,6 +103,7 @@ function DesktopCardDetail() {
     setBusy(true);
     setResult(null); setPicked(null);
     try { setQuiz(await api.createQuiz(card.id, quizType, model)); }
+    catch (e) { notify(e.message || '문제를 만들지 못했어요'); } // 안 잡으면 콘솔에만 뜨고 화면은 그대로다
     finally { setBusy(false); }
   };
 
@@ -114,7 +115,8 @@ function DesktopCardDetail() {
     try {
       const updated = await api.createStudyPlan(card.id, planDays);
       setCard((c) => ({ ...c, studyPlan: updated.studyPlan }));
-    } finally { setPlanning(false); }
+    } catch (e) { notify(e.message || '계획을 짜지 못했어요'); } // 퀴즈와 같은 이유
+    finally { setPlanning(false); }
   };
 
   // 계획 전체를 한 번에 캘린더로 — 단계마다 누르지 않아도 되게 .ics 하나로 묶어 내려준다

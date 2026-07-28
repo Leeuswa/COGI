@@ -192,9 +192,10 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     // 필수 약관 2종에 동의한 이력 (마이페이지 약관 동의 내역)
+    // 버전은 insertTerm이 넣는 '1.0'과 맞춘다. 어긋나면 로그인하자마자 재동의 배너가 뜬다 (FR-91)
     private void seedAgreements(User user) {
-        userAgreementRepository.save(UserAgreement.of(user.getId(), 1L));
-        userAgreementRepository.save(UserAgreement.of(user.getId(), 2L));
+        userAgreementRepository.save(UserAgreement.of(user.getId(), 1L, "1.0"));
+        userAgreementRepository.save(UserAgreement.of(user.getId(), 2L, "1.0"));
     }
 
     // ── 결제수단 → 구독(MAX) → 변경 이력 3건 + 오늘 크레딧 사용량 ──
