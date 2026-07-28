@@ -443,10 +443,6 @@ export const getCardHistory = (cardId) =>
 export const getCardSubmissions = (cardId) =>
   USE_MOCK ? mock([]) : http('GET', `/api/learning-cards/${cardId}/submissions`);
 
-// API-048 GET /api/courses/recommendations — 강의 추천 + 필터 (FR-66~69)
-export const getCourses = (filters = {}) =>
-  USE_MOCK ? mock(M.mockCourseRecommendations) : http('GET', '/api/courses/recommendations?' + new URLSearchParams(filters));
-
 // API-049 POST /api/ai-skill-recommendations — AI 스킬 추천 (FR-70, 크레딧 소모)
 export const recommendSkill = (weaknessOrRequirement) =>
   USE_MOCK

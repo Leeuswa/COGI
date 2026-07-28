@@ -30,8 +30,9 @@ public class LearningCardQuiz {
 
     private String answer;
 
+    // explain은 MariaDB 예약어라 그대로 쓰면 테이블 생성 DDL부터 깨진다. 컬럼명만 explanation으로 바꾸고 필드명은 유지
     @Lob
-    @Column(name = "`explain`") // explain은 MariaDB 예약어 → 백틱으로 감싸 따옴표 처리(테이블 생성 실패 방지)
+    @Column(name = "explanation")
     private String explain; // 해설 — 정답이든 오답이든 학습용으로 보여준다
 
     @Column(updatable = false)
