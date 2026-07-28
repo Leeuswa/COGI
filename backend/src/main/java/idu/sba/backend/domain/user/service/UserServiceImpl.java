@@ -9,6 +9,11 @@ import idu.sba.backend.domain.terms.entity.TermType;
 import idu.sba.backend.domain.terms.entity.UserAgreement;
 import idu.sba.backend.domain.terms.repository.TermRepository;
 import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
+import idu.sba.backend.domain.repo.entity.RepoMember;
+import idu.sba.backend.domain.repo.entity.RepoRole;
+import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
+import idu.sba.backend.domain.repo.repository.RepoInvitationRepository;
+import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.user.dto.*;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -21,8 +26,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,6 +44,12 @@ public class UserServiceImpl implements UserService{
     private final TotpService totpService;
     private final HtmlMailSender htmlMailSender;
     private final SubscriptionService subscriptionService;
+    private final RepoMemberRepository repoMemberRepository;
+    private final GithubRepositoryRepository githubRepositoryRepository;
+    private final RepoInvitationRepository repoInvitationRepository;
+
+    // 소셜·로컬 공통 탈퇴 확인 문구 — 이 값과 정확히 일치해야 탈퇴 진행
+    private static final String WITHDRAW_PHRASE = "탈퇴하겠습니다";
 
 
     //내가 동의한 약관 id 목록 (마이페이지 동의 현황)
@@ -217,6 +230,44 @@ public class UserServiceImpl implements UserService{
                         .ifPresent(UserAgreement::withdraw);
             }
         }
+    }
+
+    // 회원탈퇴 — 문구 재검증 → 내가 팀장인 팀마다 위임/해체 → 소프트삭제·익명화.
+    // 소셜/로컬 모두 동일하게 문구만으로 인증한다(비번 분기 없음).
+    @Override
+    @Transactional
+    public void withdraw(Long userId, WithdrawRequestDTO req) {
+        User user = findUser(userId);
+
+        // 프론트만 믿지 않고 서버에서 문구 재검증
+        if (req == null || !WITHDRAW_PHRASE.equals(req.getConfirm() == null ? null : req.getConfirm().trim())) {
+            throw new BusinessException(ErrorCode.INVALID_WITHDRAW_CONFIRM);
+        }
+
+        // 내가 OWNER인 레포마다 처리 (여러 팀장 가능)
+        for (RepoMember myMembership : repoMemberRepository.findByUserId(userId)) {
+            if (myMembership.getRole() != RepoRole.OWNER) continue; // 팀원인 팀은 그대로 둔다(데이터 보존)
+            Long repoId = myMembership.getRepoId();
+
+            // 나 빼고 가장 먼저 합류한 팀원 = 후임 팀장
+            Optional<RepoMember> heir = repoMemberRepository.findByRepoId(repoId).stream()
+                    .filter(m -> !m.getUserId().equals(userId))
+                    .min(Comparator.comparing(RepoMember::getJoinedAt));
+
+            if (heir.isPresent()) {
+                RepoMember next = heir.get();
+                myMembership.changeRole(RepoRole.MEMBER); // 나는 강등(곧 탈퇴 표시로 남음)
+                next.changeRole(RepoRole.OWNER);
+                githubRepositoryRepository.findById(repoId)
+                        .ifPresent(repo -> repo.changeOwner(next.getUserId())); // 연동 등록자도 갱신
+            } else {
+                // 팀원 0명 → 팀 해체: 내 멤버십 + 대기 초대만 삭제. 레포/PR/리뷰 이력은 보존.
+                repoMemberRepository.delete(myMembership);
+                repoInvitationRepository.deleteByRepoId(repoId);
+            }
+        }
+
+        user.withdraw();
     }
 
     private User findUser(Long userId){

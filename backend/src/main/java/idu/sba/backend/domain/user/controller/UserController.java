@@ -92,4 +92,12 @@ public class UserController {
         return ApiResponse.ok("약관 동의가 저장되었습니다.");
     }
 
+    // 회원탈퇴 — 팀장이면 첫 팀원에게 위임(없으면 팀 해체) 후 소프트삭제·익명화
+    @DeleteMapping
+    public ApiResponse<Void> withdraw(@AuthenticationPrincipal Long userId,
+                                      @Valid @RequestBody WithdrawRequestDTO request) {
+        userService.withdraw(userId, request);
+        return ApiResponse.ok("회원 탈퇴가 완료되었습니다.");
+    }
+
 }
