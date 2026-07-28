@@ -44,9 +44,13 @@ import idu.sba.backend.global.ai.AiReviewClient;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.json.JsonReadFeature;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -60,6 +64,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LearningServiceImpl implements LearningService {
@@ -69,6 +74,13 @@ public class LearningServiceImpl implements LearningService {
     private static final String REQUEST_TYPE_STUDY_PLAN = "STUDY_PLAN"; // 학습 계획 호출은 따로 집계
     private static final String REQUEST_TYPE_SKILL_RECOMMEND = "SKILL_RECOMMEND"; // 스킬 추천 호출도 따로 집계 (API-049)
     private static final int SKILL_RECOMMEND_BY_WEAKNESS_CREDIT = 2; // 약점 기반 추천은 모델 등급이 아니라 고정 2크레딧
+
+    // AI 응답 전용 리더. 날 줄바꿈과 모르는 키를 눈감아 준다 — 이유는 parseAi 주석에 있다.
+    // 주입받는 공용 ObjectMapper는 API 응답 직렬화에도 쓰여서 여기 규칙을 얹으면 안 된다
+    private static final JsonMapper LENIENT_JSON = JsonMapper.builder()
+            .enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS)
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .build();
 
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
@@ -469,11 +481,27 @@ public class LearningServiceImpl implements LearningService {
 
     // AI 응답 JSON 파싱 — 형식을 벗어나면 AI_MODEL_CALL_FAILED (트랜잭션 롤백으로 크레딧도 복구)
     private CardContent parseCard(String content) {
+        return parseAi(content, CardContent.class, "카드");
+    }
+
+    // 파싱이 되기도 하고 안 되기도 하던 자리. 원인은 두 가지였다.
+    // 1) 프롬프트가 question·explain 안에 코드블록을 넣으라고 시키는데 모델이 줄바꿈을 그대로 흘린다.
+    //    JSON 문자열 안의 날 줄바꿈은 위법이라 코드블록이 든 문제만 골라서 터졌다 → 관대한 리더로 받는다
+    // 2) 모델이 스키마에 없는 키를 하나 얹어도 통째로 실패했다 → 모르는 키는 버린다
+    private <T> T parseAi(String content, Class<T> type, String what) {
         try {
-            return objectMapper.readValue(content, CardContent.class);
+            return LENIENT_JSON.readValue(content, type);
         } catch (Exception e) {
+            // 원문을 안 남기면 다음에도 "어쩔 땐 되고 어쩔 땐 안 된다"로만 보인다
+            log.error("AI 응답 파싱 실패 - 대상={}, 원문={}", what, abbreviate(content), e);
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }
+    }
+
+    // 로그에 응답 전체를 쏟으면 읽을 수가 없다. 앞부분만 남겨도 뭐가 왔는지는 보인다
+    private String abbreviate(String content) {
+        if (content == null) return "(없음)";
+        return content.length() <= 800 ? content : content.substring(0, 800) + "…(생략)";
     }
 
     // 퀴즈 생성 입력 — 어떤 카드(개념)로 문제를 낼지 넘긴다
@@ -484,11 +512,7 @@ public class LearningServiceImpl implements LearningService {
     }
 
     private QuizContent parseQuiz(String content) {
-        try {
-            return objectMapper.readValue(content, QuizContent.class);
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
-        }
+        return parseAi(content, QuizContent.class, "퀴즈");
     }
 
     // 플랜의 기본 모델 — allowed_models의 첫 값이 그 플랜 기본이라는 규칙을 한 곳에만 둔다
@@ -506,11 +530,7 @@ public class LearningServiceImpl implements LearningService {
     }
 
     private SkillItemsContent parseSkillItems(String content) {
-        try {
-            return objectMapper.readValue(content, SkillItemsContent.class);
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
-        }
+        return parseAi(content, SkillItemsContent.class, "스킬 추천");
     }
 
     // 학습 계획 입력 — 기간이 단계 수를 정하고, 등급은 무엇을 채울지를 정한다 (study_plan.txt 규칙)
@@ -526,8 +546,9 @@ public class LearningServiceImpl implements LearningService {
     // 계획 JSON에서 steps 배열만 떼어 저장한다. 프론트가 배열을 바로 받도록 응답에 그대로 실린다
     private String parseStudyPlanSteps(String content) {
         try {
-            return objectMapper.readTree(content).get("steps").toString();
+            return LENIENT_JSON.readTree(content).get("steps").toString();
         } catch (Exception e) { // steps 키가 없거나 JSON이 깨졌으면 크레딧까지 롤백
+            log.error("AI 응답 파싱 실패 - 대상=학습계획, 원문={}", abbreviate(content), e);
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }
     }
