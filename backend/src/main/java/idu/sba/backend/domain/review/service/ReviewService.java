@@ -1,6 +1,7 @@
 package idu.sba.backend.domain.review.service;
 
 import idu.sba.backend.domain.pr.dto.PrReviewImportRequestDTO;
+import idu.sba.backend.domain.review.dto.AskQuestionResponseDTO;
 import idu.sba.backend.domain.review.dto.ModelSelectRequestDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryDetailResponseDTO;
 import idu.sba.backend.domain.review.dto.ReviewHistoryItemResponseDTO;
@@ -37,5 +38,8 @@ public interface ReviewService {
 
     // API-028: PR 리뷰에 사용할 AI 모델 선택 — 레포 팀원만 가능. 다음 웹훅 리뷰(synchronize 등)부터 적용됨
     void selectPrModel(Long callerId, Long prId, ModelSelectRequestDTO request);
+
+    // 리뷰 후속 질문 [설계 추론] — 원본 리뷰의 코드·이슈 맥락으로 짧은 답을 받는다. 본인 리뷰가 아니면 REVIEW_ACCESS_DENIED
+    AskQuestionResponseDTO askQuestion(Long userId, Long reviewId, String question);
 
 }

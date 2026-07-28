@@ -537,4 +537,65 @@ class ReviewServiceImplTest {
         assertThat(pr.getSelectedModel()).isEqualTo("gpt-5.6-luna");
     }
 
+    // ---------- 리뷰 후속 질문 [설계 추론] ----------
+
+    @Test
+    void askQuestion_존재하지_않으면_REVIEW_NOT_FOUND() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.askQuestion(USER_ID, 10L, "왜 문제인가요?"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_NOT_FOUND);
+
+        verify(creditUsageService, never()).checkAndConsumeFixed(any(), anyInt());
+    }
+
+    @Test
+    void askQuestion_본인_리뷰가_아니면_REVIEW_ACCESS_DENIED() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, OWNER_ID)));
+
+        assertThatThrownBy(() -> service.askQuestion(USER_ID, 10L, "왜 문제인가요?"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_ACCESS_DENIED);
+
+        verify(creditUsageService, never()).checkAndConsumeFixed(any(), anyInt());
+    }
+
+    @Test
+    void askQuestion_정상_케이스면_답변을_반환하고_모델등급과_무관하게_고정크레딧_1만_소모한다() {
+        Review review = review(10L, USER_ID); // claude-haiku-4-5(FREE 등급)로 생성됨 — 그래도 고정 1이어야 함
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review));
+        when(reviewIssueRepository.findByReviewId(10L)).thenReturn(List.of(
+                ReviewIssue.of(10L, IssueCategory.BUG, IssueSeverity.CRITICAL, "Foo.java", 1, "null 체크 누락")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
+        when(promptBuilder.buildFollowUpQuestion(any())).thenReturn("system-prompt");
+        when(aiReviewClient.generate(any(), any(), any()))
+                .thenReturn(new idu.sba.backend.global.ai.AiGenerationResult("옵셔널 체이닝을 쓰면 안전해요.", 50, 30, 0.002));
+
+        var result = service.askQuestion(USER_ID, 10L, "왜 문제인가요?");
+
+        assertThat(result.getAnswer()).isEqualTo("옵셔널 체이닝을 쓰면 안전해요.");
+        verify(creditUsageService).checkAndConsumeFixed(USER_ID, 1);
+        verify(creditUsageService, never()).checkAndConsume(any(), any()); //모델 등급 기준 소모가 아님
+        verify(aiUsageLogRepository).save(any());
+    }
+
+    @Test
+    void askQuestion_AI_호출_실패시_고정크레딧이_환불된다() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, USER_ID)));
+        when(reviewIssueRepository.findByReviewId(10L)).thenReturn(List.of());
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(freeUser()));
+        when(promptBuilder.buildFollowUpQuestion(any())).thenReturn("system-prompt");
+        when(aiReviewClient.generate(any(), any(), any()))
+                .thenThrow(new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED));
+
+        assertThatThrownBy(() -> service.askQuestion(USER_ID, 10L, "왜 문제인가요?"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.AI_MODEL_CALL_FAILED);
+
+        verify(creditUsageService).checkAndConsumeFixed(USER_ID, 1);
+        verify(creditUsageService).refundFixed(USER_ID, 1);
+        verify(aiUsageLogRepository, never()).save(any());
+    }
+
 }
