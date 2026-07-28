@@ -40,6 +40,7 @@ export default function MobileStudio() {
   const [picker, setPicker] = useState(null);
   const [previewCode, setPreviewCode] = useState(null);
   const [dockOpen, setDockOpen] = useState(false);
+  const [favSkills, setFavSkills] = useState(null); // 즐겨찾기 스킬. null = 아직 안 받음
 
   const actionCost = reviewId === null ? modelWeight(model) : 1;
   const insufficientCredit = remainingCredit < actionCost;
@@ -51,6 +52,13 @@ export default function MobileStudio() {
   }, [msgs, busy]);
 
   const push = (m) => setMsgs((prev) => [...prev, m]);
+
+  // 후속 질문은 리뷰가 시작돼야 열린다. 그때 즐겨찾기 스킬을 한 번만 받아 칩으로 깐다
+  // 실패하면 칩만 안 보이게 둔다 — 채팅 자체를 막을 이유는 없다
+  useEffect(() => {
+    if (reviewId === null || favSkills !== null) return;
+    api.getFavoriteSkills().then(setFavSkills).catch(() => setFavSkills([]));
+  }, [reviewId, favSkills]);
 
   // PR 상세에서 넘어오면 새 리뷰 대신 그 PR의 미판정(OPEN) 이슈만 이어받는다
   useEffect(() => {
@@ -312,6 +320,17 @@ export default function MobileStudio() {
 
       {/* 입력 — 화면 아래 고정 */}
       <div className="mst-input">
+        {/* 즐겨찾기해 둔 스킬 — 누르면 질문 문장이 입력창에 채워진다. 보내기 전에 고칠 수 있다 */}
+        {reviewId !== null && favSkills?.length > 0 && (
+          <div className="mst-skills">
+            {favSkills.map((s) => (
+              <button key={s.id} className="mst-skill" disabled={busy || insufficientCredit}
+                onClick={() => setInput(`${s.title} 관점에서 이 코드를 점검해줘.`)}>
+                ★ {s.title}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           rows={2}
           value={input}

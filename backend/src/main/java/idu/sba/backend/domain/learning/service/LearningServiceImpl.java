@@ -8,13 +8,20 @@ import idu.sba.backend.domain.learning.dto.LearningCardResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmissionResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
+import idu.sba.backend.domain.learning.dto.SkillByWeaknessItemDTO;
+import idu.sba.backend.domain.learning.dto.SkillByWeaknessResponseDTO;
+import idu.sba.backend.domain.learning.dto.SkillRecommendRequestDTO;
+import idu.sba.backend.domain.learning.dto.SkillRecommendResponseDTO;
 import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
+import idu.sba.backend.domain.learning.entity.AiSkill;
 import idu.sba.backend.domain.learning.entity.AiSkillFavorite;
+import idu.sba.backend.domain.learning.entity.AiSkillRecommendation;
 import idu.sba.backend.domain.learning.entity.LearningCard;
 import idu.sba.backend.domain.learning.entity.LearningCardQuiz;
 import idu.sba.backend.domain.learning.entity.QuizSubmission;
 import idu.sba.backend.domain.learning.entity.WeaknessStat;
 import idu.sba.backend.domain.learning.repository.AiSkillFavoriteRepository;
+import idu.sba.backend.domain.learning.repository.AiSkillRecommendationRepository;
 import idu.sba.backend.domain.learning.repository.AiSkillRepository;
 import idu.sba.backend.domain.learning.repository.CourseRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
@@ -60,6 +67,8 @@ public class LearningServiceImpl implements LearningService {
     private static final int MIN_OCCURRENCE = 3; // 3회 이상만 약점으로 집계 (FR-56)
     private static final String REQUEST_TYPE_CARD = "LEARNING_CARD"; // ai_usage_logs 구분값
     private static final String REQUEST_TYPE_STUDY_PLAN = "STUDY_PLAN"; // 학습 계획 호출은 따로 집계
+    private static final String REQUEST_TYPE_SKILL_RECOMMEND = "SKILL_RECOMMEND"; // 스킬 추천 호출도 따로 집계 (API-049)
+    private static final int SKILL_RECOMMEND_BY_WEAKNESS_CREDIT = 2; // 약점 기반 추천은 모델 등급이 아니라 고정 2크레딧
 
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
@@ -77,6 +86,7 @@ public class LearningServiceImpl implements LearningService {
     private final LearningPromptBuilder promptBuilder;
     private final AiSkillRepository aiSkillRepository;
     private final AiSkillFavoriteRepository aiSkillFavoriteRepository;
+    private final AiSkillRecommendationRepository aiSkillRecommendationRepository;
 
     // (카테고리 코드, 언어)로 이슈를 묶는 집계 키 — 언어는 null 가능
     private record StatKey(String category, String language) {}
@@ -88,6 +98,9 @@ public class LearningServiceImpl implements LearningService {
 
     // 퀴즈 생성 AI 응답 파싱용
     private record QuizContent(String question, List<String> options, String answer, String explain) {}
+
+    // 약점 기반 스킬 추천 AI 응답 파싱용 — skill_recommend_by_weakness.txt의 출력 스키마와 키 이름이 1:1로 맞아야 한다
+    private record SkillItemsContent(List<SkillByWeaknessItemDTO> items) {}
 
     @Override
     @Transactional
@@ -332,19 +345,6 @@ public class LearningServiceImpl implements LearningService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<AiSkillResponseDTO> getAiSkills(Long userId, String provider) {
-        // 내가 찜한 스킬 id를 먼저 모아두고 목록에 별을 칠한다 (스킬마다 조회하면 N+1)
-        Set<Long> favoriteIds = aiSkillFavoriteRepository.findByUserId(userId).stream()
-                .map(AiSkillFavorite::getSkillId)
-                .collect(Collectors.toSet());
-
-        return aiSkillRepository.findByProvider(provider).stream()
-                .map(skill -> AiSkillResponseDTO.of(skill, favoriteIds.contains(skill.getId())))
-                .toList();
-    }
-
-    @Override
     @Transactional
     public void toggleSkillFavorite(Long userId, Long skillId) {
         if (aiSkillFavoriteRepository.existsByUserIdAndSkillId(userId, skillId)) {
@@ -352,6 +352,101 @@ public class LearningServiceImpl implements LearningService {
         } else {
             aiSkillFavoriteRepository.save(AiSkillFavorite.of(userId, skillId));
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AiSkillResponseDTO> getAiSkills(Long userId, String provider, String category) {
+        // 즐겨찾기 별 칠하는 방식은 기존과 동일
+        Set<Long> favoriteIds = aiSkillFavoriteRepository.findByUserId(userId).stream()
+                .map(AiSkillFavorite::getSkillId)
+                .collect(Collectors.toSet());
+
+        // category가 없으면 지금까지처럼 provider만으로 거른다 (기존 동작 100% 보존)
+        List<AiSkill> skills = (category == null || category.isBlank())
+                ? aiSkillRepository.findByProvider(provider)
+                : aiSkillRepository.findByProviderAndCategory(provider, category);
+
+        return skills.stream()
+                .map(skill -> AiSkillResponseDTO.of(skill, favoriteIds.contains(skill.getId())))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AiSkillResponseDTO> getFavoriteSkills(Long userId) {
+        // 내가 찜한 스킬 id로 바로 조회 — provider는 안 가린다
+        List<Long> favoriteIds = aiSkillFavoriteRepository.findByUserId(userId).stream()
+                .map(AiSkillFavorite::getSkillId)
+                .toList();
+        if (favoriteIds.isEmpty()) {
+            return List.of(); // 찜한 게 없으면 빈 배열
+        }
+        return aiSkillRepository.findAllById(favoriteIds).stream()
+                .map(skill -> AiSkillResponseDTO.of(skill, true)) // 여기 나온 건 다 내가 찜한 것
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public SkillRecommendResponseDTO recommendSkill(Long userId, SkillRecommendRequestDTO request) {
+        // 빈 입력으로 AI를 부르면 크레딧만 날아간다. 여기서 끊는다
+        String input = request.getWeaknessOrRequirement();
+        if (input == null || input.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        // 카드 생성과 같은 패턴 — 플랜 기본(첫 허용) 모델로 크레딧부터 체크·소모
+        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+        String modelName = plan.getAllowedModels().split(",")[0].trim();
+        creditUsageService.checkAndConsume(userId, modelName);
+
+        AiModel model = resolveAiModel(modelName);
+        AiGenerationResult result = aiReviewClient.generate(model,
+                promptBuilder.buildSkillRecommend(modelName), request.getWeaknessOrRequirement());
+        aiUsageLogRepository.save(AiUsageLog.of(userId, modelName,
+                result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_SKILL_RECOMMEND));
+
+        // 여긴 정해진 JSON 스키마가 없다 — AI가 준 텍스트를 그대로 이력에 남기고 그대로 응답한다
+        aiSkillRecommendationRepository.save(
+                AiSkillRecommendation.of(userId, request.getWeaknessOrRequirement(), result.content()));
+
+        return SkillRecommendResponseDTO.of(result.content());
+    }
+
+    @Override
+    @Transactional
+    public SkillByWeaknessResponseDTO recommendSkillByWeakness(Long userId) {
+        // 약점이 하나도 없으면 AI를 부르기 전에 끊는다 — 크레딧을 쓸 이유가 없다 (콜드스타트 가드)
+        List<WeaknessStatResponseDTO> weaknesses = getWeaknessStats(userId);
+        if (weaknesses.isEmpty()) {
+            throw new BusinessException(ErrorCode.WEAKNESS_STATS_EMPTY);
+        }
+
+        // 자유 입력 버전(recommendSkill)과 달리 모델 등급이 아니라 고정 2크레딧을 쓴다
+        creditUsageService.checkAndConsumeFixed(userId, SKILL_RECOMMEND_BY_WEAKNESS_CREDIT);
+
+        // 카드 생성과 같은 방식으로 플랜 기본(첫 허용) 모델을 쓴다
+        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+        String modelName = plan.getAllowedModels().split(",")[0].trim();
+        AiModel model = resolveAiModel(modelName);
+
+        // 사용자가 입력하는 게 없어서 약점 통계를 서버가 직접 요약해 입력으로 넘긴다
+        String weaknessSummary = buildWeaknessSummaryInput(weaknesses);
+        AiGenerationResult result = aiReviewClient.generate(model,
+                promptBuilder.buildSkillRecommendByWeakness(modelName), weaknessSummary);
+        aiUsageLogRepository.save(AiUsageLog.of(userId, modelName,
+                result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_SKILL_RECOMMEND));
+
+        // 파싱이 깨지면 여기서 던져서 트랜잭션 롤백으로 크레딧까지 복구된다
+        SkillItemsContent parsed = parseSkillItems(result.content());
+
+        // 이력은 기존 엔티티 그대로 재사용 — inputText는 서버가 만든 약점 요약, recommendationResult는 AI 원문(JSON)
+        aiSkillRecommendationRepository.save(AiSkillRecommendation.of(userId, weaknessSummary, result.content()));
+
+        List<String> categories = weaknesses.stream()
+                .map(WeaknessStatResponseDTO::getCategory).distinct().toList();
+        return new SkillByWeaknessResponseDTO(categories, parsed.items());
     }
 
     // 퀴즈에 쓸 모델 결정 — 안 골랐으면 카드 모델, 골랐으면 내 플랜에 있는지 확인하고 통과시킨다
@@ -397,6 +492,23 @@ public class LearningServiceImpl implements LearningService {
     private QuizContent parseQuiz(String content) {
         try {
             return objectMapper.readValue(content, QuizContent.class);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
+    }
+
+    // 약점 통계를 AI 입력으로 요약 — 카테고리·언어·발생 횟수를 한 줄씩 나열한다
+    private String buildWeaknessSummaryInput(List<WeaknessStatResponseDTO> weaknesses) {
+        return weaknesses.stream()
+                .map(w -> "카테고리: " + w.getCategory()
+                        + (w.getLanguage() != null && !w.getLanguage().isBlank() ? ", 언어: " + w.getLanguage() : "")
+                        + ", 발생 횟수: " + w.getOccurrenceCount() + "회")
+                .collect(Collectors.joining("\n"));
+    }
+
+    private SkillItemsContent parseSkillItems(String content) {
+        try {
+            return objectMapper.readValue(content, SkillItemsContent.class);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }
