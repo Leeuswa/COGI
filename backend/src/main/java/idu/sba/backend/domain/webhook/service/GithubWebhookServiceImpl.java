@@ -29,6 +29,12 @@ public class GithubWebhookServiceImpl implements GithubWebhookService {
 
     @Override
     public void handlePullRequestEvent(GithubPullRequestEventPayload payload) {
+        if (payload.pullRequest() == null) {
+            //서명은 유효하지만 pull_request가 없는 기형 payload — NPE로 500을 던지면 GitHub이 그걸
+            //실패로 보고 자동 재전송해서 다음 재전송에서 똑같이 또 실패하는 무한 루프가 될 수 있어 조용히 무시
+            log.warn("pull_request 필드가 없는 webhook payload - action={}", payload.action());
+            return;
+        }
         GithubRepository repo = githubRepositoryRepository
                 .findByGithubRepoId(String.valueOf(payload.repository().id()))
                 .orElse(null);
@@ -42,16 +48,27 @@ public class GithubWebhookServiceImpl implements GithubWebhookService {
             githubRepositoryRepository.save(repo);
         }
 
+        String headSha = payload.pullRequest().head() == null ? null : payload.pullRequest().head().sha();
+        PullRequest existingPr = pullRequestRepository
+                .findByRepoIdAndGithubPrNumber(repo.getId(), payload.number())
+                .orElse(null);
+        if (existingPr != null && existingPr.alreadyProcessed(headSha)) {
+            //GitHub의 웹훅 재전송(수동 Redeliver, 타임아웃 재시도)이나 payload 재생 — 같은 커밋을
+            //또 리뷰하고 크레딧을 또 차감하지 않도록 스킵
+            log.info("이미 처리한 커밋에 대한 웹훅 재전송 - prId={}, sha={}", existingPr.getId(), headSha);
+            return;
+        }
+
         Long authorId = resolveAuthorId(payload);
         String authorLogin = payload.pullRequest().user() == null ? null : payload.pullRequest().user().login();
 
-        PullRequest pr = pullRequestRepository
-                .findByRepoIdAndGithubPrNumber(repo.getId(), payload.number())
-                .map(existing -> {
-                    existing.reopenForReview(payload.pullRequest().title(), authorId, authorLogin);
-                    return existing;
-                })
-                .orElseGet(() -> PullRequest.open(repo.getId(), payload.number(), payload.pullRequest().title(), authorId, authorLogin));
+        PullRequest pr = existingPr == null
+                ? PullRequest.open(repo.getId(), payload.number(), payload.pullRequest().title(), authorId, authorLogin)
+                : existingPr;
+        if (existingPr != null) {
+            pr.reopenForReview(payload.pullRequest().title(), authorId, authorLogin);
+        }
+        pr.markProcessing(headSha);
         pullRequestRepository.save(pr);
 
         reviewService.createFromPr(pr.getId()); //@Async — 이 시점엔 위 저장이 이미 커밋된 상태

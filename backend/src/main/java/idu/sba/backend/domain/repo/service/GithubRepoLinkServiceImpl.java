@@ -11,6 +11,7 @@ import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,9 +45,16 @@ public class GithubRepoLinkServiceImpl implements GithubRepoLinkService {
 
         GithubRepoDto repo = githubApiClient.getRepo(accessToken, githubRepoId);
 
-        GithubRepository saved = githubRepositoryRepository.save(
-                GithubRepository.link(currentUserId, String.valueOf(repo.getId()), repo.getName(),
-                        repo.isPrivate(), repo.getFullName()));
+        GithubRepository saved;
+        try {
+            saved = githubRepositoryRepository.save(
+                    GithubRepository.link(currentUserId, String.valueOf(repo.getId()), repo.getName(),
+                            repo.isPrivate(), repo.getFullName()));
+        } catch (DataIntegrityViolationException e) {
+            //위 existsBy 체크와 이 save 사이의 더블클릭 경합 — DB 유니크 제약이 막아준 것을 500 대신
+            //"이미 연동됨" 응답으로 흡수
+            throw new BusinessException(ErrorCode.REPO_ALREADY_LINKED);
+        }
 
         //연동한 사람을 이 레포의 OWNER로 등록(레포 초대 기능과 연결되는 지점)
         repoMemberService.registerOwner(saved.getId(), currentUserId);

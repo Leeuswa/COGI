@@ -8,6 +8,7 @@ import idu.sba.backend.domain.payment.repository.PlanRepository;
 import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,18 +62,29 @@ public class CreditUsageServiceImpl implements CreditUsageService {
 
     private void consumeFixed(Long userId, int weight) {
         LocalDate today = LocalDate.now(KST);
-        CreditUsage usage = creditUsageRepository.findByUserIdAndUsageDate(userId, today)
-                .orElseGet(() -> {
-                    Plan plan = subscriptionService.getCurrentPlanEntity(userId);
-                    CreditUsage created = new CreditUsage();
-                    created.start(userId, today, plan.getDailyCreditLimit());
-                    return creditUsageRepository.save(created);
-                });
+        // PESSIMISTIC_WRITE로 조회 — 같은 사용자의 동시 요청(더블클릭, 멀티탭, 웹훅 두 건 동시 도착)이
+        // "잔여 확인 → 차감"을 락 없이 각자 통과해 한도를 넘겨 차감하는 lost-update를 막는다
+        CreditUsage usage = creditUsageRepository.findByUserIdAndUsageDateForUpdate(userId, today)
+                .orElseGet(() -> createTodayUsage(userId, today));
 
         if (!usage.hasRemaining(weight)) {
             throw new BusinessException(ErrorCode.CREDIT_LIMIT_EXCEEDED);
         }
         usage.consume(weight);
+    }
+
+    private CreditUsage createTodayUsage(Long userId, LocalDate today) {
+        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+        CreditUsage created = new CreditUsage();
+        created.start(userId, today, plan.getDailyCreditLimit());
+        try {
+            return creditUsageRepository.save(created);
+        } catch (DataIntegrityViolationException e) {
+            // 오늘의 첫 요청이 동시에 둘 이상 들어와 각자 새 행을 만들려다 유니크 제약(user_id, usage_date)에
+            // 걸린 경우 — 먼저 커밋된 쪽 행을 락 조회로 다시 가져와 그 위에서 계속 진행
+            return creditUsageRepository.findByUserIdAndUsageDateForUpdate(userId, today)
+                    .orElseThrow(() -> e);
+        }
     }
 
     @Override

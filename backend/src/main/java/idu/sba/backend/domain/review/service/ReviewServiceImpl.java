@@ -335,6 +335,18 @@ public class ReviewServiceImpl implements ReviewService {
         pr.selectModel(modelName);
     }
 
+    // PR 리뷰(웹훅 경로)는 review.userId가 항상 레포 팀장으로 저장돼 있어(createFromPr) 본인 일치 검사로는
+    // 팀장이 아닌 멤버가 자기 PR의 후속질문·재검증도 영영 못 쓰는 문제가 있었음 — PR에 연결된 리뷰는
+    // "본인 리뷰인지"가 아니라 "그 레포 멤버인지"로 판단(ReviewIssueServiceImpl.canAccessReview와 동일 기준)
+    private boolean canAccessReview(Long userId, Review review) {
+        if (review.getPrId() != null) {
+            PullRequest pr = pullRequestRepository.findById(review.getPrId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PR_NOT_FOUND));
+            return repoMemberRepository.existsByRepoIdAndUserId(pr.getRepoId(), userId);
+        }
+        return userId.equals(review.getUserId());
+    }
+
     // 리뷰 후속 질문 [설계 추론] — 새 이슈를 만들지 않고, 원본 코드+이미 발견된 이슈를 맥락으로 줘서
     // 짧은 대화체 답만 받는다. 크레딧은 원본 리뷰가 어떤 모델을 썼든 항상 고정 1(⚡1, Studio.tsx와 일치)
     @Override
@@ -342,7 +354,7 @@ public class ReviewServiceImpl implements ReviewService {
     public AskQuestionResponseDTO askQuestion(Long userId, Long reviewId, String question) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
-        if (!userId.equals(review.getUserId())) {
+        if (!canAccessReview(userId, review)) {
             throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
         }
 
@@ -398,7 +410,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ISSUE_NOT_FOUND));
         Review review = reviewRepository.findById(issue.getReviewId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
-        if (!userId.equals(review.getUserId())) {
+        if (!canAccessReview(userId, review)) {
             throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
         }
 
