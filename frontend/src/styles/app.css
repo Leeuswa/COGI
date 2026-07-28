@@ -342,7 +342,8 @@
 .gchart .seg.no { fill: var(--coral); }
 .gchart .wk-bar:hover .seg { filter: brightness(1.08); }
 .gchart .val { font-family: 'Silkscreen', monospace; font-size: 13px; fill: var(--navy); }
-.gchart .xlab2 { font-family: 'Silkscreen', monospace; font-size: 12px; fill: var(--sub); }
+/* viewBox(720)가 실제 칸 너비로 줄면서 같이 작아진다. 좁은 칸에서 10px쯤으로 그려져 안 읽혔다 */
+.gchart .xlab2 { font-family: 'Silkscreen', monospace; font-size: 16px; fill: var(--navy); }
 .gchart .trendline { fill: none; stroke: var(--navy); stroke-width: 2.5; stroke-dasharray: 6 5; opacity: .55; }
 
 /* 리포트 카테고리 미니 바 */
@@ -988,21 +989,34 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .chat-skill:disabled { color: var(--sub); border-color: #cdd8ea; box-shadow: 2px 2px 0 #cdd8ea; cursor: default; }
 
 /* ── GNB 드롭다운 그룹 — 큰 키워드 아래 하위 메뉴를 접어 넣는다. absolute라 펼쳐도 아래 콘텐츠를 안 민다 ── */
-.gnb-group { position: relative; }
+/* 네비 높이만큼 세로로 꽉 채운다. 버튼만 감싸면 버튼 아래에 hover가 안 걸리는 빈 띠가 생겨
+   마우스를 내리는 도중에 닫혀버린다. 그룹이 네비 바닥까지 닿아야 패널까지 끊김 없이 이어진다 */
+.gnb-group { position: relative; align-self: stretch; display: flex; align-items: center; }
 .gnb-group > button {
   font: inherit; font-size: inherit; color: inherit; background: none; border: none;
   border-bottom: 3px solid transparent; padding: 4px 1px; white-space: nowrap; cursor: pointer;
 }
+/* 눌러서 펼쳐지는 메뉴라는 표시 */
+.gnb-group > button::after { content: '▾'; margin-left: 5px; font-size: 10px; vertical-align: 1px; }
 .gnb-group > button:hover, .gnb-group > button.on { border-bottom-color: var(--coral); }
-/* .bell-drop이랑 같은 톤(픽셀아트 박스) — 오른쪽 정렬로 열어야 좁은 화면에서도 오른쪽으로 안 넘친다 */
+
+/* 네비 바닥선에 딱 붙여서 연다 — 사이를 띄우면 그 틈에서 hover가 끊긴다 */
 .gnb-drop {
-  position: absolute; right: 0; left: auto; top: calc(100% + 10px); z-index: 60;
-  display: flex; flex-direction: column; min-width: 150px;
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%); z-index: 60;
+  display: flex; flex-direction: column; min-width: 158px; padding: 7px 0;
   background: var(--white); border: 3px solid var(--navy); box-shadow: 6px 6px 0 var(--navy);
 }
-.gnb-drop > a { padding: 10px 16px; border-bottom: none; white-space: nowrap; word-break: keep-all; }
-.gnb-drop > a + a { border-top: 3px solid var(--navy); }
-.gnb-drop > a:hover, .gnb-drop > a.on { background: var(--sky); }
+/* nav.gnb .links a 의 코랄 밑줄이 드롭다운 항목까지 따라와 줄줄이 그어졌다. 여기선 끈다 */
+nav.gnb .links .gnb-drop > a {
+  display: block; padding: 9px 17px; border-bottom: none;
+  white-space: nowrap; word-break: keep-all; color: var(--navy);
+}
+nav.gnb .links .gnb-drop > a + a { border-top: 2px dashed #d9e4f5; } /* 굵은 실선은 표처럼 보인다 */
+nav.gnb .links .gnb-drop > a:hover { background: #fffbe8; border-bottom: none; }
+/* 지금 보고 있는 항목 — 왼쪽에 코랄 막대를 세워 한눈에 */
+nav.gnb .links .gnb-drop > a.on {
+  background: var(--sky); font-weight: 700; box-shadow: inset 4px 0 0 var(--coral);
+}
 
 /* ───── 미리보기: 부족한 파일 가져오기(승인 후에만 GitHub 조회) ───── */
 .dock-fetch-bar {

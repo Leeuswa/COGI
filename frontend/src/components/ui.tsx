@@ -132,15 +132,16 @@ export function Nav() {
             <NavLink to="/app/growth" className={({ isActive }) => (isActive ? 'on' : '')}>성장 추이</NavLink>
             <NavLink to="/app/reports" className={({ isActive }) => (isActive ? 'on' : '')}>주간 리포트</NavLink>
           </NavGroup>
-          <NavLink to="/app/team" className={({ isActive }) => (isActive ? 'on' : '')}>팀</NavLink>
-          <NavGroup label="더보기" active={isOn(['/app/plan', '/app/faq', '/app/my', '/app/admin'])}>
+          <NavGroup label="더보기" active={isOn(['/app/team', '/app/plan', '/app/faq', '/app/admin'])}>
+            <NavLink to="/app/team" className={({ isActive }) => (isActive ? 'on' : '')}>팀</NavLink>
             <NavLink to="/app/plan" className={({ isActive }) => (isActive ? 'on' : '')}>요금제</NavLink>
             <NavLink to="/app/faq" className={({ isActive }) => (isActive ? 'on' : '')}>FAQ</NavLink>
-            <NavLink to="/app/my" className={({ isActive }) => (isActive ? 'on' : '')}>마이페이지</NavLink>
             {user.role === 'ADMIN' && (
               <NavLink to="/app/admin" className={({ isActive }) => (isActive ? 'on' : '')}>관리자</NavLink>
             )}
           </NavGroup>
+          {/* 자주 들어가는 곳이라 접지 않고 밖에 둔다 */}
+          <NavLink to="/app/my" className={({ isActive }) => (isActive ? 'on' : '')}>마이페이지</NavLink>
           <Bell loginId={user.loginId} />
           {/* 코인/크레딧 요약. 눌러도 아무 일 없음, 상태 표시용 */}
           <span className="nav-wallet" title={`코인 ${S.coins}개 · 남은 크레딧 ${creditLimit - S.creditUsed}개`}>
