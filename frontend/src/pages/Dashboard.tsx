@@ -55,6 +55,9 @@ function DesktopDashboard() {
       .catch(() => setTrend([]));
   }, [user.userId]);
 
+  // 추이의 마지막 칸이 이번 주다. 아직 못 받았으면 0
+  const thisWeekIssues = trend?.length ? trend[trend.length - 1].issueCount : 0;
+
   // 이번 달 달력. 1일 앞 빈칸을 채워 요일을 맞춘다
   const now = new Date();
   const year = now.getFullYear();
@@ -97,9 +100,10 @@ function DesktopDashboard() {
             <span className="sc-label">지금 약점</span>
             <b className="sc-value">{weakness.length}<em>개</em></b>
           </div>
+          {/* 학습 일수는 왼쪽 칸과 겹쳐서, 이번 주에 몇 건 지적받았는지로 바꿨다 */}
           <div className="hud-card">
-            <span className="sc-label">이번 달 학습</span>
-            <b className="sc-value">{S.submitDays.length}<em>일</em></b>
+            <span className="sc-label">이번 주 이슈</span>
+            <b className="sc-value">{thisWeekIssues}<em>개</em></b>
           </div>
         </div>
 

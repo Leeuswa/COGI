@@ -79,7 +79,8 @@ export default function MobileDashboard() {
 
       {/* 2) 오늘 요약 — 4개를 한 줄로. 2×2로 두면 코기가 화면 밖으로 밀린다 */}
       <div className="mchips">
-        <span className="mchip"><em>🔥</em><b>{S.streak}</b><i>일 연속</i></span>
+        {/* 끊겨도 줄지 않으니 "연속"이 아니다. 데스크톱 라벨과 맞춘다 */}
+        <span className="mchip"><em>🔥</em><b>{S.streak}</b><i>학습일</i></span>
         <span className={`mchip ${pct >= 90 ? "warn" : ""}`}><em>⚡</em><b>{left}</b><i>크레딧</i></span>
         <span className="mchip"><em>🎯</em><b>{weakness.length}</b><i>약점</i></span>
         <span className="mchip"><em>🪙</em><b>{S.coins}</b><i>코인</i></span>

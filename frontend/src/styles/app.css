@@ -6,8 +6,10 @@
 /* 앱 쉘: 로그인 후 공통 레이아웃. 상단 GNB + 본문 */
 .app-main { max-width: 1080px; margin: 0 auto; padding: 26px 22px 70px; }
 .page-head { margin-bottom: 22px; }
-/* lead 문구의 \n 은 "여기서 끊어 읽으라"는 뜻이라 그대로 살린다 */
-.page-head .sec-lead { margin-bottom: 0; white-space: pre-line; }
+/* lead 문구의 \n 은 "여기서 끊어 읽으라"는 뜻이라 그대로 살린다.
+   랜딩에서 물려받은 max-width:32em이 그보다 먼저 끊어버려서 문장 한가운데가 접혔다.
+   끊는 자리는 문구가 정하니 폭 제한은 푼다 */
+.page-head .sec-lead { margin-bottom: 0; white-space: pre-line; max-width: none; }
 
 /* 픽셀 패널 (범용 흰 박스) */
 .panel {
@@ -245,6 +247,24 @@
 
 /* ───── 대화형 리뷰 (채팅) ───── */
 .chat-panel { display: flex; flex-direction: column; height: 720px; }
+/* 전체보기 — 모양(테두리·말풍선·입력창)은 그대로 두고 화면만 넓힌다 */
+.chat-head { display: flex; justify-content: flex-end; padding: 7px 10px; border-bottom: 3px solid var(--navy); background: #fffbe8; }
+.chat-full-btn {
+  font: inherit; font-size: 12px; font-weight: 700; padding: 5px 11px; cursor: pointer;
+  background: #fff; color: var(--navy); border: 2px solid var(--navy);
+}
+.chat-full-btn:hover { background: var(--yellow); }
+.chat-panel.full {
+  position: fixed; inset: 0; z-index: 80; height: auto; margin: 0;
+  border-radius: 0; box-shadow: none;
+}
+
+/* 후속 답변은 마크다운이라 코드펜스·제목·굵게가 섞여 온다 */
+.chat-bubble .q-text { white-space: pre-line; margin: 0; }
+.chat-bubble .q-text + .codebox, .chat-bubble .codebox + .q-text { margin-top: 10px; }
+.chat-bubble .codebox { font-size: 12px; padding: 11px 13px; max-height: 320px; overflow: auto; }
+.chat-bubble .md-h { display: block; margin: 12px 0 4px; font-size: 14px; color: var(--navy); }
+.chat-bubble .q-text:first-child .md-h:first-child { margin-top: 0; }
 .chat-thread { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
 /* 이름 주의: 랜딩페이지 다마고치 말풍선(.bubble, landing.css)과 클래스명이 겹치면 opacity:0이 그대로
    상속돼서 안 보이게 된다 — 그래서 채팅 말풍선은 반드시 .chat-bubble로 구분해서 쓴다 */
@@ -427,6 +447,9 @@
 .btn3 { display: flex; gap: 5px; }
 .btn3 button { width: 34px; height: 30px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 13px; }
 .btn3 button:hover { background: var(--yellow); }
+/* 지금 걸려 있는 값 — 눌린 채로 보여야 다시 눌러 풀 수 있다는 게 읽힌다 */
+.btn3 button.on { background: var(--navy); color: var(--white); }
+.btn3 button.on:hover { background: var(--navy); }
 .prop-row input[type="range"] { width: 118px; accent-color: var(--coral); }
 
 /* ── 대시보드 컴팩트 — 100% 줌에서 한 화면(≈900px)에 다 보이도록 ──
@@ -716,11 +739,13 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .explain-box .codebox { margin-top: 10px; }
 
 /* AI 스킬 카드 */
-.skill-card .star {
+/* 별은 목록 카드(.skill-card)와 추천 카드(.skill-rec) 양쪽에 쓴다.
+   .skill-card 안으로 한정해 뒀더니 추천 카드 별만 규칙을 못 받아 기본 버튼(네모 테두리)으로 나왔다 */
+.star {
   background: none; border: none; font-size: 24px; line-height: 1;
-  color: var(--navy); padding: 0 4px;
+  color: var(--navy); padding: 0 4px; cursor: pointer;
 }
-.skill-card .star.on { color: var(--coral); }
+.star.on { color: var(--coral); }
 .skill-how {
   margin-top: 12px; border-left: 6px solid var(--mint);
   background: #f6f4ec; padding: 10px 14px;
@@ -960,10 +985,14 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .app-main .page-head .sec-lead { max-width: none; }
 
 /* 제목 줄 오른쪽 끝에 붙는 약점 추천 버튼 — 팀 화면의 .tm-top과 같은 방식 */
-.skill-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
-.skill-head .page-head { flex: 1; min-width: 0; }
-/* 제목과 나란해지지 않게 안내 문구 마지막 줄에 맞춰 내린다 */
-.skill-byweak { flex-shrink: 0; margin-bottom: 22px; }
+/* 탭 안 첫 칸 — 그 탭이 무엇을 하는 자리인지 한 줄로 알리고 버튼을 같이 둔다 */
+.skill-lead { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.skill-lead .note { flex: 1; min-width: 240px; line-height: 1.9; }
+.skill-lead .btn { flex-shrink: 0; }
+
+/* 내가 쓰는 AI 선택 — 위 탭과 같은 밑줄 탭이면 어느 쪽이 상위인지 헷갈린다. 알약으로 구분 */
+.skill-providers { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.skill-providers .pick-grid { flex: 1; min-width: 0; }
 
 /* 약점 기준 추천 결과 — AI 네 곳이 한 상자에 쌓인다 */
 .skill-rec { border: 3px solid var(--navy); background: #fdfcf7; padding: 16px 18px; margin-top: 16px; }
@@ -990,7 +1019,18 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 /* 버튼은 상자 아래 오른쪽 — 입력창이 폭을 다 쓰게 */
 .skill-ask-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
 
-/* 스튜디오 후속 질문 위 즐겨찾기 스킬 칩 */
+/* 스튜디오 후속 질문 위 즐겨찾기 스킬 — 버튼으로 접어 둔다 */
+.chat-fav { margin-bottom: 10px; }
+.chat-fav-btn {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 700; padding: 7px 12px;
+  background: #fff; color: var(--navy); border: 3px solid var(--navy);
+}
+.chat-fav-btn.on { background: var(--yellow); }
+.chat-fav-btn i { font-style: normal; font-size: 9px; color: var(--sub); }
+.chat-fav-note { margin-top: 8px; }
+.chat-fav .chat-skills { margin-top: 8px; }
+
 .chat-skills { display: flex; flex-wrap: wrap; gap: 7px; }
 .chat-skill {
   font: inherit; font-size: 12px; font-weight: 700; line-height: 1.4; cursor: pointer;

@@ -91,6 +91,11 @@ const ENGINE = `<script id="__cogi_engine">
         color: toHex(cs.color), background: toHex(cs.backgroundColor),
         fontSize: parseInt(cs.fontSize), fontWeight: cs.fontWeight, fontFamily: cs.fontFamily,
         align: cs.textAlign, letterSpacing: parseFloat(cs.letterSpacing) || 0,
+        // 켜짐/꺼짐 버튼이 지금 상태를 알아야 눌린 표시도 하고 다시 누를 때 풀 수 있다
+        italic: cs.fontStyle === 'italic',
+        underline: (cs.textDecorationLine || '').includes('underline'),
+        strike: (cs.textDecorationLine || '').includes('line-through'),
+        transform: cs.textTransform,
         padding: parseInt(cs.paddingTop) || 0, margin: parseInt(cs.marginTop) || 0,
         radius: parseInt(cs.borderRadius) || 0, opacity: Math.round(parseFloat(cs.opacity) * 100),
         borderW: parseInt(cs.borderTopWidth) || 0, borderC: toHex(cs.borderTopColor),
@@ -103,6 +108,7 @@ const ENGINE = `<script id="__cogi_engine">
     'border-image': 'none', 'border-color': 'currentcolor', 'border-style': 'none', 'border-width': 'medium',
     'border-top-style': 'none', 'border-right-style': 'none', 'border-bottom-style': 'none', 'border-left-style': 'none',
     position: 'static', 'text-align': 'start', 'font-style': 'normal', 'text-decoration': 'none solid rgb(0, 0, 0)',
+    'text-decoration-line': 'none', 'text-transform': 'none', // 꺼진 상태를 코드에 남기지 않는다
     left: '0px', top: '0px', 'margin-top': '0px', 'margin-left': '0px', filter: 'none', transform: 'none', opacity: '1',
   };
   const tidy = (el) => {
@@ -120,15 +126,19 @@ const ENGINE = `<script id="__cogi_engine">
     finalKeep.length ? el.setAttribute('style', finalKeep.join('; ')) : el.removeAttribute('style');
   };
   const emit = () => {
-    const clone = document.body.cloneNode(true);
+    // body만 떼면 head의 <style>·<link>가 통째로 사라져 편집 한 번에 화면이 민무늬가 된다.
+    // 문서 전체를 복사해 두고, 통짜로 쓸지 body만 쓸지는 원본 모양을 아는 부모가 고른다
+    const clone = document.documentElement.cloneNode(true);
     const o = clone.querySelector('#__cogi_ov'); if (o) o.remove(); // 편집 UI 는 코드에 안 남긴다
     // 편집 엔진 스크립트도 코드에 안 남긴다 — 과거에 섞여 들어간 사본까지 전부 청소
     clone.querySelectorAll('script').forEach((sc) => {
       if (sc.id === '__cogi_engine' || sc.textContent.includes('__cogi_ov')) sc.remove();
     });
     clone.querySelectorAll('[style]').forEach(tidy);
-    const pretty = clone.innerHTML.trim().replace(/></g, '>\\n<'); // 태그마다 개행
-    parent.postMessage({ cogi: 'code', code: pretty }, '*');
+    const pretty = (s) => s.trim().replace(/></g, '>\\n<'); // 태그마다 개행
+    parent.postMessage({ cogi: 'code',
+      body: pretty(clone.querySelector('body').innerHTML),
+      full: pretty(clone.outerHTML) }, '*');
   };
 
   /* 호버 미리 표시 */
@@ -255,6 +265,8 @@ const ENGINE = `<script id="__cogi_engine">
     } else sel.style[prop] = value;
     if (prop === 'width' || prop === 'height') dims();
     layout(); emit();
+    // 바뀐 값을 다시 올려보낸다 — 안 그러면 패널의 눌림 표시가 옛 상태에 멈춘다
+    if (prop !== 'del' && sel) pick(sel);
   });
 })();
 </script>`;
@@ -330,10 +342,19 @@ const MIME_BY_EXT: Record<string, string> = {
   svg: "image/svg+xml", webp: "image/webp", ico: "image/x-icon", bmp: "image/bmp",
 };
 const guessMime = (path: string) => MIME_BY_EXT[(path.split(".").pop() || "").toLowerCase()] || "application/octet-stream";
+// 원본이 통짜 문서면 통짜로 돌려줘야 한다. body만 떼면 head의 <style>이 날아가 민무늬가 된다
+const isFullDoc = (html: string) => /<(!doctype\s+html|html[\s>]|head[\s>])/i.test(html);
+// DOMParser는 조각을 넣어도 html/head/body를 만들어 준다. 원본 모양대로 다시 뱉는다
+const serializeLike = (original: string, dom: Document) =>
+  isFullDoc(original)
+    ? (/<!doctype/i.test(original) ? "<!doctype html>\n" : "") + dom.documentElement.outerHTML
+    : dom.body.innerHTML;
+
 type FetchedAsset = { content: string; encoding: string };
 function inlineFetchedAssets(html: string, fetched: Record<string, FetchedAsset>): string {
   const dom = new DOMParser().parseFromString(html, "text/html");
-  const body = dom.body;
+  // head에 걸린 <link rel=stylesheet>도 끼워야 한다 — body만 뒤지면 정작 스타일시트를 놓친다
+  const body = dom as unknown as { querySelectorAll: Document["querySelectorAll"] };
   let touched = false;
   body.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => {
     const href = el.getAttribute("href") || "";
@@ -360,8 +381,17 @@ function inlineFetchedAssets(html: string, fetched: Record<string, FetchedAsset>
     el.setAttribute("src", `data:${guessMime(src)};base64,${f.content}`);
     touched = true;
   });
-  return touched ? body.innerHTML : html;
+  return touched ? serializeLike(html, dom) : html;
 }
+
+// 이미지면 base64로, 아니면 글자로 읽는다 — inlineFetchedAssets가 img만 base64를 쓴다
+const isImageRef = (p: string) => /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(p);
+// "../assets/omong-flow.png" → "omong-flow.png". 업로드한 파일과 맞출 때 쓴다
+const baseName = (p: string) => (p.split("/").pop() ?? p).toLowerCase();
+
+// 밑줄·취소선은 text-decoration 하나를 나눠 쓴다. 켜진 것만 모아 다시 조립한다
+const deco = (underline: boolean, strike: boolean) =>
+  [underline && "underline", strike && "line-through"].filter(Boolean).join(" ") || "none";
 
 const NO_LINES = new Set<number>(); // 빈 변경 라인 집합 재사용(렌더마다 새로 만들지 않게)
 
@@ -376,8 +406,9 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
 
   /* ── 파일별 변경 라인 추적: "main"(메인 HTML) + 가져온 자산 경로별로 각각 스냅샷을 둔다 ── */
   const [activeTab, setActiveTab] = useState("main"); // "main" | 가져온 파일 경로
-  const [changedByTab, setChangedByTab] = useState<Record<string, Set<number>>>({}); // { [탭키]: Set<라인번호> } — 2초 후 소멸
+  const [changedByTab, setChangedByTab] = useState<Record<string, Set<number>>>({}); // { [탭키]: Set<라인번호> } — 잠깐 뒤 소멸
   const [assets, setAssets] = useState<Record<string, AssetEntry>>({}); // 경로별 가져오기 결과
+  const [logOpen, setLogOpen] = useState(true); // 가져온 파일 목록 — ×로 닫는다 (assets는 안 지운다)
   const [fetching, setFetching] = useState(false);
   const prevByTab = useRef({ main: code });
   const chgTimers = useRef({});
@@ -390,9 +421,10 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
     if (!diff.size) return;
     setChangedByTab((m) => ({ ...m, [tabKey]: diff }));
     clearTimeout(chgTimers.current[tabKey]);
+    // 2초는 미리보기에서 눈을 떼고 코드로 옮기는 사이에 이미 꺼졌다. 한 번은 보이게 늘린다
     chgTimers.current[tabKey] = setTimeout(() => {
       setChangedByTab((m) => { const n = { ...m }; delete n[tabKey]; return n; });
-    }, 2000);
+    }, 4000);
     setActiveTab((cur) => (cur === tabKey ? cur : tabKey)); // 지금 보던 탭이 아니면 바뀐 탭으로 전환
   };
   // 메인 HTML이 바뀔 때마다(드래그 편집·직접 타이핑·자산 인라인 반영 등) 라인 비교
@@ -404,6 +436,20 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
     () => ["main", ...Object.keys(assets).filter((p) => assets[p].status === "ok")],
     [assets],
   );
+
+  // 가져올 게 하나도 없으면 안내도 버튼도 아예 안 보여야 한다
+  const needAssets = missingRefs.length > 0;
+
+  // 빠진 파일이 생기면 팝업을 자동으로 띄운다. "나중에"로 닫으면 목록이 바뀔 때까지 다시 안 뜬다
+  const [askOpen, setAskOpen] = useState(false);
+  const askedFor = useRef('');
+  useEffect(() => {
+    const key = missingRefs.join('|');
+    if (!needAssets) { setAskOpen(false); askedFor.current = ''; return; }
+    if (askedFor.current === key) return; // 같은 목록으로 또 띄우지 않는다
+    askedFor.current = key;
+    setAskOpen(true);
+  }, [missingRefs, needAssets]);
 
   // 어느 레포에서 가져올지 — 스튜디오가 안 알려줘서 여기서 직접 고른다
   const [repos, setRepos] = useState([]);
@@ -420,37 +466,97 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
     }).catch(() => setRepos([]));
   }, [missingRefs, repoId, repos.length]);
 
+  // 결과를 화면과 코드에 반영하는 마지막 한 걸음 — 깃허브에서 받든 내 컴퓨터에서 올리든 여기로 모인다
+  const applyAssets = (entries: Record<string, AssetEntry>, ok: Record<string, FetchedAsset>) => {
+    setAssets((prev) => ({ ...prev, ...entries }));
+    setLogOpen(true); // 닫아 뒀어도 새로 가져오면 결과는 봐야 한다
+    Object.entries(ok).forEach(([p, f]) => noteChange(p, f.content)); // 새 탭도 "방금 바뀜"으로 표시
+    if (Object.keys(ok).length > 0) {
+      const inlined = inlineFetchedAssets(code, ok);
+      if (inlined !== code) onCode(inlined); // main 쪽 노트가 이 effect 뒤에 돌아서 최종 탭은 다시 main으로
+    }
+  };
+
   // [승인 버튼 클릭 시에만 호출] — 부족한 파일을 레포에서 받아 결과 목록에 남기고, 성공한 것만 코드에 인라인
   const handleFetchAssets = async () => {
     if (!srcRepoId || fetching || missingRefs.length === 0) return;
     const targets = missingRefs;
     setFetching(true);
     const results = await Promise.allSettled(targets.map((p) => api.getRepoFileContent(srcRepoId, p)));
-    const fetchedOk: Record<string, FetchedAsset> = {};
-    setAssets((prev) => {
-      const next = { ...prev };
-      results.forEach((r, i) => {
-        const p = targets[i];
-        if (r.status === "fulfilled") {
-          const f = r.value;
-          next[p] = { content: f.content, size: f.size, encoding: f.encoding, status: "ok" };
-          fetchedOk[p] = { content: f.content, encoding: f.encoding };
-        } else {
-          const err = r.reason;
-          const reason = err?.status
-            ? `${err.status}${err.message ? " " + err.message : ""}`
-            : err?.message || "가져오기 실패";
-          next[p] = { content: "", size: 0, encoding: "utf-8", status: "error", error: reason };
-        }
-      });
-      return next;
+    // setState 콜백 안에서 모으면 StrictMode가 updater를 두 번 돌려 헷갈린다. 밖에서 다 만들고 한 번에 넣는다
+    const entries: Record<string, AssetEntry> = {};
+    const ok: Record<string, FetchedAsset> = {};
+    results.forEach((r, i) => {
+      const p = targets[i];
+      if (r.status === "fulfilled") {
+        const f = r.value;
+        entries[p] = { content: f.content, size: f.size, encoding: f.encoding, status: "ok" };
+        ok[p] = { content: f.content, encoding: f.encoding };
+      } else {
+        const err: any = r.reason;
+        const reason = err?.status
+          ? `${err.status}${err.message ? " " + err.message : ""}`
+          : err?.message || "가져오기 실패";
+        entries[p] = { content: "", size: 0, encoding: "utf-8", status: "error", error: reason };
+      }
     });
-    Object.entries(fetchedOk).forEach(([p, f]) => noteChange(p, f.content)); // 새 탭도 "방금 바뀜"으로 표시
-    if (Object.keys(fetchedOk).length > 0) {
-      const inlined = inlineFetchedAssets(code, fetchedOk);
-      if (inlined !== code) onCode(inlined); // main 쪽 노트가 이 effect 뒤에 돌아서 최종 탭은 다시 main으로
-    }
+    applyAssets(entries, ok);
+    setAskOpen(false); // 결과는 아래 목록에서 본다. 실패분은 흔적 버튼으로 다시 열 수 있다
     setFetching(false);
+  };
+
+  /* ── 내 컴퓨터에서 올리기 ──
+   * 레포에 없는 파일(아직 커밋 안 한 이미지 등)은 깃허브에서 못 받는다.
+   * 코드에는 ../assets/x.png 같은 상대경로로 적혀 있고 사용자는 파일 하나를 고르므로 파일명으로 맞춘다. */
+  const uploadRef = useRef(null);
+  const [uploadNote, setUploadNote] = useState("");
+
+  const readAsset = (file: File, asBase64: boolean) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => {
+        const out = String(reader.result);
+        // readAsDataURL은 "data:image/png;base64,XXXX"로 준다.
+        // inlineFetchedAssets가 접두사를 직접 붙이므로 쉼표 뒤만 넘긴다
+        resolve(asBase64 ? out.slice(out.indexOf(",") + 1) : out);
+      };
+      if (asBase64) reader.readAsDataURL(file);
+      else reader.readAsText(file);
+    });
+
+  const handleUploadAssets = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    const entries: Record<string, AssetEntry> = {};
+    const ok: Record<string, FetchedAsset> = {};
+    const unmatched: string[] = [];
+
+    for (const file of files) {
+      const targets = missingRefs.filter((p) => baseName(p) === file.name.toLowerCase());
+      if (targets.length === 0) { unmatched.push(file.name); continue; }
+      // img는 base64로 끼우고 css·js는 글자 그대로 끼운다 (inlineFetchedAssets가 그렇게 쓴다)
+      const asBase64 = isImageRef(file.name);
+      const encoding = asBase64 ? "base64" : "utf-8";
+      try {
+        const content = await readAsset(file, asBase64);
+        targets.forEach((p) => {
+          entries[p] = { content, size: file.size, encoding, status: "ok" };
+          ok[p] = { content, encoding };
+        });
+      } catch {
+        targets.forEach((p) => {
+          entries[p] = { content: "", size: 0, encoding, status: "error", error: "파일을 읽지 못했어요" };
+        });
+      }
+    }
+
+    applyAssets(entries, ok);
+    // 이름이 안 맞으면 조용히 넘기지 않는다 — 왜 안 끼워졌는지 알려줘야 다시 고를 수 있다
+    setUploadNote(unmatched.length > 0
+      ? `이름이 안 맞아 건너뛴 파일: ${unmatched.join(", ")} — 위 목록의 파일명과 같아야 해요.`
+      : "");
+    if (unmatched.length === 0) setAskOpen(false);
   };
 
   const isMainTab = activeTab === "main";
@@ -459,7 +565,19 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
 
   // 바뀐 첫 줄이 화면 밖이면 코드 영역 안에서만 스크롤(페이지 스크롤 금지, scrollIntoView 금지)
   const activeTaRef = useRef(null);
+  const hlRef = useRef(null); // 색칠 레이어 — textarea 뒤에 깔린 별개 엘리먼트다
   const lineElsRef = useRef({});
+
+  // 레이어는 absolute + overflow:hidden이라 textarea가 스크롤해도 저 혼자 제자리에 있었다.
+  // 그래서 첫 화면을 넘어간 줄은 색칠은 돼도 눈에 안 보였다("스크롤만 가고 표시가 없다")
+  const syncHl = () => {
+    const ta = activeTaRef.current;
+    const hl = hlRef.current;
+    if (!ta || !hl) return;
+    hl.scrollTop = ta.scrollTop;
+    hl.scrollLeft = ta.scrollLeft;
+  };
+
   useEffect(() => {
     if (!activeChangedLines.size) return;
     const firstLine = Math.min(...activeChangedLines);
@@ -468,6 +586,7 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
     if (!ta || !lineEl) return;
     const target = lineEl.offsetTop - ta.clientHeight / 2;
     ta.scrollTop = Math.max(0, Math.min(target, ta.scrollHeight - ta.clientHeight));
+    syncHl(); // 프로그램이 옮긴 스크롤도 레이어에 그대로 옮겨야 한다
   }, [activeChangedLines, activeTab]);
 
   const [full, setFull] = useState(false);
@@ -477,25 +596,36 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
   const skipNext = useRef(false);
   const frameRef = useRef(null);
 
-  /* 실행취소/다시실행 — 코드 스냅샷 스택 (피그마의 Ctrl+Z 감각) */
+  /* 실행취소/다시실행 — 코드 스냅샷 스택 (피그마의 Ctrl+Z 감각)
+   *
+   * 예전엔 iframe에서 온 변경만 스택에 넣었다. 그래서 코드창 직접 수정이나
+   * 빠진 파일 끼우기로 코드가 바뀌면 스택은 그대로인데 idx만 옛 자리를 가리켜,
+   * 실행취소를 누르면 엉뚱한 시점으로 튀었다. code가 바뀌는 모든 길을 한 곳에서 받는다. */
   const hist = useRef({ stack: [code], idx: 0 });
-  const pushHist = (c) => {
+  const traveling = useRef(false); // 되돌리기가 만든 변경은 다시 쌓지 않는다
+  const [histAt, setHistAt] = useState({ idx: 0, len: 1 }); // 버튼 활성/비활성용 사본
+
+  useEffect(() => {
+    if (traveling.current) { traveling.current = false; return; }
     const h = hist.current;
-    if (h.stack[h.idx] === c) return;
-    h.stack = h.stack
-      .slice(0, h.idx + 1)
-      .concat(c)
-      .slice(-50);
+    if (h.stack[h.idx] === code) return;
+    h.stack = h.stack.slice(0, h.idx + 1).concat(code).slice(-50);
     h.idx = h.stack.length - 1;
-  };
+    setHistAt({ idx: h.idx, len: h.stack.length });
+  }, [code]);
+
   const timeTravel = (dir) => {
     const h = hist.current;
     const to = h.idx + dir;
     if (to < 0 || to >= h.stack.length) return;
     h.idx = to;
+    traveling.current = true;
+    setHistAt({ idx: to, len: h.stack.length });
     onCode(h.stack[to]); // skipNext 미설정 → 프레임 재렌더로 시점 복원
     setPicked(null);
   };
+  const canUndo = histAt.idx > 0;
+  const canRedo = histAt.idx < histAt.len - 1;
 
   useEffect(() => {
     const onMsg = (e) => {
@@ -512,14 +642,17 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
       }
       if (d.cogi === "rot") setRotVal(d.deg); // 마우스 회전 → 슬라이더 동기화
       if (d.cogi === "code") {
+        // 원본이 통짜 문서면 head까지 살려서 되돌려준다. body만 받으면 <style>이 사라져 민무늬가 된다
+        const next = isFullDoc(code)
+          ? (/<!doctype/i.test(code) ? "<!doctype html>\n" : "") + d.full
+          : d.body;
         skipNext.current = true;
-        onCode(d.code);
-        pushHist(d.code);
+        onCode(next);
       }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [onCode]);
+  }, [onCode, code]); // code를 읽으니 의존성에 넣는다 — 빼면 옛 문서 모양으로 판단한다
 
   /* 부모 쪽 단축키: Ctrl+Z / Ctrl+Shift+Z (iframe 밖에서도 동작) */
   useEffect(() => {
@@ -663,16 +796,19 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
           <option value="badge">뱃지</option>
           <option value="card">카드</option>
         </select>
+        {/* 끝에 닿으면 눌러도 아무 일이 없어 고장난 줄 안다. 아예 비활성으로 보여준다 */}
         <button
           className="dock-tool"
-          title="실행취소 (Ctrl+Z)"
+          title={canUndo ? "실행취소 (Ctrl+Z)" : "되돌릴 게 없어요"}
+          disabled={!canUndo}
           onClick={() => timeTravel(-1)}
         >
           ↩
         </button>
         <button
           className="dock-tool"
-          title="다시실행 (Ctrl+Shift+Z)"
+          title={canRedo ? "다시실행 (Ctrl+Shift+Z)" : "다시실행할 게 없어요"}
+          disabled={!canRedo}
           onClick={() => timeTravel(1)}
         >
           ↪
@@ -721,35 +857,93 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
         </button>
       </div>
 
-      {/* ── 부족한 파일 안내: 승인 버튼을 누르기 전엔 여기서 fetch를 절대 만들지 않는다 ── */}
-      {missingRefs.length > 0 && (
-        <div className="dock-fetch-bar">
-          <span className="dock-fetch-msg">
-            미리보기에 필요한 파일 {missingRefs.length}개가 아직 없어요 — {missingRefs.join(", ")}
-          </span>
-          {/* 레포가 두 개 이상이면 어디서 가져올지 고른다. prop으로 이미 정해져 오면 안 띄운다 */}
-          {!repoId && repos.length > 1 && (
-            <select className="dock-fetch-repo" value={pickedRepo ?? ""}
-              onChange={(e) => setPickedRepo(Number(e.target.value))} aria-label="가져올 레포">
-              <option value="">레포 선택</option>
-              {repos.map((r) => <option key={r.repoId} value={r.repoId}>{r.repoName}</option>)}
-            </select>
-          )}
-          {srcRepoId ? (
-            <button className="dock-fetch-btn" disabled={fetching} onClick={handleFetchAssets}>
-              {fetching ? "가져오는 중…" : "깃허브에서 가져오기"}
-            </button>
-          ) : (
-            <span className="note sm">
-              {repos.length > 1 ? "가져올 레포를 고르세요" : "레포를 먼저 연동하면 가져올 수 있어요"}
-            </span>
-          )}
+      {/* ── 부족한 파일 팝업: 가져올 게 있을 때만 뜬다. 승인 전엔 fetch를 절대 만들지 않는다 ──
+           닫아도 다시 열 수 있게 아래 한 줄짜리 흔적을 남긴다 */}
+      {needAssets && !askOpen && (
+        <button className="dock-fetch-reopen" onClick={() => setAskOpen(true)}>
+          ⚠ 파일 {missingRefs.length}개가 빠져 미리보기가 원본과 다르게 보여요 — 가져오기
+        </button>
+      )}
+
+      {needAssets && askOpen && (
+        <div className="modal-mask" onClick={() => setAskOpen(false)}>
+          <div className="modal dock-ask" onClick={(e) => e.stopPropagation()}>
+            <h3>미리보기에 필요한 파일이 있어요</h3>
+            <p className="note">
+              지금 코드가 아래 파일을 불러 쓰는데 미리보기에는 없어요.
+              <b> 가져오지 않으면 스타일과 이미지가 빠진 채로 그려져 실제 화면과 다르게 보입니다.</b>
+            </p>
+            <ul className="dock-ask-list">
+              {/* 올릴 때 이 이름으로 고르면 된다 — 경로는 코드에 적힌 그대로, 굵은 쪽이 파일명 */}
+              {missingRefs.map((p) => (
+                <li key={p}>
+                  <span className="dock-ask-dir">{p.slice(0, p.length - baseName(p).length)}</span>
+                  <b>{p.split("/").pop()}</b>
+                </li>
+              ))}
+            </ul>
+            <p className="note sm">
+              이 파일만 읽어와 미리보기에 끼워 넣어요. 코드는 바뀌지 않아요.
+              <br />
+              아직 커밋 안 한 파일이면 깃허브에 없으니 내 컴퓨터에서 올리면 돼요.
+            </p>
+            {uploadNote && <p className="dock-ask-warn">{uploadNote}</p>}
+
+            {/* 파일명이 위 목록과 같아야 어디에 끼울지 알 수 있다 */}
+            <input
+              ref={uploadRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => { handleUploadAssets(e.target.files); e.target.value = ""; }}
+            />
+
+            <div className="dock-ask-foot">
+              {/* 레포가 두 개 이상이면 어디서 가져올지 고른다. prop으로 이미 정해져 오면 안 띄운다 */}
+              {!repoId && repos.length > 1 && (
+                <select className="dock-fetch-repo" value={pickedRepo ?? ""}
+                  onChange={(e) => setPickedRepo(Number(e.target.value))} aria-label="가져올 레포">
+                  <option value="">레포 선택</option>
+                  {repos.map((r) => <option key={r.repoId} value={r.repoId}>{r.repoName}</option>)}
+                </select>
+              )}
+              <span className="ml-auto" />
+              <button className="btn wh sm" onClick={() => setAskOpen(false)}>나중에</button>
+              <button className="btn wh sm" onClick={() => uploadRef.current?.click()}>
+                📁 내 컴퓨터에서 올리기
+              </button>
+              {srcRepoId ? (
+                <button className="btn co sm" disabled={fetching} onClick={handleFetchAssets}>
+                  {fetching ? "가져오는 중…" : "깃허브에서 가져오기"}
+                </button>
+              ) : (
+                <span className="note sm">
+                  {repos.length > 1 ? "가져올 레포를 고르세요" : "레포가 없으면 올리기로 넣으세요"}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── 가져온 결과 확인: 성공/실패와 크기, 펼치면 원문까지 ── */}
-      {Object.keys(assets).length > 0 && (
-        <div className="dock-fetch-log">
+      {/* ── 가져온 결과 확인: 성공/실패와 크기, 펼치면 원문까지 ──
+          base64 이미지는 펼치면 화면을 다 덮는다. 확인이 끝나면 닫을 수 있어야 한다.
+          닫아도 assets는 그대로라 파일 탭으로 언제든 다시 본다 */}
+      {logOpen && Object.keys(assets).length > 0 && (
+        <div className="dock-fetch-panel">
+          <div className="dock-fetch-head">
+            <b>가져온 파일 {Object.keys(assets).length}개</b>
+            <button
+              type="button"
+              className="dock-fetch-close"
+              title="닫기"
+              aria-label="가져온 파일 목록 닫기"
+              onClick={() => setLogOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+          <div className="dock-fetch-log">
           {Object.entries(assets).map(([path, a]) => (
             <details key={path} className="dock-fetch-item">
               <summary>
@@ -766,6 +960,7 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
               </pre>
             </details>
           ))}
+          </div>
         </div>
       )}
 
@@ -786,7 +981,7 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
             <div className="dock-code-col side">
               {fileTabsBar}
               <div className="dock-code-wrap side">
-                <pre className="dock-code-hl" aria-hidden="true">
+                <pre className="dock-code-hl" ref={hlRef} aria-hidden="true">
                   {activeContent.split("\n").map((ln, i) => (
                     <div
                       key={i}
@@ -805,9 +1000,9 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                   readOnly={!isMainTab}
                   onChange={(e) => {
                     if (!isMainTab) return; // 가져온 파일 탭은 이미 메인에 인라인됐으니 읽기 전용
-                    onCode(e.target.value);
-                    pushHist(e.target.value);
+                    onCode(e.target.value); // 스냅샷은 code를 지켜보는 곳에서 한 번에 쌓는다
                   }}
+                  onScroll={syncHl}
                   aria-label="코드 (실시간 동기화)"
                 />
               </div>
@@ -916,35 +1111,39 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                   />
                 </Prop>
                 <Prop label="정렬">
+                  {/* 셋 중 하나 — 지금 걸린 쪽을 눌린 상태로 보여준다 */}
                   <span className="btn3">
-                    <button onClick={() => apply("textAlign", "left")}>
-                      ⇤
-                    </button>
-                    <button onClick={() => apply("textAlign", "center")}>
-                      ≡
-                    </button>
-                    <button onClick={() => apply("textAlign", "right")}>
-                      ⇥
-                    </button>
+                    {[["left", "⇤"], ["center", "≡"], ["right", "⇥"]].map(([v, icon]) => (
+                      <button key={v} className={st.align === v ? "on" : ""}
+                        onClick={() => apply("textAlign", v)}>
+                        {icon}
+                      </button>
+                    ))}
                   </span>
                 </Prop>
                 <Prop label="꾸밈">
+                  {/* 켜짐/꺼짐 — 다시 누르면 풀리고 코드에서도 빠진다.
+                      밑줄과 취소선은 같은 text-decoration이라 한쪽만 바꾸면 다른 쪽이 지워진다.
+                      둘 다 현재 값에서 다시 조립한다 */}
                   <span className="btn3">
                     <button
+                      className={st.italic ? "on" : ""}
                       style={{ fontStyle: "italic" }}
-                      onClick={() => apply("fontStyle", "italic")}
+                      onClick={() => apply("fontStyle", st.italic ? "normal" : "italic")}
                     >
                       I
                     </button>
                     <button
+                      className={st.underline ? "on" : ""}
                       style={{ textDecoration: "underline" }}
-                      onClick={() => apply("textDecoration", "underline")}
+                      onClick={() => apply("textDecoration", deco(!st.underline, st.strike))}
                     >
                       U
                     </button>
                     <button
+                      className={st.strike ? "on" : ""}
                       style={{ textDecoration: "line-through" }}
-                      onClick={() => apply("textDecoration", "line-through")}
+                      onClick={() => apply("textDecoration", deco(st.underline, !st.strike))}
                     >
                       S
                     </button>
@@ -985,16 +1184,19 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                   </select>
                 </Prop>
                 <Prop label="대소문자">
+                  {/* 켜짐/꺼짐 — 다시 누르면 원래대로 돌아가고 코드에서도 빠진다 */}
                   <span className="btn3">
                     <button
+                      className={st.transform === "uppercase" ? "on" : ""}
                       title="모두 대문자"
-                      onClick={() => apply("textTransform", "uppercase")}
+                      onClick={() => apply("textTransform", st.transform === "uppercase" ? "none" : "uppercase")}
                     >
                       AA
                     </button>
                     <button
-                      title="원래대로"
-                      onClick={() => apply("textTransform", "none")}
+                      className={st.transform === "lowercase" ? "on" : ""}
+                      title="모두 소문자"
+                      onClick={() => apply("textTransform", st.transform === "lowercase" ? "none" : "lowercase")}
                     >
                       Aa
                     </button>
@@ -1437,7 +1639,7 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
         <>
           {fileTabsBar}
           <div className="dock-code-wrap">
-            <pre className="dock-code-hl" aria-hidden="true">
+            <pre className="dock-code-hl" ref={hlRef} aria-hidden="true">
               {activeContent.split("\n").map((ln, i) => (
                 <div
                   key={i}
@@ -1456,9 +1658,9 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
               readOnly={!isMainTab}
               onChange={(e) => {
                 if (!isMainTab) return; // 가져온 파일 탭은 이미 메인에 인라인됐으니 읽기 전용
-                onCode(e.target.value);
-                pushHist(e.target.value);
+                onCode(e.target.value); // 스냅샷은 code를 지켜보는 곳에서 한 번에 쌓는다
               }}
+              onScroll={syncHl}
               aria-label="미리보기 코드 (실시간 동기화)"
             />
           </div>
