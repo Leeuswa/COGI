@@ -42,7 +42,7 @@ public class ReviewIssueServiceImpl implements ReviewIssueService {
         Review review = reviewRepository.findById(issue.getReviewId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ISSUE_NOT_FOUND)); // 이슈만 있고 리뷰가 없는 건 데이터 정합성 문제라 같은 코드로 취급
 
-        if (!currentUserId.equals(review.getUserId())) {
+        if (!canAccessReview(currentUserId, review)) {
             throw new BusinessException(ErrorCode.ISSUE_ACCESS_DENIED);
         }
 
@@ -59,6 +59,18 @@ public class ReviewIssueServiceImpl implements ReviewIssueService {
         } else {
             issue.finalizeAs(verdictStatus);
         }
+    }
+
+    // PR 리뷰(웹훅 경로)는 review.userId가 항상 레포 팀장으로 저장돼 있어(createFromPr) 본인 일치 검사로는
+    // 팀장이 아닌 멤버가 자기 PR 이슈도 영영 처리할 수 없었음(FR-37: 멤버도 이슈 해결 요청 권한이 있어야 함) —
+    // PR에 연결된 리뷰는 "본인 리뷰인지"가 아니라 "그 레포 멤버인지"로 판단
+    private boolean canAccessReview(Long userId, Review review) {
+        if (review.getPrId() != null) {
+            PullRequest pr = pullRequestRepository.findById(review.getPrId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PR_NOT_FOUND));
+            return repoMemberRepository.existsByRepoIdAndUserId(pr.getRepoId(), userId);
+        }
+        return userId.equals(review.getUserId());
     }
 
     // 승인 대기가 생겼을 때 레포 팀장에게 인앱 알림 — PENDING은 항상 PR 리뷰 경로에서만 생겨서 prId가 항상 있음

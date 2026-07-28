@@ -23,6 +23,11 @@ Claude / ChatGPT / Gemini / GitHub Copilot 네 가지 도구 각각에서
    - 모든 설명은 한국어로 쓴다. 코드 안 식별자와 prompt 안의 영어 명령어는 예외다.
    - 이모지는 쓰지 않는다.
 
+4-1. 길이 (반드시 지킨다)
+   - title 40자 이내, why 200자 이내, howTo 300자 이내, prompt 600자 이내.
+   - 응답 전체가 이 상한 안에 들어와야 한다. 길게 쓰면 중간에 잘려 JSON이 깨지고 아무것도 못 쓰게 된다.
+   - 길어질 것 같으면 문장을 줄여라. 항목 수(4개)를 줄이지는 마라.
+
 5. 출력 형식 (JSON만 — 다른 말이나 코드펜스 금지, 키 이름 정확히 이대로)
    {"items":[
      {"provider":"CLAUDE","title":"...","why":"...","howTo":"...","prompt":"..."},
@@ -33,3 +38,7 @@ Claude / ChatGPT / Gemini / GitHub Copilot 네 가지 도구 각각에서
 
    - items는 정확히 4개, provider는 위 순서 그대로 CLAUDE, CHATGPT, GEMINI, COPILOT.
    - JSON 밖에 아무 문장도 붙이지 않는다.
+   - 값 안의 줄바꿈은 반드시 \n 두 글자로 쓴다. 진짜 줄바꿈을 그대로 넣으면 JSON이 깨진다.
+     여러 줄이 되기 쉬운 prompt 값이 특히 그렇다.
+   - 값 안에 따옴표를 쓸 일이 있으면 \" 로 이스케이프한다.
+   - 위 다섯 개 말고 다른 키를 넣지 않는다.

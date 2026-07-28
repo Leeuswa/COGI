@@ -20,6 +20,7 @@ import idu.sba.backend.global.exception.BusinessException;
 import idu.sba.backend.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -97,7 +98,14 @@ public class RepoMemberServiceImpl implements RepoMemberService {
         }
 
         invitation.accept(currentUserId);
-        RepoMember member = repoMemberRepository.save(RepoMember.of(repoId, currentUserId, RepoRole.MEMBER));
+        RepoMember member;
+        try {
+            member = repoMemberRepository.save(RepoMember.of(repoId, currentUserId, RepoRole.MEMBER));
+        } catch (DataIntegrityViolationException e) {
+            //위 existsBy 체크와 이 save 사이의 더블클릭/멀티탭 경합 — DB 유니크 제약이 막아준 것을
+            //500 대신 "이미 멤버" 응답으로 흡수(unique 위반 자체가 곧 already-member라는 뜻)
+            throw new BusinessException(ErrorCode.ALREADY_REPO_MEMBER);
+        }
 
         return RepoMemberResponseDTO.of(member, user);
     }

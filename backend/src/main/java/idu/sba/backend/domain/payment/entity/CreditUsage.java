@@ -6,8 +6,10 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
+//동시 요청(더블클릭, 멀티탭, 웹훅 두 건 동시 도착)이 하루의 첫 소모를 동시에 시도하면 각자 새 행을
+//만들려다 부딪히게 해서, 락 없이 조용히 중복 행이 생기고 한도 검사가 갈라지는 것을 막는다
 @Entity
-@Table(name = "credit_usage")
+@Table(name = "credit_usage", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "usage_date"}))
 @Getter
 @NoArgsConstructor
 public class CreditUsage { // 일일 리뷰 요청 크레딧 소진량(플랜별 daily_credit_limit 대비)

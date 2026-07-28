@@ -13,10 +13,14 @@ public record GithubPullRequestEventPayload(
 ) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record GithubPrPayload(Integer number, String title, GithubUserPayload user) {}
+    public record GithubPrPayload(Integer number, String title, GithubUserPayload user, GithubRefPayload head) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record GithubUserPayload(String login) {}
+
+    //웹훅 재전송(redelivery)·재생 판별용 — 같은 커밋(sha)에 대한 이벤트가 중복 도착해도 리뷰를 또 만들지 않기 위함
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record GithubRefPayload(String sha) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record GithubRepoPayload(Long id, @JsonProperty("full_name") String fullName) {}

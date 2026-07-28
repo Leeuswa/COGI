@@ -980,6 +980,10 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 }
 .cal-grid > .cal-day.hit:nth-child(7n + 1) { color: var(--navy); }
 
+/* landing.css의 .sec-lead가 max-width:32em이라 앱 화면 안내문이 반으로 접혔다.
+   문구에 넣은 줄바꿈(\n)이 곧 의도한 줄 수라 앱 안에서는 폭 제한을 푼다 (대시보드는 이미 풀려 있었다) */
+.app-main .page-head .sec-lead { max-width: none; }
+
 /* 제목 줄 오른쪽 끝에 붙는 약점 추천 버튼 — 팀 화면의 .tm-top과 같은 방식 */
 /* 탭 안 첫 칸 — 그 탭이 무엇을 하는 자리인지 한 줄로 알리고 버튼을 같이 둔다 */
 .skill-lead { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }

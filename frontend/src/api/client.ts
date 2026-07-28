@@ -455,8 +455,9 @@ export const createStudyPlan = (cardId, days = 7) =>
   USE_MOCK ? mock({ studyPlan: [] }, 900) : http('POST', `/api/learning-cards/${cardId}/study-plan?days=${days}`);
 
 // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 크레딧을 안 쓴다
-export const getAiSkills = (provider = 'CLAUDE') =>
-  USE_MOCK ? mock([]) : http('GET', `/api/ai-skills?provider=${provider}`);
+// category는 약점 화면에서 넘어온 필터 — 없으면 그 AI의 전체 목록
+export const getAiSkills = (provider = 'CLAUDE', category = null) =>
+  USE_MOCK ? mock([]) : http('GET', `/api/ai-skills?provider=${provider}${category ? `&category=${category}` : ''}`);
 
 // 즐겨찾기한 스킬 전부 — provider를 안 가린다. 후속 질문 칩이 이걸 쓴다
 export const getFavoriteSkills = () =>

@@ -5,6 +5,7 @@
  * 즐겨찾기해 둔 스킬은 나중에 리뷰 스튜디오 후속질문에서 꺼내 쓸 예정.
  */
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useGame } from '../../context/GameContext';
 import { PageHead, Tabs } from '../../components/ui';
@@ -43,13 +44,15 @@ function DesktopSkills() {
   const [provider, setProvider] = useState('CLAUDE');
   const [skills, setSkills] = useState(null);
   const [weakness, setWeakness] = useState([]); // 내 약점 카테고리 — 관련 스킬에 표시를 남긴다
+  const [searchParams, setSearchParams] = useSearchParams();
+  const category = searchParams.get('category'); // 약점 화면에서 넘어온 필터 — 탭을 바꿔도 유지된다
 
   // 실패를 안 잡으면 콘솔에만 뜨고 화면은 "불러오는 중…"에서 멈춘다
   useEffect(() => {
-    api.getAiSkills(provider)
+    api.getAiSkills(provider, category)
       .then(setSkills)
       .catch((e) => { setSkills([]); notify(e.message || '스킬 목록을 불러오지 못했어요'); });
-  }, [provider]);
+  }, [provider, category]);
 
   // 약점은 목록에 "내 약점" 표시를 다는 부가 정보라 실패해도 화면은 그대로 쓴다
   useEffect(() => {
@@ -64,9 +67,12 @@ function DesktopSkills() {
 
   // AI에게 직접 추천받기 — 큐레이션에 없을 때 자유 입력으로 물어본다 (크레딧 1)
   // 응답은 약점 기반 추천과 같은 { weaknesses, items } 모양이라 아래 카드도 그대로 쓴다
-  const [askText, setAskText] = useState('');
+  const [askText, setAskText] = useState(category ? `${catKo(category)} 약점을 줄이고 싶어요` : '');
   const [asking, setAsking] = useState(false);
   const [askResult, setAskResult] = useState(null);
+
+  // 다른 약점을 달고 다시 들어오면 문구도 그 약점으로 바꾼다
+  useEffect(() => { setAskText(category ? `${catKo(category)} 약점을 줄이고 싶어요` : ''); }, [category]);
 
   // 크레딧을 쓴 결과라 이것도 화면을 나갔다 오면 남아야 한다. 약점 기반과 따로 꺼낸다
   useEffect(() => {
@@ -200,6 +206,14 @@ function DesktopSkills() {
       {/* ── 추천 스킬(큐레이션 목록) ── */}
       {tab === 'list' && (
         <>
+          {/* 약점 화면에서 카테고리를 달고 넘어온 경우 — 지금 뭘 보고 있는지 알려주고 풀 수 있게 */}
+          {category && (
+            <div className="filter-bar">
+              <p className="note sm" style={{ margin: 0 }}>{catKo(category)} 약점에 맞는 스킬</p>
+              <button className="btn wh sm" onClick={() => setSearchParams({}, { replace: true })}>전체 보기</button>
+            </div>
+          )}
+
           {/* 내가 쓰는 AI 선택. 위 탭과 같은 모양이면 어느 쪽이 상위인지 헷갈려서 알약으로 구분한다 */}
           <div className="skill-providers">
             <span className="note sm">내가 쓰는 AI</span>
@@ -216,7 +230,7 @@ function DesktopSkills() {
             <div className="panel"><p className="note">불러오는 중…</p></div>
           ) : skills.length === 0 ? (
             <div className="panel">
-              <p className="note">이 AI에 등록된 스킬이 아직 없어요.</p>
+              <p className="note">{category ? '이 약점에 맞는 큐레이션 스킬이 아직 없어요.' : '이 AI에 등록된 스킬이 아직 없어요.'}</p>
             </div>
           ) : (
             skills.map((s) => (

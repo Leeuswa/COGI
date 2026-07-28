@@ -73,7 +73,7 @@ class CreditUsageServiceImplTest {
     void FREE_등급_모델은_1_소모() {
         stubPlans();
         CreditUsage usage = usageStartingAt(0);
-        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+        when(creditUsageRepository.findByUserIdAndUsageDateForUpdate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
 
         service.checkAndConsume(USER_ID, "claude-haiku-4-5");
 
@@ -84,7 +84,7 @@ class CreditUsageServiceImplTest {
     void PRO_등급_모델은_2_소모() {
         stubPlans();
         CreditUsage usage = usageStartingAt(0);
-        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+        when(creditUsageRepository.findByUserIdAndUsageDateForUpdate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
 
         service.checkAndConsume(USER_ID, "claude-sonnet-5");
 
@@ -95,7 +95,7 @@ class CreditUsageServiceImplTest {
     void MAX_등급_모델은_3_소모() {
         stubPlans();
         CreditUsage usage = usageStartingAt(0);
-        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+        when(creditUsageRepository.findByUserIdAndUsageDateForUpdate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
 
         service.checkAndConsume(USER_ID, "claude-opus-4-8");
 
@@ -106,7 +106,7 @@ class CreditUsageServiceImplTest {
     void 가중치를_더하면_한도를_넘는_경우_예외() {
         stubPlans();
         CreditUsage usage = usageStartingAt(19); // FREE 한도 20 중 19 사용
-        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+        when(creditUsageRepository.findByUserIdAndUsageDateForUpdate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
 
         // MAX 등급 모델(가중치 3)을 쓰면 19+3=22 > 20 이라 초과
         assertThatThrownBy(() -> service.checkAndConsume(USER_ID, "claude-opus-4-8"))
@@ -153,7 +153,7 @@ class CreditUsageServiceImplTest {
     @Test
     void checkAndConsumeFixed는_모델_등급_조회_없이_넘긴_가중치만큼_소모한다() {
         CreditUsage usage = usageStartingAt(0);
-        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+        when(creditUsageRepository.findByUserIdAndUsageDateForUpdate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
 
         service.checkAndConsumeFixed(USER_ID, 1);
 
@@ -164,7 +164,7 @@ class CreditUsageServiceImplTest {
     @Test
     void checkAndConsumeFixed도_한도_초과면_예외() {
         CreditUsage usage = usageStartingAt(20); // FREE 한도 20 소진
-        when(creditUsageRepository.findByUserIdAndUsageDate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
+        when(creditUsageRepository.findByUserIdAndUsageDateForUpdate(eq(USER_ID), any())).thenReturn(Optional.of(usage));
 
         assertThatThrownBy(() -> service.checkAndConsumeFixed(USER_ID, 1))
                 .isInstanceOf(BusinessException.class)
