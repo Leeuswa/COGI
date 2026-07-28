@@ -2,9 +2,20 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover라야 아이폰 노치·홈바 영역까지 쓰고 safe-area 값이 채워진다.
+       user-scalable=no는 앱처럼 확대/축소를 막는다 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
   <title>COGI · Code Guide</title>
   <link rel="icon" type="image/png" href="/logo.png" />
+
+  <!-- 홈 화면에 추가했을 때 브라우저 주소창 없이 전체화면 앱으로 뜨게 한다 -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#cfe8ff" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="COGI" />
+  <link rel="apple-touch-icon" href="/logo.png" />
   <!-- 픽셀 폰트 2종. Galmuri(한글 도트) + Silkscreen(영문 아케이드) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri/dist/galmuri.css" />
   <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />

@@ -36,6 +36,18 @@ public class LearningPromptBuilder {
                 + "\n\n" + read("model_tier_" + tierOf(modelName) + ".txt");
     }
 
+    // AI 스킬 추천 프롬프트 (API-049) — 수준 축이 없어 학습 계획과 같은 방식으로 모델 티어만 붙인다
+    public String buildSkillRecommend(String modelName) {
+        return read("skill_recommend.txt")
+                + "\n\n" + read("model_tier_" + tierOf(modelName) + ".txt");
+    }
+
+    // 약점 기반 AI별 스킬 추천 프롬프트 (신규) — 자유 입력 버전과 같은 방식으로 모델 티어만 붙인다
+    public String buildSkillRecommendByWeakness(String modelName) {
+        return read("skill_recommend_by_weakness.txt")
+                + "\n\n" + read("model_tier_" + tierOf(modelName) + ".txt");
+    }
+
     // 수준 문자열 → 파일 접미사. 비었거나 모르는 값이면 초급으로 떨어뜨린다
     private String levelSuffix(String level) {
         return switch (level == null ? "" : level.toUpperCase()) {

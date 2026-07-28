@@ -10,8 +10,11 @@
   .g-grid { grid-template-columns: repeat(2, 1fr); }
   .g-grid .g-card:last-child { grid-column: span 2; }
   .panel-grid.c2, .panel-grid.c3 { grid-template-columns: 1fr; }
+  /* 좁은 화면에선 대시보드 한 화면 고정을 푼다. 나머지는 아래 태블릿·모바일 블록에서 */
+  .dash { height: auto; overflow: visible; }
+  .dash .page-head .sec-lead { display: block; }
 }
-@media (max-width: 768px) {
+@media (max-width: 768px) and (min-width: 641px) {
   nav.gnb { height: 80px; padding: 0 16px; }
   nav.gnb .logo img { height: 44px; }
   nav.gnb .links { gap: 14px; font-size: 12px; overflow-x: auto; padding-bottom: 2px; }
@@ -23,4 +26,263 @@
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
   .rv { opacity: 1; transform: none; }
+}
+
+/* ═══════════ 태블릿 (641~1024px) ═══════════
+   데스크톱 레이아웃을 유지하되 2열을 1열로 펴고 여백을 줄인다 */
+@media (max-width: 1024px) and (min-width: 641px) {
+  .app-main { padding: 20px 18px 60px; }
+  .dash-grid { grid-template-columns: 1fr; }
+  .hud-row { grid-template-columns: repeat(2, 1fr); }
+  .dash-top { flex-direction: column; align-items: stretch; gap: 14px; }
+  .hp-box { align-self: flex-start; margin-bottom: 0; }
+  .device { width: 100%; max-width: 460px; margin: 0 auto; }
+  .cal-grid { grid-auto-rows: 40px; }
+}
+
+/* ═══════════ 모바일 (≤640px) — 네이티브 앱처럼 ═══════════ */
+@media (max-width: 640px) {
+  /* 상단 GNB는 로고와 지갑만 남기고, 이동은 하단 탭바가 맡는다 */
+  nav.gnb { height: 56px; padding: 0 14px; position: sticky; top: 0; z-index: 40; }
+  nav.gnb .logo img { height: 32px; }
+  nav.gnb .links > *:not(.nav-wallet) { display: none; }
+  nav.gnb .links { gap: 0; overflow: visible; }
+  .nav-wallet b { font-size: 13px; }
+
+  .app-main { padding: 14px 14px 24px; max-width: none; }
+
+  /* 앱 화면답게 — 그림자·라운드를 줄이고 카드가 화면 폭을 꽉 채운다 */
+  .panel { padding: 16px 14px; box-shadow: none; border-width: 2px; border-radius: 14px; }
+  .panel + .panel, .panel-grid + .panel, .filter-bar + .panel { margin-top: 12px; }
+  .panel-grid { gap: 12px; margin-bottom: 12px; }
+  .page-head { margin-bottom: 14px; }
+  .sec-title { font-size: 21px; }
+  .btn { padding: 12px 20px; font-size: 13.5px; box-shadow: 3px 3px 0 var(--navy); }
+  .btn.sm { padding: 9px 14px; font-size: 12px; }
+  .tbl, .tbl th, .tbl td { font-size: 12.5px; }
+
+  /* 대시보드 — 한 줄로 쌓고 코기를 화면 폭에 맞춘다 */
+  .dash { height: auto; overflow: visible; padding: 14px 14px 24px; }
+  .dash-top { flex-direction: column; align-items: stretch; gap: 12px; }
+  .dash .page-head .sec-lead { display: block; font-size: 12.5px; }
+  .hp-box { align-self: stretch; margin-bottom: 0; justify-content: space-between; box-shadow: none; }
+  .hp-bar { flex: 1; width: auto; }
+  .hud-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .hud-card { box-shadow: none; border-width: 2px; padding: 11px 13px; }
+  .sc-value { font-size: 19px; }
+  .dash-grid { grid-template-columns: 1fr; gap: 12px; }
+  .dash-col { gap: 12px; }
+  .device { width: 100%; box-shadow: none; border-radius: 18px; }
+  .cal-grid { grid-auto-rows: 38px; }
+  .cal-wd { font-size: 13px; }
+
+  /* 학습카드·스킬 화면도 앱 톤으로 */
+  .quiz-tools { flex-direction: column; align-items: stretch; }
+  .quiz-tools select, .quiz-tools .btn { width: 100%; }
+  .plan-step { gap: 10px; }
+  .ps-dot { width: 46px; }
+  .skill-card .star { font-size: 28px; }
+}
+
+/* 하단 탭바 — 모바일에서만 뜬다.
+   앱 셸이 overflow:hidden이라 fixed 대신 셸의 마지막 칸으로 앉힌다 */
+.mtab {
+  display: none; flex-shrink: 0; z-index: 50;
+  /* 표시 전환은 파일 맨 아래 미디어쿼리에서 한다 — 여기서 켜면 뒤 규칙에 덮인다 */
+  background: var(--white); border-top: 3px solid var(--navy);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mtab-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 0 8px; background: none; border: none; cursor: pointer;
+  font: inherit; color: var(--sub); text-decoration: none;
+}
+.mtab-item.on { color: var(--coral); }
+.mt-icon { font-size: 19px; line-height: 1; }
+.mt-label { font-size: 10.5px; }
+/* 현재 탭 위에 표시선 */
+.mtab-item.on::before {
+  content: ''; position: absolute; top: 0; width: 34px; height: 3px; background: var(--coral);
+}
+.mtab-item { position: relative; }
+
+/* 더보기 시트 */
+.mtab-dim { position: fixed; inset: 0; background: rgba(20, 28, 56, .45); z-index: 55; }
+.mtab-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 56;
+  background: var(--white); border-top: 3px solid var(--navy);
+  border-radius: 18px 18px 0 0; padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+  animation: sheetUp .18s ease-out;
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.ms-grab { width: 44px; height: 4px; background: var(--sky2); border-radius: 2px; margin: 0 auto 14px; }
+.ms-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ms-item {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 14px 6px; border: 2px solid var(--navy); border-radius: 12px;
+  background: var(--white); font-size: 11.5px; color: var(--navy); text-align: center;
+}
+.ms-icon { font-size: 21px; line-height: 1; }
+.ms-my { display: block; text-align: center; margin-top: 12px; }
+
+/* ═══════════ 모바일 앱 셸 (≤640px) ═══════════
+   웹페이지가 아니라 앱처럼 — 헤더와 탭바는 고정이고 가운데 본문만 스크롤한다.
+   PWA로 홈 화면에 추가하면 주소창 없이 이 화면만 뜬다(manifest.webmanifest). */
+@media (max-width: 640px) {
+  html, body { overscroll-behavior-y: none; }   /* 당겨서 새로고침·고무줄 튕김 제거 */
+  body { -webkit-tap-highlight-color: transparent; }
+
+  .app-shell { height: 100dvh; overflow: hidden; }
+  /* 헤더는 노치 아래에 고정 */
+  nav.gnb { padding-top: env(safe-area-inset-top); height: calc(56px + env(safe-area-inset-top)); }
+  /* 본문만 관성 스크롤 */
+  .app-body {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  /* 앱에서는 웹 푸터를 감춘다 — 하단 탭바가 그 자리를 쓴다 */
+  .ft { display: none; }
+
+  /* 터치 기기라 hover는 안 걸리고 누르는 반응만 남긴다 */
+  .btn:hover, .panel:hover, .weak-tile:hover, .sns-btn:hover { transform: none; box-shadow: inherit; }
+  .btn:active, .mtab-item:active, .ms-item:active { transform: scale(.97); }
+  .mtab-item:active, .ms-item:active { background: #eef2fa; }
+
+  /* 손가락 기준 최소 44px 터치 영역 */
+  .btn, .btn.sm, select, input[type="text"], input[type="email"], input[type="password"] { min-height: 44px; }
+  .mtab-item { min-height: 52px; }
+
+  /* iOS가 16px 미만 입력창에서 화면을 확대하는 걸 막는다 */
+  .form input, .form select, .form textarea { font-size: 16px; }
+}
+
+/* ── 모바일 앱 헤더 ── */
+.mhead { display: none; }
+@media (max-width: 640px) {
+  /* 데스크톱 GNB는 통째로 감추고 앱 헤더로 대체 */
+  nav.gnb { display: none; }
+
+  .mhead {
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    height: calc(56px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 12px 0;
+    background: var(--white); border-bottom: 3px solid var(--navy);
+  }
+  .mh-logo { flex-shrink: 0; display: flex; }
+  .mh-logo img { height: 36px; }
+  .mh-back {
+    flex-shrink: 0; width: 34px; height: 34px; font-size: 21px; line-height: 1;
+    background: none; border: none; color: var(--navy); cursor: pointer;
+  }
+  /* 제목은 가운데 정렬. 양옆 폭이 달라도 눈에 가운데로 보이게 flex:1 */
+  .mh-title {
+    flex: 1; min-width: 0; text-align: center; font-size: 15px; font-weight: 700;
+    color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mh-wallet { flex-shrink: 0; display: flex; gap: 8px; }
+  .mh-wallet b {
+    font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--navy); white-space: nowrap;
+  }
+  /* 앱 헤더가 제목을 맡으니 화면 안 배지·제목은 뺀다 */
+  .app-main .page-head .badge, .app-main .page-head .sec-title { display: none; }
+  .app-main .page-head { margin-bottom: 10px; }
+  .app-main .page-head .sec-lead { font-size: 12.5px; margin-bottom: 0; }
+}
+
+/* 요금제 카드 — 좁은 화면에서 1열로 쌓이는데 데스크톱 규칙(margin:0)이 그대로 걸려 붙어 있었다.
+   'CURRENT' 뱃지가 카드 위로 튀어나오므로 그만큼 위 간격도 확보한다 */
+@media (max-width: 1024px) {
+  .panel-grid.c3:has(> .plan-card) { gap: 30px; margin-top: 26px; }
+  .panel-grid.c3 .plan-card { margin: 0 0 4px; }
+  /* 확대된 현재 카드가 위아래 카드와 겹치지 않게 확대를 줄인다 */
+  .plan-card.current { transform: none; outline-offset: 2px; }
+  .plan-card.current + .plan-card { margin-top: 8px; }
+}
+@media (max-width: 640px) {
+  .panel-grid.c3:has(> .plan-card) { gap: 34px; margin-top: 30px; }
+  .plan-card { padding: 22px 18px; }
+  .plan-flag { top: -16px; font-size: 11px; padding: 4px 12px; }
+}
+
+/* 하단 탭바·앱 헤더 표시 전환 — 반드시 파일 맨 끝에 둔다.
+   미디어쿼리는 특이도를 올리지 않아서, 뒤에 나오는 .mtab{display:none}에 덮이기 때문 */
+@media (max-width: 640px) {
+  .mtab { display: flex; }
+  .mhead { display: flex; }
+}
+
+/* ═══════════ 모바일 앱 마감 (≤640px) ═══════════
+   요소와 색은 그대로 두고 배치·여백만 앱 문법으로 바꾼다 */
+@media (max-width: 640px) {
+  /* 앱 배경은 흰 카드가 떠 보이게 한 톤 밝게 */
+  .app-shell { background: #dfeeff; }
+
+  /* 카드는 화면 가장자리에 딱 붙이지 않고 12px씩만 띄운다 */
+  .app-main, .dash { padding: 12px 12px 20px; }
+  .panel { border-radius: 16px; }
+
+  /* 대시보드 — 코기가 맨 위, 그 아래로 한 줄씩 쌓인다 */
+  .dash-top { gap: 10px; }
+  .dash .page-head { margin-bottom: 0; }
+  .hp-box { border-radius: 14px; padding: 9px 13px; }
+  .hp-bar { height: 14px; }
+
+  /* 요약은 2×2. 카드가 작아지니 숫자를 라벨 아래로 내려 안 겹치게 */
+  .hud-row { gap: 8px; margin-bottom: 12px; }
+  .hud-card { flex-direction: column; align-items: flex-start; gap: 2px; border-radius: 14px; }
+  .sc-label { font-size: 11.5px; }
+  .sc-value { font-size: 21px; }
+
+  /* 달력 — 폰 폭에 맞춰 칸을 정사각에 가깝게 */
+  .cal-grid { grid-auto-rows: 1fr; gap: 3px; padding: 7px; }
+  .cal-day, .cal-pad { aspect-ratio: 1 / 1; font-size: 13px; border-radius: 5px; }
+  .cal-wd { font-size: 12px; padding-bottom: 3px; }
+
+  /* 차트는 폰에서 낮게 */
+  .trend-panel .gchart { padding: 6px; }
+
+  /* 약점 목록 — 한 줄 리스트로 */
+  .weak-tile { border-radius: 12px; padding: 9px 11px; }
+  .wt-count { min-width: 38px; font-size: 13px; }
+  .dash-foot .btn { flex: 1; }
+
+  /* 학습카드 상세 — 코드블록이 화면을 넘지 않게 */
+  .codebox { font-size: 11px; padding: 12px 13px; border-radius: 10px; }
+  .plan-timeline::before { left: 22px; }
+  .ps-dot { width: 40px; }
+  .ps-body { border-radius: 12px; box-shadow: none; }
+  .ps-head { gap: 6px; }
+
+  /* 표는 폰에서 가로 스크롤 */
+  .panel.flush, .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* 더보기 시트가 열리면 뒤 본문 스크롤을 막는다 */
+  body:has(.mtab-sheet) .app-body { overflow: hidden; }
+}
+
+/* ═══════════ 모바일 앱 (≤640px) — 가로 스크롤 박멸 ═══════════
+   폰에서 화면이 옆으로 밀리면 앱이 아니라 축소된 웹으로 보인다.
+   폭을 넘길 수 있는 요소를 전부 가둔다 */
+@media (max-width: 640px) {
+  html, body, .app-shell, .app-body { max-width: 100%; overflow-x: hidden; }
+  .app-main, .dash { width: 100%; max-width: 100%; }
+
+  /* 긴 단어·URL·식별자가 칸을 밀어내지 않게.
+     anywhere는 한글을 '한 군데로 모/으는'처럼 어절 한가운데서 끊는다.
+     keep-all로 띄어쓰기에서만 끊고, 혼자서도 한 줄에 안 들어가는 긴 토큰만 break-word가 자른다 */
+  .panel, .note, p, li, td, b, .wt-body b { overflow-wrap: break-word; word-break: keep-all; }
+
+  /* 코드블록만 예외 — 코드는 접으면 못 읽으니 자기 안에서만 옆으로 넘긴다 */
+  .codebox { overflow-x: auto; max-width: 100%; }
+
+  /* 표는 카드 안에서만 스크롤 */
+  .tbl { display: block; overflow-x: auto; white-space: nowrap; }
+
+  /* 차트 SVG가 부모보다 넓어지지 않게 */
+  .gchart { max-width: 100%; height: auto; }
+
+  /* 버튼 줄이 넘치면 접는다 */
+  .row, .dash-foot, .filter-bar { flex-wrap: wrap; }
+
+  /* 그리드 자식이 콘텐츠 폭 때문에 늘어나는 걸 막는다 */
+  .dash-grid > *, .dash-col > *, .panel-grid > * { min-width: 0; }
 }

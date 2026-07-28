@@ -11,6 +11,8 @@ import * as api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
 import { PageHead } from "../../components/ui";
+import useIsMobile from "../../hooks/useIsMobile";
+import MobilePlan from "../mobile/MobilePlan";
 
 // 모델 ID에서 버전 토큰 제거하고 표시용 이름으로. "gpt-5.6-luna" → "GPT Luna"
 const fmtModels = (csv) =>
@@ -26,7 +28,14 @@ const fmtModels = (csv) =>
     )
     .join(", ");
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function Plan() {
+  return useIsMobile() ? <MobilePlan /> : <DesktopPlan />;
+}
+
+function DesktopPlan() {
   const { user, patchUser } = useAuth();
   const { notify } = useGame();
 
@@ -134,6 +143,7 @@ export default function Plan() {
   const myPlanName = mine?.planName ?? user.planName;
   const myCredit =
     mine?.dailyCreditLimit ?? plans.find((p) => p.name === myPlanName)?.dailyCreditLimit ?? 20;
+
 
   return (
     <main className="app-main">

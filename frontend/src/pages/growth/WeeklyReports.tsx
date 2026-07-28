@@ -8,17 +8,27 @@ import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
 import { PageHead } from '../../components/ui';
 import { catKo } from '../../data/constants';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileReports from '../mobile/MobileReports';
 
 const fmt = (d) => d.slice(5).replace('-', '/'); // '2026-07-06' → '07/06'
 
 // 3칸 stat 카드 공통 스타일 — margin-top 0(형제 margin 상쇄) + 높이 통일 + 세로 중앙
 const sc = { marginTop: 0, minHeight: 120, display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', gap: 6 };
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function WeeklyReports() {
+  return useIsMobile() ? <MobileReports /> : <DesktopWeeklyReports />;
+}
+
+function DesktopWeeklyReports() {
   const [reports, setReports] = useState([]);
   const [open, setOpen] = useState(null);   // 팝업에 띄운 리포트
 
   useEffect(() => { api.getWeeklyReports().then(setReports); }, []);
+
 
   return (
     <main className="app-main">

@@ -10,8 +10,22 @@ import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
 import { PageHead } from '../../components/ui';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileTeam from '../mobile/MobileTeam';
 
+// 서버가 LocalDateTime을 그대로 내려줘 "2026-07-27T17:16:13.186451"이 표에 박혔다
+const joined = (iso: string) => (iso ? iso.slice(0, 10).replace(/-/g, '.') : '-');
+// GitHub 미연동 계정은 @만 덩그러니 남는다 (팀장 admin이 그렇다)
+const handle = (m) => (m.githubUsername ? `@${m.githubUsername}` : '연동 전');
+
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function TeamPage() {
+  return useIsMobile() ? <MobileTeam /> : <DesktopTeamPage />;
+}
+
+function DesktopTeamPage() {
   const { user } = useAuth();
   const { notify } = useGame();
   const [repos, setRepos] = useState(null); // null = 로딩 중
@@ -109,16 +123,17 @@ export default function TeamPage() {
     return <main className="app-main"><div className="panel"><p className="note">불러오는 중…</p></div></main>;
   }
 
+
   return (
     <main className="app-main">
-      <PageHead badge="TEAM" title="팀"
-        lead={'내가 속한 GitHub 레포 기준으로 팀을 관리해요.\nGitHub 아이디로 팀원을 지명해서 초대할 수 있어요.'} />
-
-      {repos.length > 0 && (
-        <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 18 }}>
+      {/* 버튼을 안내 문구 아래 별도 줄에 두니 그만큼 목록이 통째로 밀려 내려갔다. 같은 줄 오른쪽으로 */}
+      <div className="tm-top">
+        <PageHead badge="TEAM" title="팀"
+          lead={'내가 속한 GitHub 레포 기준으로 팀을 관리해요.\nGitHub 아이디로 팀원을 지명해서 초대할 수 있어요.'} />
+        {repos.length > 0 && (
           <Link className="btn co sm" to="/app/repos">+ 새 팀 만들기</Link>
-        </div>
-      )}
+        )}
+      </div>
 
       {inbox.length > 0 && (
         <div className="panel" style={{ marginBottom: 22, background: '#fff6d6' }}>
@@ -144,7 +159,9 @@ export default function TeamPage() {
         </div>
       ) : (
         repos.map((r) => {
-          const myRole = (members[r.repoId] || []).find((m) => m.githubUsername === user.githubUsername)?.role;
+          // userId로 본다 — GitHub 미연동끼리는 githubUsername이 둘 다 null이라 남을 나로 착각한다
+          const mine = (m) => String(m.userId) === String(user.userId);
+          const myRole = (members[r.repoId] || []).find(mine)?.role;
           return (
           <div key={r.repoId} className="panel" style={{ marginBottom: 18 }}>
             <h3>{r.repoName}</h3>
@@ -152,14 +169,14 @@ export default function TeamPage() {
               <thead><tr><th>GitHub 아이디</th><th>역할</th><th>합류일</th><th></th></tr></thead>
               <tbody>
                 {(members[r.repoId] || []).map((m) => {
-                  const isMe = m.githubUsername === user.githubUsername;
+                  const isMe = mine(m);
                   return (
                     <tr key={m.userId}>
-                      <td><b>@{m.githubUsername}</b></td>
+                      <td><b>{handle(m)}{isMe && <span className="chip low tm-me">나</span>}</b></td>
                       <td><span className={`chip ${m.role === 'OWNER' ? 'co' : 'navy'}`}>{m.role === 'OWNER' ? '팀장' : '팀원'}</span></td>
-                      <td className="mono xs">{m.joinedAt}</td>
+                      <td className="mono xs">{joined(m.joinedAt)}</td>
                       <td>
-                        <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                        <div className="row tm-acts">
                           {isMe && m.role === 'MEMBER' && (
                             <button className="btn wh sm" onClick={() => leave(r.repoId)}>나가기</button>
                           )}

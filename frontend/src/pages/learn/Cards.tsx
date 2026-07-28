@@ -8,8 +8,17 @@ import { Link } from 'react-router-dom';
 import * as api from '../../api/client';
 import { PageHead, GradeLight } from '../../components/ui';
 import { SPR } from '../../assets/sprites';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileCards from '../mobile/MobileCards';
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function Cards() {
+  return useIsMobile() ? <MobileCards /> : <DesktopCards />;
+}
+
+function DesktopCards() {
   const [cards, setCards] = useState(null);
   const [f, setF] = useState('ALL'); // ALL / RED / YELLOW / GREEN / BOOKMARK
 
@@ -21,11 +30,12 @@ export default function Cards() {
     return true;
   });
 
+
   return (
     <main className="app-main">
       <PageHead
         badge="LEARNING CARDS"
-        title="학습카드 보관함"
+        title="학습카드"
         lead={"빨강에서 시작해 정답 3번이면 노랑, 7번이면 초록이에요.\n초록이 되면 그 약점은 해결된 걸로 처리됩니다."}
       />
 
