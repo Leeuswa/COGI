@@ -23,8 +23,6 @@ export default function Growth() {
 }
 
 function DesktopGrowth() {
-  const { S } = useGame();
-
   const { user } = useAuth();
   const [streak, setStreak] = useState(0); // 서버 연속 학습일 (retention-status)
   const [trend, setTrend] = useState(null);
