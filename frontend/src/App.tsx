@@ -16,6 +16,8 @@ import { Routes, Route, Navigate, Outlet, useLocation, Link } from 'react-router
 import * as api from './api/client';
 import { useAuth } from './context/AuthContext';
 import { Nav, Footer } from './components/ui';
+import MobileTabBar from './components/MobileTabBar';
+import MobileHeader from './components/MobileHeader';
 
 import Landing from './pages/Landing';
 import GuestReview from './pages/GuestReview';
@@ -78,7 +80,9 @@ function RequireOnboarded() {
 export default function App() {
   return (
     <div className="app-shell">
+      {/* 데스크톱·태블릿은 Nav, 모바일은 MobileHeader. 서로 CSS로 감춘다 */}
       <Nav />
+      <MobileHeader />
       <div className="app-body">
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -123,6 +127,8 @@ export default function App() {
       </Routes>
       </div>
       <Footer />
+      {/* 모바일 전용 하단 탭바 — 셸의 마지막 칸에 앉는다. 데스크톱·태블릿에서는 CSS로 숨긴다 */}
+      <MobileTabBar />
     </div>
   );
 }

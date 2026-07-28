@@ -1,0 +1,72 @@
+/* 모바일 마이페이지 — 줄바꿈되던 탭 5개를 3×2 세그먼트로 */
+@media (max-width: 640px) {
+  /* 3열 2행. .mapp를 붙여 공통 .mseg(4칸)보다 특이도를 올린다 */
+  .mapp .mmy-seg { grid-template-columns: repeat(3, 1fr); }
+  .mmy-seg button:nth-child(4) { border-left: none; border-top: 2px solid #eef2fa; }
+  .mmy-seg button:nth-child(5) { border-top: 2px solid #eef2fa; }
+
+  /* 입력 한 칸 = 라벨 + 필드 */
+  .mmy-f { display: block; margin-bottom: 12px; }
+  .mmy-f span { display: block; font-size: 12px; color: var(--sub); margin-bottom: 6px; line-height: 1.5; }
+  .mmy-f input {
+    width: 100%; padding: 12px 13px; font-size: 16px; /* 16px 미만이면 iOS가 화면을 확대한다 */
+    border: 2px solid var(--navy); border-radius: 12px;
+    background: var(--white); color: var(--navy);
+  }
+  .mmy-f input:disabled { background: #f2f4f8; color: var(--sub); }
+
+  .mapp .mmy-lv { grid-template-columns: repeat(3, 1fr); }
+  .mmy-second { margin-top: 10px; }
+  .mmy-save { margin-top: 4px; }
+
+  /* 관심기술 선택기는 온보딩과 공용 — 폰에서 분야 탭이 넘치지 않게만 잡는다 */
+  .mapp .itabs { flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  .mapp .itabs button { font-size: 12px; padding: 8px 10px; }
+  .mapp .pick { font-size: 12.5px; padding: 8px 11px; }
+
+  .mmy-ok {
+    display: inline-block; font-size: 11px; font-weight: 700; color: var(--white);
+    background: var(--mint); padding: 3px 9px; border-radius: 999px; margin-right: 5px;
+  }
+  .mmy-err { font-size: 12.5px; line-height: 1.7; color: #d92d20; margin-top: 10px; }
+
+  /* OTP */
+  .mmy-qr { display: block; border: 3px solid var(--navy); margin: 10px 0 12px; }
+  .mmy-secret { font-size: 13px; margin: 6px 0 10px; }
+  .mmy-code { letter-spacing: 3px; text-align: center; }
+
+  /* 약관 — 4열 표 대신 줄 리스트 */
+  .mmy-terms { list-style: none; display: flex; flex-direction: column; }
+  .mmy-terms li { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 2px solid #eef2fa; }
+  .mmy-terms li:first-child { border-top: none; padding-top: 0; }
+  .mmy-tname {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+    background: none; border: none; padding: 0; font: inherit; text-align: left; cursor: pointer;
+    font-size: 13px; color: #1a5fd0; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .mmy-tname i { font-style: normal; font-size: 11px; color: var(--sub); text-decoration: none; }
+  .mmy-tst {
+    flex-shrink: 0; font-size: 11px; color: var(--sub); background: #eef2fa;
+    padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .mmy-tst.on { color: var(--white); background: var(--mint); }
+
+  /* 공지 — 제목을 누르면 그 자리에서 펼친다 */
+  .mmy-notices { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .mmy-notices li {
+    background: var(--white); border: 2px solid var(--navy); border-radius: 14px; overflow: hidden;
+  }
+  .mmy-notices li.on { border-color: var(--coral); }
+  .mmy-nq {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 13px 14px; background: none; border: none; cursor: pointer; font: inherit; text-align: left;
+  }
+  .mmy-nq > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .mmy-nq b { font-size: 13.5px; color: var(--navy); }
+  .mmy-nq i { font-style: normal; font-size: 11px; color: var(--sub); }
+  .mmy-nq em { flex-shrink: 0; font-style: normal; font-size: 19px; color: var(--coral); line-height: 1; }
+  .mmy-na {
+    padding: 12px 14px 14px; border-top: 2px solid #eef2fa;
+    font-size: 12.5px; line-height: 1.9; color: var(--sub); white-space: pre-wrap;
+  }
+}

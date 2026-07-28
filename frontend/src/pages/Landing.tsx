@@ -9,8 +9,13 @@ import CorgiDevice from '../components/CorgiDevice';
 import { Reveal } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { SPR } from '../assets/sprites';
+import Dashboard from './Dashboard';
 
 export default function Landing() {
+  // 로그인했으면 홍보 페이지가 아니라 대시보드가 홈이다. 아래는 푸터로 끝난다
+  const { user } = useAuth();
+  if (user) return <Dashboard />;
+
   return (
     <>
       <Hero />
@@ -87,8 +92,8 @@ function ReviewSection() {
         <span className="badge">CODE REVIEW</span>
         <h2 className="sec-title">머지 버튼을 누르기 전에, 코기가 먼저 읽습니다</h2>
         <p className="sec-lead">
-          버그, 컨벤션, 성능, 보안, 가독성. 다섯 갈래로 뜯어보고 중요한 것부터 줄을 세웁니다.
-          새벽 3시에 올린 커밋도 빠짐없이.
+          버그와 컨벤션, 성능, 보안, 가독성을 한 번에 살펴보고 급한 것부터 알려드립니다.
+          <br />새벽 3시에 올린 커밋도 빠뜨리지 않습니다.
         </p>
         <div className="rev-grid">
           <Reveal className="rev-panel">
@@ -99,10 +104,10 @@ function ReviewSection() {
             <div className="rev-foot">"null 안전성" 3회 반복 → 약점 승격 · 내일 미션으로 전환</div>
           </Reveal>
           <Reveal as="ul" className="rev-list" delay={80}>
-            <li><b>5종 카테고리</b>리뷰어마다 다른 기준 대신, 언제나 같은 다섯 개의 눈으로 봅니다.</li>
-            <li><b>심각도 3단계 라인 코멘트</b>당장 고칠 것, 이번 주에 고칠 것, 알아만 둘 것. 순서까지 정해서 라인에 답니다.</li>
-            <li><b>"의도한 코드" 버튼</b>일부러 그렇게 짠 코드라면 버튼 한 번. 두 번 다시 잔소리하지 않습니다.</li>
-            <li><b>결과 내보내기</b>팀 회고 때 쓰기 좋게 MD, PDF, Notion으로 바로 뽑아 갑니다.</li>
+            <li><b>5종 카테고리</b>리뷰어마다 기준이 달라지지 않게 언제나 같은 다섯 가지로 봅니다.</li>
+            <li><b>심각도 3단계 라인 코멘트</b>지금 고칠 것과 이번 주에 볼 것, 알아만 둘 것을 나눠 해당 줄에 답니다.</li>
+            <li><b>"의도한 코드" 버튼</b>일부러 그렇게 짰다면 버튼 한 번으로 끝입니다. 다시 지적하지 않습니다.</li>
+            <li><b>결과 내보내기</b>팀 회고에 쓰기 좋게 MD와 PDF, Notion으로 바로 뽑아 갑니다.</li>
           </Reveal>
         </div>
       </div>

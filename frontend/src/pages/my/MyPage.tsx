@@ -14,8 +14,17 @@ import GithubTab from './tabs/GithubTab';
 import SecurityTab from './tabs/SecurityTab';
 import TermsTab from './tabs/TermsTab';
 import NoticeTab from './tabs/NoticeTab';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileMy from '../mobile/MobileMy';
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function MyPage() {
+  return useIsMobile() ? <MobileMy /> : <DesktopMyPage />;
+}
+
+function DesktopMyPage() {
   const { user, patchUser } = useAuth();
   const { notify } = useGame();
 
@@ -117,6 +126,7 @@ export default function MyPage() {
       notify(ex.message || '인증 코드가 올바르지 않아요');
     } finally { setBusy(false); }
   };
+
 
   return (
     <main className="app-main">

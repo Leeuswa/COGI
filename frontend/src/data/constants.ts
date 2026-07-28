@@ -39,7 +39,8 @@ export const CATEGORIES = ['BUG', 'PERFORMANCE', 'CODE_SMELL', 'CONVENTION', 'SE
 export const SEVERITIES = ['CRITICAL', 'MAJOR', 'MINOR'];
 
 // 화면 표기용 한글 라벨 — 코드값은 명세 그대로, 보여줄 때만 번역
-export const CATEGORY_KO = { BUG: '버그', PERFORMANCE: '성능', CODE_SMELL: '코드 냄새', CONVENTION: '컨벤션', SECURITY: '보안' };
+// '코드 냄새'는 code smell 직역이라 무슨 말인지 안 읽힌다. 무엇이 문제인지 바로 알 수 있는 말로 쓴다
+export const CATEGORY_KO = { BUG: '버그', PERFORMANCE: '성능 저하', CODE_SMELL: '구조 개선', CONVENTION: '코드 스타일', SECURITY: '보안 취약점' };
 export const SEVERITY_KO = { CRITICAL: '심각', MAJOR: '주의', MINOR: '경미' };
 export const ISSUE_STATUS_KO = { OPEN: '미해결', PENDING: '승인 대기', RESOLVED: '해결됨', IGNORED: '무시됨' };
 // 리뷰 히스토리(REVIEW_TARGET_TYPE) 표기용 — PR은 웹훅 경로, 나머지는 리뷰 스튜디오에서 만든 리뷰

@@ -4,12 +4,14 @@
  *  - streak (퀴즈 "제출" 기준. 정답 여부 무관 — FR-74)
  *  - 일일 크레딧 (플랜별 20/40/70, 자정 초기화 — FR-81/85)
  *
- * 전부 localStorage('cogi-game')에 저장. 백엔드 붙으면 streak/크레딧은
- * API-051, API-055가 원천이 되고 여기는 화면 캐시 역할만 남는다.
- * 코인/스탯은 프론트 게임 요소라 당분간 로컬 유지가 맞다고 보고 있음.
+ * 코기 스탯과 코인은 계정별로 DB에 저장한다(GET·PUT /api/users/me/pet).
+ * 예전엔 localStorage에만 있어서 계정을 바꿔도 이전 코기가 그대로 남고,
+ * 브라우저를 바꾸면 처음부터 시작하는 문제가 있었다.
+ * streak과 크레딧은 각각 API-051, API-055가 원천이고 여기선 화면 캐시로만 들고 있다.
  */
-import { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import * as api from '../api/client';
 
 const GameCtx = createContext(null);
 
@@ -30,6 +32,7 @@ export function GameProvider({ children }) {
 
   const [S, setS] = useState(() => {
     try {
+      // 코기 스탯은 서버에서 받아 덮어쓴다. 여기 캐시는 새로고침 직후 잠깐 보여줄 용도
       const saved = JSON.parse(localStorage.getItem('cogi-game') || 'null');
       if (!saved) return DEFAULT;
       // 날짜가 넘어갔으면 크레딧 리셋 (자정 초기화 흉내 — 실제론 서버 배치)
@@ -44,12 +47,41 @@ export function GameProvider({ children }) {
   });
 
   const [toast, setToast] = useState(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loaded = useRef(false); // 서버 값을 받기 전에 저장을 쏘면 기본값으로 덮어써 버린다
+
+  // 로그인한 계정의 코기를 불러온다. 계정이 바뀌면 그 계정 코기로 갈아끼운다
+  useEffect(() => {
+    if (!user) { loaded.current = false; return; }
+    let alive = true;
+    api.getPetState().then((pet) => {
+      if (!alive || !pet) return;
+      setS((prev) => ({
+        ...prev,
+        coins: pet.coins, hun: pet.fullness, hap: pet.happiness, cln: pet.cleanliness, xp: pet.xp,
+        lastCheckIn: pet.lastCheckIn,
+      }));
+      loaded.current = true;
+    }).catch(() => { /* 조회 실패면 캐시된 값으로 계속 */ });
+    return () => { alive = false; };
+  }, [user?.userId ?? user?.email]);
 
   // 상태 변경 + 저장을 한 번에. 모든 액션이 이 함수만 거친다
   const update = useCallback((patch) => {
     setS((prev) => {
       const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch };
       localStorage.setItem('cogi-game', JSON.stringify(next));
+
+      // 코기 스탯만 서버로. 먹이 주기처럼 연달아 눌리는 동작이라 잠깐 모았다 한 번에 보낸다
+      if (loaded.current) {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => {
+          api.savePetState({
+            coins: next.coins, fullness: next.hun, happiness: next.hap,
+            cleanliness: next.cln, xp: next.xp, lastCheckIn: next.lastCheckIn,
+          }).catch(() => { /* 저장 실패는 조용히 넘긴다 — 다음 변경 때 다시 보낸다 */ });
+        }, 600);
+      }
       return next;
     });
   }, []);

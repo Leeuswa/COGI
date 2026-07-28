@@ -1,0 +1,65 @@
+/* 모바일 대시보드 — 코기·요약칩·오늘 할 일·주간 학습·약점·성적 */
+@media (max-width: 640px) {
+  /* ── 스크롤 없이 한 화면 ──
+     높이를 px로 못 박으면 작은 폰에선 넘치고 큰 폰에선 아래가 텅 빈다.
+     나머지 칸은 크기를 고정하고, 남는 높이는 코기 화면이 전부 먹게 한다 */
+  .mdash { min-height: 100%; gap: 9px; }
+
+  .mapp .device {
+    width: 100%; box-shadow: none; border-radius: 18px; padding: 11px 13px 13px;
+    flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;
+  }
+  .mapp .device .brand { margin-bottom: 6px; }
+  /* 코기가 뛰노는 칸이 남는 높이를 흡수한다. 작은 폰에서도 최소 128px는 준다 */
+  .mapp .screen-frame { flex: 1 1 auto; min-height: 128px; display: flex; }
+  .mapp .lcd { flex: 1 1 auto; height: auto; min-height: 128px; }
+  .mapp .meta-row { margin-top: 8px; }
+  .mapp .stats { margin-top: 7px; gap: 5px 12px; }
+  .mapp .pad { margin-top: 8px; gap: 7px; }
+  .mapp .pad button { padding: 6px 3px 5px; }
+
+  /* ── 오늘 요약 칩 — 4개를 한 줄로. 좁으니 아이콘과 숫자를 나란히, 라벨은 아래 ── */
+  .mchips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .mchip {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0;
+    background: var(--white); border: 2px solid var(--navy); border-radius: 12px;
+    padding: 9px 4px;
+  }
+  .mchip em { font-style: normal; font-size: 15px; line-height: 1; }
+  /* Silkscreen은 <b>에서 가짜 굵게가 걸려 '4' 같은 글자가 겹쳐 뭉갠다. 본문 도트 mono로 쓴다 */
+  .mchip b { font-family: 'GalmuriMono11', monospace; font-size: 17px; line-height: 1.2; color: var(--navy); }
+  .mchip i { font-style: normal; font-size: 10.5px; color: var(--sub); white-space: nowrap; }
+  .mchip.warn { border-color: var(--coral); }
+  .mchip.warn b { color: var(--coral); }
+
+
+  /* ── 오늘 할 일 — 지금 누를 것 하나만 크게 ── */
+  .mtodo { display: flex; align-items: center; gap: 12px; background: #fffdf3; border-color: var(--coral); }
+  .mt-emoji { font-size: 26px; line-height: 1; flex-shrink: 0; }
+  .mt-text { flex: 1; min-width: 0; }
+  /* 한 줄로 떨어지게. 넘치면 줄이지 말고 말줄임 */
+  .mt-text b {
+    display: block; font-size: 13.5px; color: var(--navy);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mt-text p {
+    font-size: 11.5px; line-height: 1.6; color: var(--sub); margin-top: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mtodo .btn { flex-shrink: 0; padding: 9px 12px; font-size: 11.5px; }
+
+  /* ── 이번 주 학습 — 7칸만 크게 ── */
+  .mdash .mcard { flex-shrink: 0; padding: 11px 13px; }
+  .mdash .mcard-head { margin-bottom: 8px; }
+  .mdash .mchips { flex-shrink: 0; }
+  .mweek { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .mday {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 6px 0; border-radius: 10px; background: #f2f4f8; border: 2px solid transparent;
+  }
+  .mday i { font-style: normal; font-size: 10.5px; color: var(--sub); }
+  .mday b { font-family: 'GalmuriMono11', monospace; font-size: 14px; line-height: 1.3; color: var(--navy); }
+  .mday:first-child i, .mday:first-child b { color: var(--coral); }
+  .mday.hit { background: var(--yellow); }
+  .mday.today { border-color: var(--coral); }
+}

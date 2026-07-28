@@ -6,12 +6,21 @@ import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
 import { PageHead, SevChip, renderDescription } from '../../components/ui';
 import { catKo, ISSUE_STATUS_KO, REVIEW_TARGET_KO, PROCESS_STATUS_KO } from '../../data/constants';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileHistory from '../mobile/MobileHistory';
 
 const fmt = (iso) => iso?.replace('T', ' ').slice(0, 16);
 
 const label = (r) => r.originalFilename ?? (REVIEW_TARGET_KO[r.targetType] ?? r.targetType);
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function ReviewHistory() {
+  return useIsMobile() ? <MobileHistory /> : <DesktopReviewHistory />;
+}
+
+function DesktopReviewHistory() {
   const [items, setItems] = useState(null);
   const [open, setOpen] = useState(null);   // 상세 팝업에 띄운 리뷰 요약(reviewId 등)
   const [detail, setDetail] = useState(null); // 팝업에 채울 상세(이슈 목록)
@@ -23,6 +32,7 @@ export default function ReviewHistory() {
     setDetail(null);
     api.getReviewHistoryDetail(item.reviewId).then(setDetail);
   };
+
 
   return (
     <main className="app-main">

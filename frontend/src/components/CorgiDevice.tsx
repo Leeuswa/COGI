@@ -207,15 +207,15 @@ export default function CorgiDevice() {
       </div>
 
       <div className="meta-row">
-        <span className="coin"><i /><b className={coinPulse ? 'pulse' : ''}>{S.coins}</b></span>
-        {/* 개발/테스트용 — 코인 +10. 배포 시 제거 예정 */}
-        <button
-          type="button"
-          onClick={() => update((p) => ({ ...p, coins: p.coins + 10 }))}
-          style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, lineHeight: 1.4, cursor: 'pointer' }}
-        >
-          코인 추가(테스트용)
-        </button>
+        {/* 코인과 충전 버튼은 한 덩어리 — space-between이 둘을 갈라놓지 않게 묶는다 */}
+        <span className="coin">
+          <i /><b className={coinPulse ? 'pulse' : ''}>{S.coins}</b>
+          {/* 개발/테스트용 — 코인 +10. 배포 시 제거 예정 */}
+          <button type="button" className="coin-add"
+            onClick={() => update((p) => ({ ...p, coins: p.coins + 10 }))}>
+            +10
+          </button>
+        </span>
         <span>{stage.name}</span>
       </div>
 

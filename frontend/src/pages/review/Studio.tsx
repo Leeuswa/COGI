@@ -19,10 +19,19 @@ import { useGame } from "../../context/GameContext";
 import { PageHead, SevChip, renderDescription } from "../../components/ui";
 import { MODEL_TIERS, PLAN_TIER, catKo } from "../../data/constants";
 import PreviewDock from "./PreviewDock";
+import useIsMobile from "../../hooks/useIsMobile";
+import MobileStudio from "../mobile/MobileStudio";
 
 const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend";
 
+// 폰이면 데스크톱 본체를 아예 mount하지 않는다.
+// 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
+// getWeaknessStats처럼 조회할 때마다 통계를 지우고 다시 넣는 API는 두 번 겹치면 한쪽이 빈 목록을 받는다.
 export default function Studio() {
+  return useIsMobile() ? <MobileStudio /> : <DesktopStudio />;
+}
+
+function DesktopStudio() {
     const { user } = useAuth();
     const { spendCredit, refundCredit, notify, S, creditLimit } = useGame();
     const location = useLocation();
@@ -239,6 +248,7 @@ export default function Studio() {
         setFinalized(false);
         setIsPrReview(false);
     };
+
 
     return (
         <main className="app-main">
