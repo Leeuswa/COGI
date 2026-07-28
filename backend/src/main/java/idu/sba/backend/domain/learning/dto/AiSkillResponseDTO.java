@@ -15,6 +15,7 @@ public class AiSkillResponseDTO {
     private final String description;
     private final String howTo;
     private final String url;
+    private final String prompt; // AI가 만든 스킬만 값이 있음 — 공용 큐레이션 행은 null
 
     @JsonProperty("isFavorite") // 프론트가 읽는 키로 고정
     private final boolean favorite;
@@ -27,6 +28,7 @@ public class AiSkillResponseDTO {
         this.description = skill.getDescription();
         this.howTo = skill.getHowTo();
         this.url = skill.getUrl();
+        this.prompt = skill.getPrompt();
         this.favorite = favorite;
     }
 
