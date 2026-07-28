@@ -27,6 +27,20 @@ public class UserController {
         return ApiResponse.ok(userService.getAgreedTermIds(userId));
     }
 
+    // 내 동의 약관 + 동의 당시 버전 (마이페이지 개정 배지/선택약관 재동의용)
+    @GetMapping("/agreements/versions")
+    public ApiResponse<java.util.List<idu.sba.backend.domain.terms.dto.AgreedTermDTO>> getAgreementVersions(
+            @AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(userService.getAgreementVersions(userId));
+    }
+
+    // FR-91 약관 재동의 필요 여부 — 로그인 후 대시보드 진입 전 게이트가 조회
+    @GetMapping("/terms/reagreement")
+    public ApiResponse<idu.sba.backend.domain.terms.dto.ReagreementResponseDTO> checkReagreement(
+            @AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(userService.checkReagreement(userId));
+    }
+
     // 프로필 수정
     @PatchMapping("/profile")
     public ApiResponse<Void> updateProfile(@AuthenticationPrincipal Long userId,

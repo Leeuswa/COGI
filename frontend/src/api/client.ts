@@ -225,6 +225,11 @@ export const getTerms = () =>
 export const getMyAgreements = () =>
   USE_MOCK ? mock([1, 2]) : http('GET', '/api/users/me/agreements');
 
+// GET /api/users/me/agreements/versions — 내 동의 약관 + 동의 당시 버전(개정 배지/선택약관 재동의 판정)
+export const getMyAgreementVersions = () =>
+  USE_MOCK ? mock([{ termId: 1, agreedVersion: '1.0' }, { termId: 2, agreedVersion: '1.0' }])
+           : http('GET', '/api/users/me/agreements/versions');
+
 // API-064 POST /api/users/me/agreements — 약관 동의 제출
 export const submitAgreements = (agreements) =>
   USE_MOCK ? mock({ ok: true }) : http('POST', '/api/users/me/agreements', { agreements });
