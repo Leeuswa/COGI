@@ -62,4 +62,9 @@ public class GithubRepository {
         this.fullName = fullName;
     }
 
+    //레포 연동 시 웹훅 자동 등록에 성공하면 GitHub이 내려준 webhook id를 기록(API-024)
+    public void assignWebhookId(String webhookId){
+        this.webhookId = webhookId;
+    }
+
 }

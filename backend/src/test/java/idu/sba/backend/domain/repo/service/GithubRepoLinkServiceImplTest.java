@@ -134,4 +134,52 @@ class GithubRepoLinkServiceImplTest {
         assertThat(captor.getValue().getFullName()).isEqualTo("owner/repo-a");
     }
 
+    // ---------- 웹훅 자동 등록 ----------
+
+    @Test
+    void 콜백_URL이_설정돼_있으면_연동시_웹훅을_자동_등록한다() {
+        setField(service, "webhookCallbackUrl", "https://abc123.ngrok.io");
+        setField(service, "webhookSecret", "dev-webhook-secret");
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("token-abc")));
+        when(githubRepositoryRepository.existsByGithubRepoId("111")).thenReturn(false);
+        when(githubApiClient.getRepo("token-abc", "111")).thenReturn(repoDto(111L, "repo-a", false, "owner/repo-a"));
+        when(githubRepositoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(githubApiClient.createWebhook("token-abc", "owner/repo-a",
+                "https://abc123.ngrok.io/api/webhooks/github", "dev-webhook-secret")).thenReturn(555L);
+
+        var result = service.linkRepo(USER_ID, "111");
+
+        assertThat(result.getWebhookId()).isEqualTo("555");
+    }
+
+    @Test
+    void 콜백_URL이_없으면_웹훅_자동_등록을_건너뛴다() {
+        // webhookCallbackUrl 필드는 @InjectMocks가 기본값(null)으로 두므로 별도 설정 없이도 이 케이스 재현됨
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("token-abc")));
+        when(githubRepositoryRepository.existsByGithubRepoId("111")).thenReturn(false);
+        when(githubApiClient.getRepo("token-abc", "111")).thenReturn(repoDto(111L, "repo-a", false));
+        when(githubRepositoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = service.linkRepo(USER_ID, "111");
+
+        assertThat(result.getWebhookId()).isNull();
+        verify(githubApiClient, never()).createWebhook(any(), any(), any(), any());
+    }
+
+    @Test
+    void 웹훅_자동_등록이_실패해도_레포_연동_자체는_성공한다() {
+        setField(service, "webhookCallbackUrl", "https://abc123.ngrok.io");
+        setField(service, "webhookSecret", "dev-webhook-secret");
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(userWithToken("token-abc")));
+        when(githubRepositoryRepository.existsByGithubRepoId("111")).thenReturn(false);
+        when(githubApiClient.getRepo("token-abc", "111")).thenReturn(repoDto(111L, "repo-a", false, "owner/repo-a"));
+        when(githubRepositoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(githubApiClient.createWebhook(any(), any(), any(), any()))
+                .thenThrow(new BusinessException(ErrorCode.GITHUB_API_ERROR));
+
+        var result = service.linkRepo(USER_ID, "111"); // 예외 없이 정상 반환돼야 함
+
+        assertThat(result.getWebhookId()).isNull();
+    }
+
 }

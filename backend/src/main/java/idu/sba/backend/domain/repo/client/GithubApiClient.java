@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -81,6 +82,36 @@ public class GithubApiClient {
             return prs != null ? List.of(prs) : List.of();
         } catch (RestClientResponseException e) {
             log.error("PR 목록 조회 실패 - repoFullName={}, status={}, body={}",
+                    repoFullName, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new BusinessException(ErrorCode.GITHUB_API_ERROR);
+        }
+    }
+
+    //레포 연동 시 PR 웹훅 자동 등록(API-024 파이프라인용) — 실패해도 예외로 레포 연동 자체를 막지 않도록
+    //호출부(GithubRepoLinkServiceImpl)에서 흡수한다. 등록 성공 시 GitHub이 내려주는 webhook id를 반환
+    public Long createWebhook(String accessToken, String repoFullName, String callbackUrl, String secret) {
+        String[] parts = splitFullName(repoFullName);
+        Map<String, Object> body = Map.of(
+                "name", "web",
+                "active", true,
+                "events", List.of("pull_request"),
+                "config", Map.of(
+                        "url", callbackUrl,
+                        "content_type", "json",
+                        "secret", secret
+                )
+        );
+        try {
+            GithubWebhookDto hook = restClient.post()
+                    .uri("/repos/{owner}/{repo}/hooks", parts[0], parts[1])
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Accept", "application/vnd.github+json")
+                    .body(body)
+                    .retrieve()
+                    .body(GithubWebhookDto.class);
+            return hook != null ? hook.id() : null;
+        } catch (RestClientResponseException e) {
+            log.error("웹훅 자동 등록 실패 - repoFullName={}, status={}, body={}",
                     repoFullName, e.getStatusCode(), e.getResponseBodyAsString(), e);
             throw new BusinessException(ErrorCode.GITHUB_API_ERROR);
         }
