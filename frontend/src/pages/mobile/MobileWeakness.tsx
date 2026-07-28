@@ -83,6 +83,8 @@ export default function MobileWeakness() {
               {creating === w.id ? "카드 굽는 중…" : "학습카드 만들기 (⚡1)"}
             </button>
           )}
+          {/* 이 약점 카테고리로 걸러진 스킬 목록으로 — 큐레이션 조회라 크레딧 안 든다 */}
+          <Link className="btn wh sm full" to={`/app/skills?category=${w.category}`}>🤖 AI 스킬 추천</Link>
         </section>
       ))}
 

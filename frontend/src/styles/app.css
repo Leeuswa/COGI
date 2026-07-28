@@ -441,7 +441,8 @@
 /* 다마고치 축소판 */
 .dash .device { width: min(400px, 94vw); padding: 14px 16px 16px; border-radius: 20px 20px 26px 26px; }
 .dash .device .brand { margin-bottom: 8px; }
-.dash .lcd { height: 168px; }
+/* 말풍선이 코기 머리에 얹혀 글자가 겹쳤다. 화면만 조금 키워 띄운다 */
+.dash .lcd { height: 196px; }
 .dash .meta-row { margin-top: 10px; }
 .dash .stats { margin-top: 9px; gap: 7px 14px; }
 .dash .pad { margin-top: 10px; gap: 8px; }
@@ -746,8 +747,11 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .dash .panel { padding: 15px 17px; }
 .dash .panel h3 { font-size: 15px; margin-bottom: 0; }
 
-.dash-grid { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 18px; align-items: start; }
+/* stretch라 두 칸이 같은 높이로 맞춰진다. start면 짧은 칸 아래가 비어 끝이 들쭉날쭉했다 */
+.dash-grid { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 18px; align-items: stretch; }
 .dash-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* 남는 높이는 그래프 칸이 먹는다 — 코기 칸이 커져도 대시보드 총 높이는 그대로 */
+.dash-col > .trend-panel { flex: 1; }
 .dash-col > .panel { margin-top: 0; }
 
 /* 패널 머리 — 제목과 링크를 한 줄에 */
@@ -926,4 +930,55 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 
 /* 일요일 날짜를 빨갛게 — 요일 머리 7칸이 앞에 있어 8번째 자식부터 7칸마다가 일요일 열 */
 .cal-grid > .cal-day:nth-child(7n + 1) { color: var(--coral); }
+
+/* AI 스킬 화면 하단 "찾는 게 없나요" 자유 입력 박스 (LRN-005 보강) */
+.skill-ask input[type="text"] { flex: 1 1 200px; min-width: 0; padding: 9px 11px; border: 3px solid var(--navy); font-size: 13px; }
+/* skill-how와 같은 왼쪽 선 스타일 — 결과도 "직접 알려주는 답"이라 톤을 맞춘다 */
+.skill-ask-result {
+  margin-top: 16px; padding: 12px 14px; border-left: 5px solid var(--mint); background: #f6f4ec;
+  border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.9; white-space: pre-wrap;
+}
 .cal-grid > .cal-day.hit:nth-child(7n + 1) { color: var(--navy); }
+
+/* 제목 줄 오른쪽 끝에 붙는 약점 추천 버튼 — 팀 화면의 .tm-top과 같은 방식 */
+.skill-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+.skill-head .page-head { flex: 1; min-width: 0; }
+/* 제목과 나란해지지 않게 안내 문구 마지막 줄에 맞춰 내린다 */
+.skill-byweak { flex-shrink: 0; margin-bottom: 22px; }
+
+/* 약점 기준 추천 결과 — AI 네 곳이 한 상자에 쌓인다 */
+.skill-rec { border: 3px solid var(--navy); background: #fdfcf7; padding: 16px 18px; margin-top: 16px; }
+.skill-rec-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.skill-rec-top b { font-size: 15px; word-break: keep-all; } /* 한글 어절 한가운데서 끊기지 않게 */
+.skill-rec-why { font-size: 13px; line-height: 1.9; }
+/* 붙여넣을 내용이라 줄바꿈은 살리되 폭을 넘기면 접는다. 가로 스크롤은 안 만든다 */
+.skill-rec-prompt { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; }
+.skill-rec-prompt pre {
+  flex: 1; min-width: 0; margin: 0; padding: 12px 14px;
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; line-height: 1.85;
+  background: var(--navy); color: var(--sky); border: 3px solid var(--navy);
+  white-space: pre-wrap; overflow-wrap: anywhere; /* 여긴 명령어·경로라 어디서 끊어도 된다 */
+}
+.skill-rec-prompt .btn { flex-shrink: 0; }
+
+/* 자유 입력 — 한 줄짜리 input이 답답해서 여러 줄 상자로 바꿨다 */
+.skill-ask-input {
+  width: 100%; margin-top: 12px; padding: 12px 14px; resize: vertical;
+  border: 3px solid var(--navy); background: #fff; color: var(--navy);
+  font: inherit; font-size: 13px; line-height: 1.8;
+}
+.skill-ask-input:focus { outline: 3px solid var(--yellow); outline-offset: 0; }
+/* 버튼은 상자 아래 오른쪽 — 입력창이 폭을 다 쓰게 */
+.skill-ask-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+
+/* 스튜디오 후속 질문 위 즐겨찾기 스킬 칩 */
+.chat-skills { display: flex; flex-wrap: wrap; gap: 7px; }
+.chat-skill {
+  font: inherit; font-size: 12px; font-weight: 700; line-height: 1.4; cursor: pointer;
+  padding: 6px 12px; background: #fff; color: var(--coral);
+  border: 3px solid var(--coral); box-shadow: 2px 2px 0 var(--coral);
+  word-break: keep-all;
+}
+.chat-skill:hover:not(:disabled) { background: #fff6f4; }
+.chat-skill:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.chat-skill:disabled { color: var(--sub); border-color: #cdd8ea; box-shadow: 2px 2px 0 #cdd8ea; cursor: default; }

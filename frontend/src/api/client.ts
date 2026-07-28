@@ -445,8 +445,13 @@ export const createStudyPlan = (cardId, days = 7) =>
   USE_MOCK ? mock({ studyPlan: [] }, 900) : http('POST', `/api/learning-cards/${cardId}/study-plan?days=${days}`);
 
 // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 크레딧을 안 쓴다
-export const getAiSkills = (provider = 'CLAUDE') =>
-  USE_MOCK ? mock([]) : http('GET', `/api/ai-skills?provider=${provider}`);
+// category를 넘기면 그 약점 카테고리에 걸린 스킬만 걸러서 내려온다 (약점 화면의 "AI 스킬 추천" 버튼)
+export const getAiSkills = (provider = 'CLAUDE', category = null) =>
+  USE_MOCK ? mock([]) : http('GET', `/api/ai-skills?provider=${provider}${category ? `&category=${category}` : ''}`);
+
+// 즐겨찾기한 스킬 전부 — provider를 안 가린다. 후속 질문 칩이 이걸 쓴다
+export const getFavoriteSkills = () =>
+  USE_MOCK ? mock([]) : http('GET', '/api/ai-skills/favorites');
 
 // 스킬 즐겨찾기 토글 — 나중에 후속질문에서 꺼내 쓸 목록이 된다
 export const toggleSkillFavorite = (skillId) =>
@@ -487,6 +492,17 @@ export const recommendSkill = (weaknessOrRequirement) =>
           '③ COGI 학습카드 — "null 안전성" 카드 반복 풀이',
       }, 1100)
     : http('POST', '/api/ai-skill-recommendations', { weaknessOrRequirement });
+
+// 내 약점을 서버가 직접 읽어 AI 모델별로 하나씩 추천한다 (⚡2)
+// 입력이 없다 — 약점 통계가 곧 입력이다. 응답에 복사해서 바로 붙여넣을 prompt가 같이 온다
+export const recommendSkillByWeakness = () =>
+  USE_MOCK
+    ? mock({
+        weaknesses: ['BUG'],
+        items: [{ provider: 'CLAUDE', title: 'Claude Code 정적 점검 스킬', why: '커밋 전에 null 경로를 먼저 훑어준다.',
+          howTo: '터미널에서 claude 실행 후 /review 입력', prompt: '이 코드에서 null이 들어올 수 있는 경로를 전부 찾아줘.' }],
+      }, 1400)
+    : http('POST', '/api/ai-skill-recommendations/by-weakness');
 
 /* ══════════ 성장/리텐션 (GRW/RET) ══════════ */
 

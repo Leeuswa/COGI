@@ -173,7 +173,8 @@ function DesktopDashboard() {
                 <p className="note">아직 집계할 리뷰가 없어요.<br />PR이 쌓이면 주 단위로 그려집니다.</p>
               ) : (
                 <>
-                  <TrendChart data={trend} height={230} />
+                  {/* 왼쪽 코기 칸이 커진 만큼 그래프를 늘려 두 칸 끝을 맞춘다 */}
+                  <TrendChart data={trend} height={300} />
                   <div className="chart-legend">
                     <span><i style={{ background: "var(--coral)" }} />발생</span>
                     <span><i style={{ background: "var(--mint)" }} />해결</span>

@@ -31,4 +31,44 @@
   .msk-how p { font-size: 12.5px; line-height: 1.8; color: var(--sub); margin-top: 4px; }
 
   .msk-doc { font-size: 12.5px; color: var(--coral); border-bottom: 2px solid var(--coral); align-self: flex-start; }
+
+  /* 약점 화면에서 카테고리를 달고 넘어왔을 때 상단 안내줄 */
+  .msk-filter {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 14px; margin-bottom: 12px;
+    background: var(--white); border: 2px solid var(--navy); border-radius: 12px;
+  }
+  .msk-filter p { font-size: 13px; font-weight: 700; color: var(--navy); word-break: keep-all; }
+
+  /* 이 화면에서 제일 강한 행동 — 맨 위 한 줄 전체 */
+  .msk-byweak { margin-bottom: 12px; }
+
+  /* 약점 기준 추천 결과 — AI 네 곳이 한 카드 안에 쌓인다 */
+  .msk-rec { display: flex; flex-direction: column; gap: 8px; }
+  .msk-rec-item {
+    display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+    padding: 13px 14px; margin-top: 10px;
+    background: #fdfcf7; border: 2px solid var(--navy); border-radius: 12px;
+  }
+  .msk-rec-title { font-size: 14px; line-height: 1.5; color: var(--navy); word-break: keep-all; }
+  .msk-rec-item .msk-how { align-self: stretch; }
+  /* 붙여넣을 내용이라 줄바꿈은 살리되 폭을 넘기면 접는다. 옆으로 밀리면 오른쪽이 잘린 줄도 모른다 */
+  .msk-rec-prompt {
+    align-self: stretch; padding: 11px 12px; border-radius: 10px;
+    font-family: 'GalmuriMono11', monospace; font-size: 11.5px; line-height: 1.85;
+    background: var(--navy); color: var(--sky);
+    white-space: pre-wrap; overflow-wrap: anywhere; /* 여긴 명령어·경로라 어디서 끊어도 된다 */
+  }
+
+  /* AI에게 직접 추천받기 — 자유 입력 박스 (LRN-005 보강) */
+  .msk-ask { display: flex; flex-direction: column; gap: 10px; }
+  .msk-ask textarea {
+    width: 100%; padding: 11px 12px; resize: vertical;
+    font: inherit; font-size: 13px; line-height: 1.8; color: var(--navy);
+    border: 2px solid var(--navy); border-radius: 10px;
+  }
+  .msk-ask-result {
+    padding: 12px 14px; border-left: 5px solid var(--mint); background: #f6f4ec;
+    border-radius: 0 8px 8px 0; font-size: 12.5px; line-height: 1.9; color: var(--navy); white-space: pre-wrap;
+  }
 }
