@@ -440,11 +440,8 @@ public class DataInitializer implements CommandLineRunner {
 
     // ── 다마고치. 계정마다 따로 자라야 해서 각자 한 행씩 만든다 ──
     private void seedPets(User admin, User me, User kim, User lee) {
-        // user@a.a는 어느 정도 키워둔 상태로 보여준다. 나머지는 갓 시작한 코기
-        PetState grown = pet(me.getId());
-        grown.update(120, 72, 66, 81, 210, null);
-
-        List.of(admin, kim, lee).forEach(u -> pet(u.getId()));
+        // 전 계정 갓 시작한 코기. DB를 새로 심으면 코기도 처음부터여야 한다
+        List.of(admin, me, kim, lee).forEach(u -> pet(u.getId()));
     }
 
     // 앱이 켜져 있는 채로 시드를 돌리면 화면이 먼저 코기를 만들어 둘 수 있다. 있으면 그걸 쓴다
