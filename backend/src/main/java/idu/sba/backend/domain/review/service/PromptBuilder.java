@@ -12,9 +12,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
-// 최종 시스템 프롬프트 = 레벨 지침(공통 규칙이 이미 안에 포함됨) + prompt_plan_{plan}.txt
+// 최종 시스템 프롬프트 = 공통 규칙(_common_rules.txt, 코드 고정) + 레벨 지침 + prompt_plan_{plan}.txt
 // 레벨 지침은 관리자가 DB(review_guidelines)로 덮어쓸 수 있고, 없으면 prompt_level_*.txt 파일이 폴백.
-// (_common_rules.txt는 참고용 원본이고, 레벨 프롬프트 안에 이미 이어붙여진 채라 여기서 따로 안 붙임 — 중복 방지)
+// 예전엔 공통 규칙 전체를 레벨 파일 3개에 각각 복사해뒀었는데(주석으로 "중복 방지"라 적어놓고 실제로는
+// 3곳에 중복 — 하나만 고치고 나머지를 깜빡하면 조용히 어긋나는 위험이 있었음), 여기서 한 번만
+// 이어붙이도록 바꿔 단일 소스로 정리(2026-07-29). 부수 효과로 관리자 콘솔(getGuidelines/saveGuideline)이
+// 이제 "레벨별 커스터마이징 가능한 부분"만 보여주고, JSON 스키마 등 스키마-critical 규칙은
+// 관리자가 실수로 지우지 못하게 코드에서 항상 강제한다.
 @Component
 @RequiredArgsConstructor
 public class PromptBuilder {
@@ -24,16 +28,17 @@ public class PromptBuilder {
     private final ReviewGuidelineRepository guidelineRepository;
 
     public String build(Level level, String planName) {
+        String commonRules = readResource("_common_rules.txt");
         String levelPrompt = resolveLevelGuideline(level);
         String planPrompt = readResource("prompt_plan_" + planName.toLowerCase() + ".txt");
-        return levelPrompt + "\n\n" + planPrompt;
+        return commonRules + "\n\n" + levelPrompt + "\n\n" + planPrompt;
     }
 
     // 리뷰 후속 질문용 — 새 프롬프트 파일을 따로 만들지 않고, 리뷰용 지침을 그대로 재사용하되
     // "출력은 JSON 스키마가 아니라 대화체 텍스트" 라는 오버라이드만 뒤에 덧붙인다. 수준별 설명 방식
     // (용어 풀어쓰기·비유·어투)은 리뷰와 동일하게 적용되는 게 맞아서 그 부분은 그대로 살린다.
     public String buildFollowUpQuestion(Level level) {
-        String levelPrompt = resolveLevelGuideline(level);
+        String levelPrompt = readResource("_common_rules.txt") + "\n\n" + resolveLevelGuideline(level);
         String override = """
 
                 ─────────────────────────────
@@ -55,7 +60,7 @@ public class PromptBuilder {
     // 후속 질문과 마찬가지로 새 프롬프트 파일 없이 리뷰용 수준별 지침을 재사용하되, 이번엔
     // 대화체 텍스트도 아니고 최소 JSON({"stillPresent":...,"explanation":...})만 응답하게 한다.
     public String buildReverify(Level level) {
-        String levelPrompt = resolveLevelGuideline(level);
+        String levelPrompt = readResource("_common_rules.txt") + "\n\n" + resolveLevelGuideline(level);
         String override = """
 
                 ─────────────────────────────
