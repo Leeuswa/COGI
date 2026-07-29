@@ -93,14 +93,15 @@ export default function MobileMy() {
   const changePw = async () => {
     if (!isValidPassword(pw.next)) return notify(PW_HINT);
     if (pw.next !== pw.confirm) return notify("새 비밀번호가 서로 달라요. 다시 확인해주세요");
+    if (pw.next === pw.cur) return notify("기존 비밀번호와 다른 비밀번호를 사용해주세요");
     setPwBusy(true);
     try {
       await api.changePassword(pw.cur, pw.next, pw.confirm);
       notify("비밀번호를 바꿨어요. 다음 로그인부터 적용됩니다");
       setPw({ cur: "", next: "", confirm: "" });
       setPwOpen(false);
-    } catch {
-      notify("현재 비밀번호가 맞지 않아요");
+    } catch (ex) {
+      notify(ex.message || "현재 비밀번호가 맞지 않아요");
     } finally { setPwBusy(false); }
   };
 
@@ -122,6 +123,19 @@ export default function MobileMy() {
       notify("2차 인증이 켜졌어요. 다음 로그인부터 6자리를 물어봅니다");
     } catch (ex) {
       notify(ex.message || "인증 코드가 올바르지 않아요");
+    } finally { setBusy(false); }
+  };
+
+  // 2차 인증 해제 — 켜진 사람만. 해제해야 다시 설정 가능
+  const disableTotp = async () => {
+    setBusy(true);
+    try {
+      await api.totpDisable();
+      patchUser({ totpEnabled: false });
+      setTotp(null);
+      notify("2차 인증을 해제했어요.");
+    } catch (ex) {
+      notify(ex.message || "해제에 실패했어요");
     } finally { setBusy(false); }
   };
 
@@ -254,7 +268,12 @@ export default function MobileMy() {
               </p>
             </>
           ) : user.totpEnabled ? (
-            <p className="mnote mmy-second"><span className="mmy-ok">활성</span> 2차 인증이 켜져 있어요.</p>
+            <>
+              <p className="mnote mmy-second"><span className="mmy-ok">활성</span> 2차 인증이 <b>완료</b>됐어요.</p>
+              <button className="btn wh sm full mmy-second" onClick={disableTotp} disabled={busy}>
+                {busy ? "해제 중…" : "2차 인증 해제"}
+              </button>
+            </>
           ) : totp ? (
             <>
               <p className="mnote mmy-second">인증 앱(Google Authenticator 등)에 등록하세요.</p>

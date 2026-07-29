@@ -85,6 +85,13 @@ public class UserController {
         return ApiResponse.ok("2차 인증이 활성화 되었습니다.");
     }
 
+    // 2차 인증 해제
+    @PostMapping("/totp/disable")
+    public ApiResponse<Void> disableTotp(@AuthenticationPrincipal Long userId){
+        userService.disableTotp(userId);
+        return ApiResponse.ok("2차 인증이 해제되었습니다.");
+    }
+
     @PostMapping("/agreements")
     public ApiResponse<Void> submitAgreements(@AuthenticationPrincipal Long userId,
                                               @RequestBody AgreementSubmitDTO request) {

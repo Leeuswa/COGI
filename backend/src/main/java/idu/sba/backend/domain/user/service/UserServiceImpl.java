@@ -112,7 +112,8 @@ public class UserServiceImpl implements UserService{
                 Boolean.TRUE.equals(user.getGuideConfirmed()),
                 user.getProvider(),
                 user.getGithubUsername(),
-                user.getRole());
+                user.getRole(),
+                Boolean.TRUE.equals(user.getTotpEnabled()));
     }
 
     //프로필 수정
@@ -156,7 +157,11 @@ public class UserServiceImpl implements UserService{
         if(user.getPassword() == null)
             throw new BusinessException(ErrorCode.PASSWORD_MISMATCH);
 
+        // 현재 비밀번호 검증
         if(!passwordEncoder.matches(req.getCurrentPassword(), user.getPassword()))
+            throw new BusinessException(ErrorCode.PASSWORD_MISMATCH);
+        // 새 비밀번호가 기존과 같으면 거부
+        if(passwordEncoder.matches(req.getNewPassword(), user.getPassword()))
             throw new BusinessException(ErrorCode.SAME_AS_OLD_PASSWORD);
         user.changePassword(passwordEncoder.encode(req.getNewPassword()));
 
@@ -184,10 +189,21 @@ public class UserServiceImpl implements UserService{
     @Transactional
     public TotpSetupResponseDTO setupTotp(Long userId) {
         User user = findUser(userId); //유저 조회
+        // 이미 켜져 있으면 재설정 불가 — 바꾸려면 먼저 해제해야 한다
+        if (Boolean.TRUE.equals(user.getTotpEnabled())) {
+            throw new BusinessException(ErrorCode.TOTP_ALREADY_ENABLED);
+        }
         String secret = totpService.generateSecret(); //새 시크릿 발급
         user.prepareTotp(secret);
         // 시크릿 + 인증앱 등록용 URI 반환
         return new TotpSetupResponseDTO(secret, totpService.qrDataUri(secret, user.getEmail()));
+    }
+
+    // 2차 인증 해제 — 켜져 있을 때만 의미 있음
+    @Override
+    @Transactional
+    public void disableTotp(Long userId) {
+        findUser(userId).disableTotp();
     }
 
 

@@ -9,7 +9,6 @@ import { INTEREST_GROUPS } from '../data/constants';
 export default function InterestPicker({ value, onToggle }) {
   const groups = Object.keys(INTEREST_GROUPS);
   const [tab, setTab] = useState(groups[0]);
-  const countIn = (g) => INTEREST_GROUPS[g].filter((t) => value.includes(t)).length;
 
   return (
     <div>
@@ -17,7 +16,7 @@ export default function InterestPicker({ value, onToggle }) {
         {groups.map((g) => (
           <button key={g} role="tab" aria-selected={tab === g}
             className={tab === g ? 'on' : ''} onClick={() => setTab(g)}>
-            {g}{countIn(g) > 0 && <span className="pick-cnt">{countIn(g)}</span>}
+            {g}
           </button>
         ))}
       </div>
