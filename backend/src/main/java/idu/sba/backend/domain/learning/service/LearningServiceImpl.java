@@ -596,6 +596,7 @@ public class LearningServiceImpl implements LearningService {
                 .toList();
     }
 
+
     private String buildWeaknessSummaryInput(List<WeaknessStatResponseDTO> weaknesses) {
         return weaknesses.stream()
                 .map(w -> "카테고리: " + w.getCategory()
@@ -618,7 +619,7 @@ public class LearningServiceImpl implements LearningService {
                 .map(r -> SkillByWeaknessItemDTO.parsed(r.provider(), r.title(), r.why(), r.howTo(), r.prompt()))
                 .toList();
     }
-    }
+
 
     // 학습 계획 입력 — 기간이 단계 수를 정하고, 등급은 무엇을 채울지를 정한다 (study_plan.txt 규칙)
     private String buildStudyPlanInput(LearningCard card, int days) {
@@ -659,3 +660,4 @@ public class LearningServiceImpl implements LearningService {
         return dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE);
     }
 }
+
