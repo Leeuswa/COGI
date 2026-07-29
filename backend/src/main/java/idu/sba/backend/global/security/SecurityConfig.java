@@ -1,6 +1,7 @@
 package idu.sba.backend.global.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,6 +27,10 @@ public class SecurityConfig {
     private final JwtProvider jwtProvider;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+
+    // 로컬·배포 공용: 소셜 실패 리다이렉트/ CORS 허용 출처를 이 값 기준으로 (하드코딩 금지)
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
@@ -73,7 +78,7 @@ public class SecurityConfig {
                         .failureHandler((request, response, exception) -> {   // ← 추가
                             String code = (exception instanceof OAuth2AuthenticationException oae)
                                     ? oae.getError().getErrorCode() : "social";
-                            response.sendRedirect("http://localhost:5173/login?error=" + code);
+                            response.sendRedirect(frontendUrl + "/login?error=" + code);
                         }))
                 //요청이 오기전에 토큰 검사 후 인증 등록
                         .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
@@ -85,8 +90,9 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        //React 개발주소 여기 없는 출처는 브라우저가 차단.
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
+        //React 개발주소 + 배포 주소(app.frontend-url). 로컬 병행 위해 localhost도 유지. distinct로 배포==로컬일 때 중복 제거
+        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", frontendUrl)
+                .stream().distinct().toList());
         // 허용할 HTTP 메서드
         config.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
         // 허용할 요청 헤더. "*" = 전부 허용 (Authorization 토큰 헤더 포함).
