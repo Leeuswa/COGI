@@ -38,6 +38,7 @@ export default function Admin() {
     return { from: fmt(monthAgo), to: fmt(today) };
   });
   const [latency, setLatency] = useState(null); // 리뷰 응답시간 (API-054)
+  const [providerUsage, setProviderUsage] = useState([]); // 벤더 대시보드 실사용량 (Admin 키 없으면 빈 배열)
   const [busy, setBusy] = useState(false);
 
   const isAdmin = user.role === 'ADMIN';
@@ -46,6 +47,8 @@ export default function Admin() {
     if (!isAdmin) return;
     api.adminAiUsage(range.from, range.to).then(setUsage);
     api.getReviewLatency(range.from, range.to).then(setLatency);
+    // 벤더 API가 느리거나 키가 없어도 다른 탭 데이터는 그대로 뜨게 실패를 흡수한다
+    api.adminProviderUsage(range.from, range.to).then(setProviderUsage).catch(() => setProviderUsage([]));
     api.adminMembers().then(setMembers);
     api.adminGetGuidelines().then(setGuides);
     api.adminGetTerms().then(setTerms);
@@ -136,7 +139,7 @@ export default function Admin() {
 
       <Tabs items={[['usage', 'AI 사용량'], ['members', '회원 관리'], ['notice', '전체 공지'], ['guides', '리뷰 지침'], ['terms', '약관 관리'], ['faq', 'FAQ 관리']]} value={tab} onChange={setTab} />
 
-      {tab === 'usage' && <UsageTab usage={usage} range={range} setRange={setRange} latency={latency} />}
+      {tab === 'usage' && <UsageTab usage={usage} range={range} setRange={setRange} latency={latency} providerUsage={providerUsage} />}
       {tab === 'members' && <MembersTab members={members} onStatus={changeStatus} onRole={changeRole} me={user.email} />}
       {tab === 'notice' && <NoticeTab notice={notice} setNotice={setNotice} onSend={sendNotice} busy={busy} notices={notices} onRefresh={() => api.adminNotices().then(setNotices)} />}
       {tab === 'guides' && guides && <GuidesTab guides={guides} setGuides={setGuides} onSave={saveGuide} />}

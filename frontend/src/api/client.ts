@@ -617,6 +617,10 @@ export const getReviewLatency = (from, to) =>
 export const adminAiUsage = (from, to) =>
   USE_MOCK ? mock([M.mockUsageLog]) : http('GET', `/api/admin/ai-usage?from=${from}&to=${to}`);
 
+// GET /api/admin/ai-usage/provider — 벤더(OpenAI/Anthropic) 대시보드 실사용량. Admin 키 미설정이면 빈 배열
+export const adminProviderUsage = (from, to) =>
+  USE_MOCK ? mock([]) : http('GET', `/api/admin/ai-usage/provider?from=${from}&to=${to}`);
+
 // API-015 GET /api/admin/members
 export const adminMembers = () =>
   USE_MOCK ? mock([{ ...M.mockUser, onboardingCompleted: true }]) : http('GET', '/api/admin/members');

@@ -3,9 +3,14 @@
  * 이력 제목을 누르면 보낸 공지 원문(제목+내용)을 읽기전용 팝업으로 보여준다.
  */
 import { useState } from 'react';
+import Pager, { pageSlice } from '../../../components/Pager';
+
+const PAGE_SIZE = 10; // 공지는 자동 삭제가 없어 계속 쌓인다 — 이력은 페이지로 끊어 본다
 
 export default function NoticeTab({ notice, setNotice, onSend, busy, notices, onRefresh }) {
   const [view, setView] = useState(null); // 이력 원문 팝업 대상
+  const [page, setPage] = useState(1);
+  const shown = pageSlice(notices, page, PAGE_SIZE);
   return (
     <>
       <div className="panel">
@@ -38,7 +43,7 @@ export default function NoticeTab({ notice, setNotice, onSend, busy, notices, on
           <tbody>
             {notices.length === 0 ? (
               <tr><td colSpan={5} className="note sm" style={{ textAlign: 'center' }}>아직 보낸 공지가 없어요.</td></tr>
-            ) : notices.map((n) => (
+            ) : shown.map((n) => (
               <tr key={n.id}>
                 <td className="mono xs">{n.createdAt.slice(0, 16).replace('T', ' ')}</td>
                 <td style={{ fontSize: 13 }}>
@@ -51,6 +56,7 @@ export default function NoticeTab({ notice, setNotice, onSend, busy, notices, on
             ))}
           </tbody>
         </table>
+        <Pager page={page} total={notices.length} size={PAGE_SIZE} onChange={setPage} />
       </div>
 
       {/* 이력 원문 읽기전용 팝업 (알림처럼 제목+내용만, 수정 불가) */}
