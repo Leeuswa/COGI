@@ -7,14 +7,16 @@
 export const renderCardText = (text: string) => {
   if (!text) return null;
   const parts = [];
-  const regex = /\*\*([^*]+)\*\*|==([^=]+)==|`([^`\n]+)`/g;
+  // 줄 첫머리의 #는 제목이다. 안 걸러내면 "# 제목"이 글자 그대로 찍힌다 (m 플래그로 줄마다 본다)
+  const regex = /^#{1,6}[ \t]+([^\n]+)|\*\*([^*]+)\*\*|==([^=]+)==|`([^`\n]+)`/gm;
   let last = 0;
   let m;
   while ((m = regex.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
-    if (m[1]) parts.push(<b key={m.index}>{m[1]}</b>);                              // **굵게**
-    else if (m[2]) parts.push(<mark key={m.index} className="hl">{m[2]}</mark>);    // ==형광==
-    else parts.push(<code key={m.index} className="inline-code">{m[3]}</code>);     // `코드`
+    if (m[1]) parts.push(<b key={m.index} className="md-h">{m[1]}</b>);             // # 제목
+    else if (m[2]) parts.push(<b key={m.index}>{m[2]}</b>);                         // **굵게**
+    else if (m[3]) parts.push(<mark key={m.index} className="hl">{m[3]}</mark>);    // ==형광==
+    else parts.push(<code key={m.index} className="inline-code">{m[4]}</code>);     // `코드`
     last = regex.lastIndex;
   }
   if (last < text.length) parts.push(text.slice(last));

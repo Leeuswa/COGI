@@ -239,7 +239,7 @@ function DesktopGrowth() {
             </div>
             <div className="panel stat-card">
               <span className="stat-num" style={{ color: 'var(--coral)' }}>{streak}<span className="unit">일</span></span>
-              <p className="note xs">연속 학습</p>
+              <p className="note xs">총 학습일</p>
             </div>
           </div>
 

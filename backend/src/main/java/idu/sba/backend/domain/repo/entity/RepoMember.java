@@ -7,8 +7,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+//동시 요청(더블클릭, 멀티탭)으로 같은 (repo, user) 멤버 row가 두 번 생기면 findByRepoIdAndUserId 같은
+//단일결과 조회가 전부 IncorrectResultSizeDataAccessException으로 깨져서 그 레포에 대한 모든 요청이
+//영구히 500이 되므로, 애플리케이션의 existsBy-then-save 체크만으로는 부족해 DB 제약으로도 막는다
 @Entity
-@Table(name = "repo_members")
+@Table(name = "repo_members", uniqueConstraints = @UniqueConstraint(columnNames = {"repo_id", "user_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RepoMember {

@@ -4,8 +4,8 @@
  * localStorage에 토큰을 두지 않는 이유: XSS로 토큰이 새는 걸 막기 위해(쿠키+HttpOnly).
  * 새로고침 시 user는 API-009(getProfile)로 다시 받아오면 된다. (쿠키가 살아 있으면 인증 유지)
  */
-import { createContext, useContext, useState } from 'react';
-import { claimGuestReview, logout as apiLogout } from '../api/client';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { claimGuestReview, logout as apiLogout, getProfile } from '../api/client';
 
 const AuthCtx = createContext(null);
 
@@ -17,6 +17,25 @@ export function AuthProvider({ children }) {
     try { return JSON.parse(localStorage.getItem('cogi-user') || 'null'); }
     catch { return null; }
   });
+
+  // 새로고침 때 캐시를 서버 프로필로 맞춘다.
+  // 지금까지는 localStorage를 끝까지 믿어서, DB를 새로 심은 뒤에도 화면은 GitHub이 연동된 줄 알고
+  // /api/repos/github를 때렸다가 "연동되어 있지 않습니다" 400을 받았다.
+  // 쿠키가 죽었으면 http()가 401을 보고 알아서 로그아웃시킨다.
+  useEffect(() => {
+    if (!localStorage.getItem('cogi-user')) return; // 비로그인은 부를 이유가 없다
+    getProfile()
+      .then((fresh) => {
+        if (!fresh) return;
+        // 캐시에만 있는 값(플랜 등 화면 표시용)은 남기고 서버가 준 값으로 덮는다
+        setUser((prev) => {
+          const next = { ...prev, ...fresh };
+          localStorage.setItem('cogi-user', JSON.stringify(next));
+          return next;
+        });
+      })
+      .catch(() => { /* 401이면 http()가 이미 로그인 화면으로 보낸다 */ });
+  }, []);
 
   // 로그인 성공(이메일/GitHub/카카오 공통). 토큰은 이미 쿠키에 있으니 user 정보만 캐싱한다.
   const signIn = (userData) => {

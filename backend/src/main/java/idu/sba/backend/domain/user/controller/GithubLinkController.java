@@ -49,7 +49,9 @@ public class GithubLinkController {
                 .fromUriString("https://github.com/login/oauth/authorize")
                 .queryParam("client_id", clientId)         // 우리 연동앱 식별자
                 .queryParam("redirect_uri", redirectUri)   // 동의 후 돌아올 우리 콜백
-                .queryParam("scope", "read:user user:email")  // 요청 권한(프로필+이메일)
+                //로그인용 GitHub OAuth(application.properties의 repo 스코프 포함)와 맞춰야 함 — repo가
+                //빠지면 이메일 가입 후 여기로 GitHub만 연동한 계정은 private 레포 목록·PR 조회가 깨진다
+                .queryParam("scope", "read:user user:email repo")
                 .queryParam("state", state)                // CSRF 방어 + userId 전달
                 .queryParam("prompt", "consent")           // 매번 동의화면 확실히 뜨게
                 .encode()

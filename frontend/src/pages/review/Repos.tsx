@@ -25,11 +25,16 @@ export default function Repos() {
   const [inbox, setInbox] = useState([]);   // 내가 받은 대기 중 초대 (FR-37)
 
   useEffect(() => {
-    if (user.githubUsername) api.getGithubRepos().then(setRepos);
-    api.getMyInvitations().then(setInbox);
+    // 실패를 안 잡으면 콘솔에만 뜨고 화면은 빈 채로 멈춘다
+    if (user.githubUsername) {
+      api.getGithubRepos().then(setRepos)
+        .catch((e) => { setRepos([]); notify(e.message || '레포 목록을 불러오지 못했어요'); });
+    }
+    api.getMyInvitations().then(setInbox).catch(() => setInbox([]));
     // 이미 연동해둔 레포 목록 — GET /api/repos/github엔 "연동 여부"가 없어서 따로 대조해야 함
-    api.getMyLinkedRepos().then((rows) =>
-      setLinked(Object.fromEntries(rows.map((r) => [r.githubRepoId, r.repoId]))));
+    api.getMyLinkedRepos()
+      .then((rows) => setLinked(Object.fromEntries(rows.map((r) => [r.githubRepoId, r.repoId]))))
+      .catch(() => setLinked({}));
   }, [user.githubUsername]);
 
   // 초대 수락/거절 (API-030/030-1). 수락하면 그 레포 PR 목록이 열린다

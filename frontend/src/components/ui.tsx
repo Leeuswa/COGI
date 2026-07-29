@@ -2,7 +2,7 @@
  * 자잘한 공용 컴포넌트 모음. 파일 하나로 충분해서 안 쪼갬.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, SESSION_MS } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 
@@ -53,13 +53,60 @@ function SessionTimer() {
   );
 }
 
+/* ── GNB 드롭다운 그룹. 큰 키워드 하나에 하위 링크 여러 개를 접어 넣는다 ──
+   hover로 열리고, 클릭으로도 토글(마우스 없는 터치·키보드 환경 대비),
+   바깥 클릭·Esc·포커스 이탈이면 닫힌다. 하위 메뉴 중 하나라도 보고 있으면 active로 표시 */
+function NavGroup({ label, active, children }) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+
+  useEffect(() => { // 바깥 클릭 닫기 — Bell 드롭다운과 같은 패턴
+    const close = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  useEffect(() => { // Esc로 닫기
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  return (
+    <div
+      className="gnb-group"
+      ref={boxRef}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onBlur={(e) => { if (boxRef.current && !boxRef.current.contains(e.relatedTarget)) setOpen(false); }}
+    >
+      <button
+        type="button"
+        className={active ? 'on' : ''}
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onFocus={() => setOpen(true)}
+      >
+        {label}
+      </button>
+      {/* 클릭으로 이동한 뒤에도 열려 있으면 안 되니 항목 클릭 시 같이 닫는다 */}
+      {open && <div className="gnb-drop" role="menu" onClick={() => setOpen(false)}>{children}</div>}
+    </div>
+  );
+}
+
 /* ── 상단 GNB. 로그인 전/후 메뉴가 달라진다 ── */
 export function Nav() {
   const { user, signOut } = useAuth();
   const { S, creditLimit } = useGame();
   const nav = useNavigate();
+  const loc = useLocation();
 
   const logout = () => { signOut(); nav('/'); };
+  // 하위 경로 중 하나라도 보고 있으면 상위 키워드도 활성 표시 — 안 그러면 어느 메뉴에 있는지 못 찾는다
+  const isOn = (paths: string[]) => paths.some((p) => loc.pathname === p || loc.pathname.startsWith(p + '/'));
 
   return (
     <nav className="gnb">
@@ -70,22 +117,31 @@ export function Nav() {
       {user ? (
         <div className="links">
           <NavLink to="/app" end className={({ isActive }) => (isActive ? 'on' : '')}>대시보드</NavLink>
-          <NavLink to="/app/prs" className={({ isActive }) => (isActive ? 'on' : '')}>PR 리뷰</NavLink>
-          <NavLink to="/app/paste" className={({ isActive }) => (isActive ? 'on' : '')}>리뷰 스튜디오</NavLink>
-          <NavLink to="/app/history" className={({ isActive }) => (isActive ? 'on' : '')}>리뷰 히스토리</NavLink>
-          <NavLink to="/app/weakness" className={({ isActive }) => (isActive ? 'on' : '')}>약점</NavLink>
-          <NavLink to="/app/cards" className={({ isActive }) => (isActive ? 'on' : '')}>학습카드</NavLink>
-          <NavLink to="/app/courses" className={({ isActive }) => (isActive ? 'on' : '')}>강의</NavLink>
-          <NavLink to="/app/skills" className={({ isActive }) => (isActive ? 'on' : '')}>스킬 추천</NavLink>
-          <NavLink to="/app/growth" className={({ isActive }) => (isActive ? 'on' : '')}>성장</NavLink>
-          <NavLink to="/app/reports" className={({ isActive }) => (isActive ? 'on' : '')}>주간리포트</NavLink>
-          <NavLink to="/app/team" className={({ isActive }) => (isActive ? 'on' : '')}>팀</NavLink>
-          <NavLink to="/app/plan" className={({ isActive }) => (isActive ? 'on' : '')}>요금제</NavLink>
-          <NavLink to="/app/faq" className={({ isActive }) => (isActive ? 'on' : '')}>FAQ</NavLink>
-          <NavLink to="/app/my" className={({ isActive }) => (isActive ? 'on' : '')}>마이</NavLink>
-          {user.role === 'ADMIN' && (
-            <NavLink to="/app/admin" className={({ isActive }) => (isActive ? 'on' : '')}>관리자</NavLink>
-          )}
+          <NavGroup label="리뷰" active={isOn(['/app/prs', '/app/paste', '/app/history'])}>
+            <NavLink to="/app/prs" className={({ isActive }) => (isActive ? 'on' : '')}>PR 리뷰</NavLink>
+            <NavLink to="/app/paste" className={({ isActive }) => (isActive ? 'on' : '')}>리뷰 스튜디오</NavLink>
+            <NavLink to="/app/history" className={({ isActive }) => (isActive ? 'on' : '')}>리뷰 히스토리</NavLink>
+          </NavGroup>
+          <NavGroup label="학습" active={isOn(['/app/weakness', '/app/cards', '/app/courses', '/app/skills'])}>
+            <NavLink to="/app/weakness" className={({ isActive }) => (isActive ? 'on' : '')}>약점</NavLink>
+            <NavLink to="/app/cards" className={({ isActive }) => (isActive ? 'on' : '')}>학습카드</NavLink>
+            <NavLink to="/app/courses" className={({ isActive }) => (isActive ? 'on' : '')}>강의</NavLink>
+            <NavLink to="/app/skills" className={({ isActive }) => (isActive ? 'on' : '')}>AI 스킬 추천</NavLink>
+          </NavGroup>
+          <NavGroup label="성장" active={isOn(['/app/growth', '/app/reports'])}>
+            <NavLink to="/app/growth" className={({ isActive }) => (isActive ? 'on' : '')}>성장 추이</NavLink>
+            <NavLink to="/app/reports" className={({ isActive }) => (isActive ? 'on' : '')}>주간 리포트</NavLink>
+          </NavGroup>
+          <NavGroup label="더보기" active={isOn(['/app/team', '/app/plan', '/app/faq', '/app/admin'])}>
+            <NavLink to="/app/team" className={({ isActive }) => (isActive ? 'on' : '')}>팀</NavLink>
+            <NavLink to="/app/plan" className={({ isActive }) => (isActive ? 'on' : '')}>요금제</NavLink>
+            <NavLink to="/app/faq" className={({ isActive }) => (isActive ? 'on' : '')}>FAQ</NavLink>
+            {user.role === 'ADMIN' && (
+              <NavLink to="/app/admin" className={({ isActive }) => (isActive ? 'on' : '')}>관리자</NavLink>
+            )}
+          </NavGroup>
+          {/* 자주 들어가는 곳이라 접지 않고 밖에 둔다 */}
+          <NavLink to="/app/my" className={({ isActive }) => (isActive ? 'on' : '')}>마이페이지</NavLink>
           <Bell loginId={user.loginId} />
           {/* 코인/크레딧 요약. 눌러도 아무 일 없음, 상태 표시용 */}
           <span className="nav-wallet" title={`코인 ${S.coins}개 · 남은 크레딧 ${creditLimit - S.creditUsed}개`}>

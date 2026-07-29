@@ -84,8 +84,8 @@ function DesktopWeakness() {
                   {creating === w.id ? '카드 굽는 중…' : '학습카드 만들기 (⚡1)'}
                 </button>
               )}
-              {/* 이 약점 카테고리로 걸러진 스킬 목록으로 — 큐레이션 조회라 크레딧 안 든다 */}
-              <Link className="btn wh sm" to={`/app/skills?category=${w.category}`}>🤖 AI 스킬 추천</Link>
+              {/* AI 스킬 추천 화면으로. 거기서 "내 약점" 표시와 약점 기반 추천을 볼 수 있다 */}
+              <Link className="btn wh sm" to="/app/skills">🤖 AI 스킬 추천</Link>
             </div>
           </div>
         ))

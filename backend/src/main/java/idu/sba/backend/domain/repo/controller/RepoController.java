@@ -75,11 +75,14 @@ public class RepoController {
         return ApiResponse.ok(reviewService.createFromPrImport(userId, repoId, prNumber, request));
     }
 
-    // PR 리뷰 대시보드(API-032, 팀 대신 레포 기준으로 축소) [설계 추론] — 우리 DB에 실제 리뷰가 기록된 PR 목록
+    // PR 리뷰 대시보드(API-032, 팀 대신 레포 기준으로 축소) [설계 추론] — 우리 DB에 실제 리뷰가 기록된 PR 목록.
+    // severity/author는 선택 필터(FR-41/42) — 미지정 시 전체 반환, 서버에서 걸러서 내려줌
     @GetMapping("/{repoId}/prs/reviewed")
     public ApiResponse<List<PrListItemResponseDTO>> listReviewedPrs(
-            @AuthenticationPrincipal Long userId, @PathVariable Long repoId) {
-        return ApiResponse.ok(prService.listReviewedPrs(userId, repoId));
+            @AuthenticationPrincipal Long userId, @PathVariable Long repoId,
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String author) {
+        return ApiResponse.ok(prService.listReviewedPrs(userId, repoId, severity, author));
     }
 
 }

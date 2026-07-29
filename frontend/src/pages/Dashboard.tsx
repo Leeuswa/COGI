@@ -55,6 +55,9 @@ function DesktopDashboard() {
       .catch(() => setTrend([]));
   }, [user.userId]);
 
+  // 추이의 마지막 칸이 이번 주다. 아직 못 받았으면 0
+  const thisWeekIssues = trend?.length ? trend[trend.length - 1].issueCount : 0;
+
   // 이번 달 달력. 1일 앞 빈칸을 채워 요일을 맞춘다
   const now = new Date();
   const year = now.getFullYear();
@@ -85,7 +88,8 @@ function DesktopDashboard() {
         {/* 오늘 상태 한 줄 요약 — 숫자만 훑고 지나갈 수 있게 */}
         <div className="hud-row">
           <div className="hud-card">
-            <span className="sc-label">연속 학습</span>
+            {/* 끊겨도 줄지 않으니 "연속"이 아니다. 실제로 세는 건 학습한 날 수 */}
+            <span className="sc-label">총 학습일</span>
             <b className="sc-value">{S.streak}<em>일</em></b>
           </div>
           <div className={`hud-card ${pct >= 90 ? "warn" : ""}`}>
@@ -96,9 +100,10 @@ function DesktopDashboard() {
             <span className="sc-label">지금 약점</span>
             <b className="sc-value">{weakness.length}<em>개</em></b>
           </div>
+          {/* 학습 일수는 왼쪽 칸과 겹쳐서, 이번 주에 몇 건 지적받았는지로 바꿨다 */}
           <div className="hud-card">
-            <span className="sc-label">이번 달 학습</span>
-            <b className="sc-value">{S.submitDays.length}<em>일</em></b>
+            <span className="sc-label">이번 주 이슈</span>
+            <b className="sc-value">{thisWeekIssues}<em>개</em></b>
           </div>
         </div>
 
@@ -140,7 +145,7 @@ function DesktopDashboard() {
           <div className="dash-col">
             <div className="panel cal-panel">
               <div className="dash-head">
-                <h3>🔥 연속 학습 {S.streak}일</h3>
+                <h3>🔥 총 학습일 {S.streak}일</h3>
                 <span className="note sm">{year}년 {month + 1}월</span>
               </div>
 

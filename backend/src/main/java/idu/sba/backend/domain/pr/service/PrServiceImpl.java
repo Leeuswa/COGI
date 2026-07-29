@@ -94,7 +94,7 @@ public class PrServiceImpl implements PrService {
     }
 
     @Override
-    public List<PrListItemResponseDTO> listReviewedPrs(Long currentUserId, Long repoId) {
+    public List<PrListItemResponseDTO> listReviewedPrs(Long currentUserId, Long repoId, String severity, String author) {
         requireRepoMember(currentUserId, repoId);
         return pullRequestRepository.findByRepoIdOrderByCreatedAtDesc(repoId).stream()
                 .map(pr -> {
@@ -104,6 +104,10 @@ public class PrServiceImpl implements PrService {
                             .orElse(List.of());
                     return PrListItemResponseDTO.of(pr, resolveAuthorName(pr), issues);
                 })
+                // topSeverity/authorName은 DB 컬럼이 아니라 이슈 목록·닉네임 조회로 만들어지는 값이라
+                // DB 쿼리로 못 거르고, 응답 DTO를 만든 뒤 여기서 거른다(FR-41/42, 프론트가 하던 걸 서버로 이동)
+                .filter(item -> severity == null || severity.isBlank() || severity.equals(item.getTopSeverity()))
+                .filter(item -> author == null || author.isBlank() || author.equals(item.getAuthorName()))
                 .toList();
     }
 
