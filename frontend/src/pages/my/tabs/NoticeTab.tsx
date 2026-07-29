@@ -4,12 +4,16 @@
  */
 import { useEffect, useState } from 'react';
 import * as api from '../../../api/client';
+import Pager, { pageSlice } from '../../../components/Pager';
+
+const PAGE_SIZE = 10; // 공지는 자동 삭제가 없어 계속 쌓인다
 
 const fmt = (d) => (d ? d.slice(0, 10).replace(/-/g, '.') : ''); // '2026-07-27T…' → '2026.07.27'
 
 export default function NoticeTab() {
   const [notices, setNotices] = useState<any[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
 
   useEffect(() => { api.getNotices().then(setNotices).catch(() => setNotices([])); }, []);
 
@@ -17,8 +21,9 @@ export default function NoticeTab() {
   if (notices.length === 0) return <div className="empty"><p>아직 공지가 없어요.</p></div>;
 
   return (
+    <>
     <div className="faq-list">
-      {notices.map((n) => {
+      {pageSlice(notices, page, PAGE_SIZE).map((n) => {
         const isOpen = open === n.id;
         return (
           <div key={n.id} className={`faq-item${isOpen ? ' open' : ''}`}>
@@ -32,5 +37,7 @@ export default function NoticeTab() {
         );
       })}
     </div>
+    <Pager page={page} total={notices.length} size={PAGE_SIZE} onChange={setPage} />
+    </>
   );
 }

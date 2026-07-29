@@ -14,7 +14,7 @@ const VENDORS = [
 const vendorOf = (m) => VENDORS.find((v) => v.match((m || '').toLowerCase()))?.key || null;
 const BUDGET_USD = 10; // 벤더별 상한 $10 — 이 금액의 토큰 환산치가 바의 100%
 
-export default function UsageTab({ usage, range, setRange, latency }) {
+export default function UsageTab({ usage, range, setRange, latency, providerUsage = [] }) {
   // 명세(credit_usage 비고): 관리자 전체 비용상한은 두지 않는다 — 합계는 참고용 표기만
   const totalCost = usage.reduce((a, u) => a + Number(u.cost || 0), 0);
 
@@ -165,6 +165,32 @@ export default function UsageTab({ usage, range, setRange, latency }) {
           })}
         </div>
       )}
+
+      {/* 벤더 대시보드 실사용량 — 위 그래프/바는 우리 자체집계, 이건 벤더가 보고한 실제 수치 */}
+      <div className="panel">
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
+          <b>벤더 실사용량 (대시보드 기준)</b>
+          <span className="note sm">OpenAI · Anthropic Admin API · 선택 기간 · Gemini는 usage API 미제공</span>
+        </div>
+        {providerUsage.length === 0 ? (
+          <p className="note sm">벤더 Admin 키가 설정되지 않았거나 이 기간에 벤더 기록이 없어요.</p>
+        ) : (
+          <table className="tbl">
+            <thead><tr><th>일자</th><th>벤더</th><th>IN</th><th>OUT</th><th>비용(USD)</th></tr></thead>
+            <tbody>
+              {providerUsage.map((p) => (
+                <tr key={`${p.vendor}-${p.date}`}>
+                  <td className="mono xs">{p.date}</td>
+                  <td><span className="chip navy">{p.vendor}</span></td>
+                  <td className="mono">{(p.inputTokens || 0).toLocaleString()}</td>
+                  <td className="mono">{(p.outputTokens || 0).toLocaleString()}</td>
+                  <td className="mono">{p.cost == null ? '—' : `$${Number(p.cost).toFixed(4)}`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       <div className="panel flush">
         <table className="tbl">
