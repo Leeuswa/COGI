@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,16 +40,27 @@ public class ProviderUsageClient {
     private static final String ANTHROPIC_VERSION = "2023-06-01";
     private static final int DAILY_BUCKET_LIMIT = 31;  // 두 벤더 모두 1d 버킷은 페이지당 31개가 상한
     private static final int MAX_PAGES = 24;           // 무한 페이지네이션 방지 (31 * 24 ≈ 2년)
+    // 벤더별 비용 단위: OpenAI는 달러, Anthropic은 센트로 보고한다(문서: "decimal strings in lowest units (cents)").
+    private static final BigDecimal USD_PER_USD = BigDecimal.ONE;
+    private static final BigDecimal CENTS_PER_USD = BigDecimal.valueOf(100);
 
     private final String openaiAdminKey;
     private final String claudeAdminKey;
+    // 비어 있으면 조직 전체를 조회한다. 값을 넣으면 그 API 키들의 사용량만 남아 우리 앱 사용분만 본다
+    // (벤더 대시보드는 Workbench·다른 앱까지 합산하므로, 숫자를 맞추려면 이 필터가 필요하다).
+    private final List<String> openaiApiKeyIds;
+    private final List<String> claudeApiKeyIds;
     private final RestClient openai;
     private final RestClient claude;
 
     public ProviderUsageClient(@Value("${ai.openai.adminKey:}") String openaiAdminKey,
-                               @Value("${ai.claude.adminKey:}") String claudeAdminKey) {
+                               @Value("${ai.claude.adminKey:}") String claudeAdminKey,
+                               @Value("${ai.openai.apiKeyIds:}") String openaiApiKeyIds,
+                               @Value("${ai.claude.apiKeyIds:}") String claudeApiKeyIds) {
         this.openaiAdminKey = openaiAdminKey;
         this.claudeAdminKey = claudeAdminKey;
+        this.openaiApiKeyIds = splitIds(openaiApiKeyIds);
+        this.claudeApiKeyIds = splitIds(claudeApiKeyIds);
 
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build());
@@ -57,6 +69,15 @@ public class ProviderUsageClient {
                 .requestFactory(requestFactory).build();
         this.claude = RestClient.builder().baseUrl(AiProvider.CLAUDE.baseUrl())
                 .requestFactory(requestFactory).build();
+    }
+
+    // "apikey_01ABC, apikey_01DEF" → ["apikey_01ABC", "apikey_01DEF"]. 비었으면 빈 리스트(=필터 없음).
+    private static List<String> splitIds(String csv) {
+        if (csv == null || csv.isBlank()) return List.of();
+        return java.util.Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     /** from~to(포함) 구간의 벤더별·일자별 사용량. 한 벤더가 실패해도 다른 벤더 결과는 그대로 돌려준다. */
@@ -85,16 +106,17 @@ public class ProviderUsageClient {
 
         long start = from.atStartOfDay().toInstant(ZoneOffset.UTC).getEpochSecond();
         long end = to.atTime(LocalTime.MAX).toInstant(ZoneOffset.UTC).getEpochSecond();
-        Map<String, Object> query = Map.of(
+        Map<String, Object> query = new LinkedHashMap<>(Map.of(
                 "start_time", start, "end_time", end,
-                "bucket_width", "1d", "limit", DAILY_BUCKET_LIMIT);
+                "bucket_width", "1d", "limit", DAILY_BUCKET_LIMIT));
+        if (!openaiApiKeyIds.isEmpty()) query.put("api_key_ids[]", openaiApiKeyIds);
 
         Map<LocalDate, Agg> byDate = new LinkedHashMap<>();
         for (JsonNode bucket : buckets(openai, "/organization/usage/completions", query, false, openaiAdminKey)) {
             agg(byDate, openAiBucketDate(bucket)).addTokens(bucket.path("results"));
         }
         for (JsonNode bucket : buckets(openai, "/organization/costs", query, false, openaiAdminKey)) {
-            agg(byDate, openAiBucketDate(bucket)).addCost(bucket.path("results"));
+            agg(byDate, openAiBucketDate(bucket)).addCost(bucket.path("results"), USD_PER_USD);
         }
         return toDtos("OPENAI", byDate);
     }
@@ -108,15 +130,17 @@ public class ProviderUsageClient {
         String end = to.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC).toString();
 
         Map<LocalDate, Agg> byDate = new LinkedHashMap<>();
-        Map<String, Object> usageQuery = Map.of(
-                "starting_at", start, "ending_at", end, "bucket_width", "1d", "limit", DAILY_BUCKET_LIMIT);
+        Map<String, Object> usageQuery = new LinkedHashMap<>(Map.of(
+                "starting_at", start, "ending_at", end, "bucket_width", "1d", "limit", DAILY_BUCKET_LIMIT));
+        // cost_report는 api_key_ids 필터를 지원하지 않는다 — 비용은 조직 전체로 남는다(아래 costQuery는 그대로).
+        if (!claudeApiKeyIds.isEmpty()) usageQuery.put("api_key_ids[]", claudeApiKeyIds);
         for (JsonNode bucket : buckets(claude, "/v1/organizations/usage_report/messages", usageQuery, true, claudeAdminKey)) {
             agg(byDate, claudeBucketDate(bucket)).addTokens(bucket.path("results"));
         }
         // cost_report는 bucket_width를 받지 않는다(1일 고정).
         Map<String, Object> costQuery = Map.of("starting_at", start, "ending_at", end, "limit", DAILY_BUCKET_LIMIT);
         for (JsonNode bucket : buckets(claude, "/v1/organizations/cost_report", costQuery, true, claudeAdminKey)) {
-            agg(byDate, claudeBucketDate(bucket)).addCost(bucket.path("results"));
+            agg(byDate, claudeBucketDate(bucket)).addCost(bucket.path("results"), CENTS_PER_USD);
         }
         return toDtos("CLAUDE", byDate);
     }
@@ -131,7 +155,12 @@ public class ProviderUsageClient {
             JsonNode res = client.get()
                     .uri(b -> {
                         b.path(path);
-                        query.forEach(b::queryParam);
+                        // 리스트 값은 같은 이름으로 여러 번 붙어야 한다(api_key_ids[]=a&api_key_ids[]=b).
+                        // 그냥 넘기면 "[a, b]" 한 덩어리로 인코딩돼 필터가 통째로 무시된다.
+                        query.forEach((k, v) -> {
+                            if (v instanceof Collection<?> c) b.queryParam(k, c);
+                            else b.queryParam(k, v);
+                        });
                         if (cursor != null) b.queryParam("page", cursor);
                         return b.build();
                     })
@@ -188,18 +217,25 @@ public class ProviderUsageClient {
             outputTokens += t[1];
         }
 
-        void addCost(JsonNode results) {
-            BigDecimal c = sumCost(results);
+        // divisor로 벤더의 통화 단위를 USD에 맞춘다 — OpenAI는 달러(1), Anthropic은 센트(100)로 보고한다.
+        void addCost(JsonNode results, BigDecimal divisor) {
+            BigDecimal c = sumCost(results).divide(divisor, 6, java.math.RoundingMode.HALF_UP);
             cost = cost == null ? c : cost.add(c);
         }
     }
 
+    // 벤더 대시보드의 "총 입력 토큰"과 숫자를 맞추기 위해, 캐시 토큰을 뺀 순수 입력만 센다.
+    // Anthropic은 input을 uncached / cache_read / cache_creation.ephemeral_* 로 쪼개 보고하는데,
+    // 대시보드 헤드라인 수치는 uncached만 집계한다. cache_read를 더하면 실측이 대시보드의 수십 배로 벌어진다.
+    private static final java.util.Set<String> INPUT_TOKEN_FIELDS =
+            java.util.Set.of("input_tokens", "uncached_input_tokens");
+
     /**
-     * 이름이 *input_tokens / *output_tokens 로 끝나는 숫자 리프를 전부 더한다. 반환 [input, output].
+     * 입력/출력 토큰을 합산한다. 반환 [input, output].
      *
-     * 벤더가 캐시 토큰을 여러 필드로 쪼개거나(Anthropic: uncached_input_tokens / cache_read_input_tokens /
-     * cache_creation.ephemeral_*_input_tokens) 스키마를 바꿔도 집계가 조용히 0이 되지 않게 하려는 방어적 파싱.
-     * OpenAI의 input_cached_tokens처럼 input_tokens의 부분집합인 필드는 이름이 안 걸려 자동으로 빠진다(중복합산 방지).
+     * 세는 대상: input_tokens(OpenAI) · uncached_input_tokens(Anthropic) · output_tokens.
+     * 제외: cache_read_input_tokens, cache_creation.* (캐시 토큰), OpenAI의 input_cached_tokens(부분집합).
+     * 중첩 객체도 훑기 때문에 스키마가 조금 달라져도 필드명이 같으면 계속 집계된다.
      */
     static long[] sumTokens(JsonNode node) {
         long[] acc = new long[2];
@@ -212,9 +248,11 @@ public class ProviderUsageClient {
             for (Map.Entry<String, JsonNode> e : node.properties()) {
                 String name = e.getKey();
                 JsonNode v = e.getValue();
+                // cache_creation 하위에는 ephemeral_*_input_tokens가 들어 있다 — 통째로 건너뛴다.
+                if ("cache_creation".equals(name)) continue;
                 if (v.isNumber()) {
-                    if (name.endsWith("input_tokens")) acc[0] += v.asLong();
-                    else if (name.endsWith("output_tokens")) acc[1] += v.asLong();
+                    if (INPUT_TOKEN_FIELDS.contains(name)) acc[0] += v.asLong();
+                    else if ("output_tokens".equals(name)) acc[1] += v.asLong();
                 } else {
                     walkTokens(v, acc);
                 }
