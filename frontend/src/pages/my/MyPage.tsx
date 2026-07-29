@@ -104,14 +104,16 @@ function DesktopMyPage() {
   const changePw = async () => {
     if (!isValidPassword(pw.next)) return notify(PW_HINT);
     if (pw.next !== pw.confirm) return notify('새 비밀번호가 서로 달라요. 다시 확인해주세요');
+    if (pw.next === pw.cur) return notify('기존 비밀번호와 다른 비밀번호를 사용해주세요');
     setPwBusy(true);
     try {
       await api.changePassword(pw.cur, pw.next, pw.confirm);
       notify('비밀번호를 바꿨어요. 다음 로그인부터 적용됩니다');
       setPw({ cur: '', next: '', confirm: '' });
       setPwOpen(false);
-    } catch {
-      notify('현재 비밀번호가 맞지 않아요');
+    } catch (ex) {
+      // 서버 메시지 그대로 (현재 비번 불일치 / 기존과 동일 등 구분)
+      notify(ex.message || '현재 비밀번호가 맞지 않아요');
     } finally { setPwBusy(false); }
   };
 
@@ -135,6 +137,19 @@ function DesktopMyPage() {
       notify('2차 인증이 켜졌어요. 다음 로그인부터 6자리를 물어봅니다');
     } catch (ex) {
       notify(ex.message || '인증 코드가 올바르지 않아요');
+    } finally { setBusy(false); }
+  };
+
+  // 2차 인증 해제 — 켜진 사람만. 해제해야 다시 setup 가능
+  const disableTotp = async () => {
+    setBusy(true);
+    try {
+      await api.totpDisable();
+      patchUser({ totpEnabled: false });
+      setTotp(null);
+      notify('2차 인증을 해제했어요.');
+    } catch (ex) {
+      notify(ex.message || '해제에 실패했어요');
     } finally { setBusy(false); }
   };
 
@@ -166,7 +181,7 @@ function DesktopMyPage() {
           pw={pw} setPw={setPw} pwOpen={pwOpen} setPwOpen={setPwOpen} onChangePw={changePw} pwBusy={pwBusy} />
       )}
       {tab === 'github' && <GithubTab user={user} onLink={linkGh} busy={busy} error={linkError} />}
-      {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} onEnable={enableTotp} busy={busy} />}
+      {tab === 'security' && <SecurityTab user={user} totp={totp} onSetup={setupTotp} onEnable={enableTotp} onDisable={disableTotp} busy={busy} />}
       {tab === 'terms' && <TermsTab terms={terms} agreedIds={agreedIds} agreedVers={agreedVers} onReagreed={loadAgreements} />}
       {tab === 'notice' && <NoticeTab />}
 

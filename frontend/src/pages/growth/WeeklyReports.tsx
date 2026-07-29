@@ -5,14 +5,21 @@
  * (수동 재발송 API는 뒀지만 UI에선 안 씀 — 나중에 재발송 기능 붙일 때 재사용)
  */
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
 import { PageHead } from '../../components/ui';
-import { catKo } from '../../data/constants';
+import { catKo, sevKo } from '../../data/constants';
 import useIsMobile from '../../hooks/useIsMobile';
 import MobileReports from '../mobile/MobileReports';
 
 const fmt = (d) => d.slice(5).replace('-', '/'); // '2026-07-06' → '07/06'
+
+// 심각도 → 칩 색 (기존 .chip 클래스 재사용)
+const SEV_CHIP = { CRITICAL: 'hi', MAJOR: 'mid', MINOR: 'low' };
+// 설명 한 줄로 — 코드블록/백틱 걷어내고 공백 정리 후 90자
+const brief = (d) => {
+  const t = (d || '').replace(/```[\s\S]*?```/g, '').replace(/`([^`]+)`/g, '$1').replace(/\s+/g, ' ').trim();
+  return t.length > 90 ? t.slice(0, 90) + '…' : t;
+};
 
 // 3칸 stat 카드 공통 스타일 — margin-top 0(형제 margin 상쇄) + 높이 통일 + 세로 중앙
 const sc = { marginTop: 0, minHeight: 120, display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', gap: 6 };
@@ -25,17 +32,18 @@ export default function WeeklyReports() {
 }
 
 function DesktopWeeklyReports() {
-  const navigate = useNavigate();
   const [reports, setReports] = useState([]);
   const [open, setOpen] = useState(null);   // 팝업에 띄운 리포트
-  const [drill, setDrill] = useState(null);  // { status, prs } — 건수 클릭 시 뜨는 PR 목록
+  const [drill, setDrill] = useState(null);  // { status, issues } — 건수 클릭 시 뜨는 이슈 목록
+  const [drillRepo, setDrillRepo] = useState('ALL'); // 이슈 목록 레포 필터
 
   useEffect(() => { api.getWeeklyReports().then(setReports); }, []);
 
-  // 발생/해결 건수 클릭 → 그 주 PR 리뷰 목록을 띄운다
+  // 발생/해결 건수 클릭 → 그 주 이슈를 하나하나 띄운다 (해결 탭은 해결된 것만)
   const openDrill = async (status) => {
-    const prs = await api.getWeeklyReportPrs(open.id, status);
-    setDrill({ status, prs });
+    const issues = await api.getWeeklyReportIssues(open.id, status);
+    setDrillRepo('ALL');
+    setDrill({ status, issues });
   };
 
 
@@ -76,7 +84,7 @@ function DesktopWeeklyReports() {
                     전주 {open.prevIssueCount} → {Math.abs(Math.round((1 - open.issueCount / open.prevIssueCount) * 100))}%
                     {open.issueCount <= open.prevIssueCount ? ' 감소' : ' 증가'}
                   </p>
-                ) : <span className="note xs drill-hint">PR 보기 →</span>}
+                ) : <span className="note xs drill-hint">이슈 보기 →</span>}
               </button>
               <button className="panel tc drill-card" style={sc} onClick={() => openDrill('RESOLVED')}>
                 <p className="note xs">해결</p>
@@ -131,35 +139,50 @@ function DesktopWeeklyReports() {
         </div>
       )}
 
-      {/* 드릴다운 — 건수 클릭 시 그 주 PR 리뷰 목록. PR 클릭하면 그 PR 상세로 이동 */}
-      {drill && (
+      {/* 드릴다운 — 건수 클릭 시 그 주 이슈를 하나하나. 레포가 여러 개면 드롭다운으로 필터 */}
+      {drill && (() => {
+        const repos = [...new Set(drill.issues.map((i) => String(i.repoName)))] as string[];
+        const shown = drillRepo === 'ALL' ? drill.issues : drill.issues.filter((i) => i.repoName === drillRepo);
+        return (
         <div className="modal-mask" onClick={() => setDrill(null)}>
           <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h3>{drill.status === 'RESOLVED' ? '해결된 이슈' : '발생 이슈'} · 지난주 PR 리뷰</h3>
-            {drill.prs.length === 0 ? (
-              <p className="note" style={{ margin: '14px 0' }}>해당하는 PR이 없어요.</p>
+            <h3>{drill.status === 'RESOLVED' ? '해결된 이슈' : '발생 이슈'} · 지난주</h3>
+
+            {repos.length > 1 && (
+              <select className="drill-repo" value={drillRepo} onChange={(e) => setDrillRepo(e.target.value)}>
+                <option value="ALL">전체 레포 ({drill.issues.length})</option>
+                {repos.map((rn) => (
+                  <option key={rn} value={rn}>{rn} ({drill.issues.filter((i) => i.repoName === rn).length})</option>
+                ))}
+              </select>
+            )}
+
+            {shown.length === 0 ? (
+              <p className="note" style={{ margin: '14px 0' }}>해당하는 이슈가 없어요.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '14px 0' }}>
-                {drill.prs.map((pr) => (
-                  <button key={pr.prId} className="panel report-row" onClick={() => navigate(`/app/prs/${pr.prId}`)}>
-                    <b className="mono">#{pr.prNumber}</b>
-                    <span className="note" style={{ maxWidth: '46%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {pr.title || '(제목 없음)'}
-                    </span>
-                    <span className="chip navy sm">{pr.repoName}</span>
-                    <span className="ml-auto note sm" style={{ fontWeight: 700 }}>
-                      {drill.status === 'RESOLVED' ? `해결 ${pr.resolvedCount}` : `이슈 ${pr.issueCount}`}건 →
-                    </span>
-                  </button>
+              <div className="issue-drill">
+                {shown.map((it) => (
+                  <div key={it.issueId} className="idrow">
+                    <div className="idrow-top">
+                      <span className={`chip sm ${SEV_CHIP[it.severity] ?? 'gray'}`}>{sevKo(it.severity)}</span>
+                      <span className="chip sm navy">{catKo(it.category)}</span>
+                      <span className="note xs">{it.repoName} #{it.prNumber}</span>
+                      {it.status === 'RESOLVED' && <span className="note xs" style={{ color: 'var(--mint)', fontWeight: 700 }}>✔ 해결</span>}
+                      <span className="mono xs ml-auto">{it.filePath}{it.lineNumber != null ? `:${it.lineNumber}` : ''}</span>
+                    </div>
+                    {brief(it.description) && <p className="idrow-desc">{brief(it.description)}</p>}
+                  </div>
                 ))}
               </div>
             )}
-            <div className="row" style={{ justifyContent: 'flex-end' }}>
+
+            <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
               <button className="btn wh sm" onClick={() => setDrill(null)}>뒤로</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </main>
   );
 }

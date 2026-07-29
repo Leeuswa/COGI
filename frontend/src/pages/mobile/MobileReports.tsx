@@ -6,17 +6,32 @@
  */
 import { useEffect, useState } from "react";
 import * as api from "../../api/client";
-import { catKo } from "../../data/constants";
+import { catKo, sevKo } from "../../data/constants";
 import "../../styles/mobile/reports.css";
 
 const fmt = (d) => d.slice(5).replace("-", "."); // '2026-07-06' → '07.06'
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0); // 이슈 0건인 주 나눗셈 방어
+const SEV_CHIP = { CRITICAL: "hi", MAJOR: "mid", MINOR: "low" };
+// 설명 한 줄로 — 코드블록/백틱 걷어내고 90자
+const brief = (d) => {
+  const t = (d || "").replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1").replace(/\s+/g, " ").trim();
+  return t.length > 90 ? t.slice(0, 90) + "…" : t;
+};
 
 export default function MobileReports() {
   const [reports, setReports] = useState(null);
   const [openId, setOpenId] = useState(null);
+  const [drill, setDrill] = useState(null);  // { reportId, status, issues }
+  const [drillRepo, setDrillRepo] = useState("ALL");
 
   useEffect(() => { api.getWeeklyReports().then(setReports).catch(() => setReports([])); }, []);
+
+  // 발생/해결 블록 탭 → 그 주 이슈를 하나하나 (해결이면 해결된 것만)
+  const openDrill = async (reportId, status) => {
+    const issues = await api.getWeeklyReportIssues(reportId, status);
+    setDrillRepo("ALL");
+    setDrill({ reportId, status, issues });
+  };
 
   if (!reports) return <main className="mapp"><p className="mnote">불러오는 중…</p></main>;
 
@@ -55,22 +70,57 @@ export default function MobileReports() {
                   <p className="mrp-summary">{r.summary}</p>
 
                   <div className="mrp-stats">
-                    <div>
+                    <button type="button" className="mrp-stat" onClick={() => openDrill(r.id, "OPEN")}>
                       <i>발생 이슈</i>
                       <b>{r.issueCount}</b>
-                      {r.prevIssueCount != null && (
+                      {r.prevIssueCount != null ? (
                         <em className={down ? "ok" : "no"}>
                           전주 {r.prevIssueCount} → {Math.abs(100 - pct(r.issueCount, r.prevIssueCount))}%
                           {down ? " 감소" : " 증가"}
                         </em>
-                      )}
-                    </div>
-                    <div>
+                      ) : <em className="hot">이슈 보기 →</em>}
+                    </button>
+                    <button type="button" className="mrp-stat" onClick={() => openDrill(r.id, "RESOLVED")}>
                       <i>해결</i>
                       <b className="ok">{r.resolvedCount}</b>
                       <em>해결률 {pct(r.resolvedCount, r.issueCount)}%</em>
-                    </div>
+                    </button>
                   </div>
+
+                  {/* 이슈 드릴다운 — 발생/해결 탭한 리포트에만 그 자리서 펼침 */}
+                  {drill && drill.reportId === r.id && (() => {
+                    const repos = [...new Set(drill.issues.map((i) => String(i.repoName)))] as string[];
+                    const shown = drillRepo === "ALL" ? drill.issues : drill.issues.filter((i) => i.repoName === drillRepo);
+                    return (
+                      <div className="mrp-drill">
+                        <div className="mrp-drill-head">
+                          <b>{drill.status === "RESOLVED" ? "해결된 이슈" : "발생 이슈"} {shown.length}건</b>
+                          <button type="button" className="mrp-drill-x" onClick={() => setDrill(null)}>✕</button>
+                        </div>
+                        {repos.length > 1 && (
+                          <select className="mrp-drill-repo" value={drillRepo} onChange={(e) => setDrillRepo(e.target.value)}>
+                            <option value="ALL">전체 레포 ({drill.issues.length})</option>
+                            {repos.map((rn) => (
+                              <option key={rn} value={rn}>{rn} ({drill.issues.filter((i) => i.repoName === rn).length})</option>
+                            ))}
+                          </select>
+                        )}
+                        {shown.length === 0 ? (
+                          <p className="mnote">해당 이슈가 없어요.</p>
+                        ) : shown.map((it) => (
+                          <div key={it.issueId} className="mrp-idrow">
+                            <div className="mrp-idtop">
+                              <span className={`chip sm ${SEV_CHIP[it.severity] ?? "gray"}`}>{sevKo(it.severity)}</span>
+                              <span className="chip sm navy">{catKo(it.category)}</span>
+                              <span className="mrp-idloc">{it.repoName} #{it.prNumber}</span>
+                            </div>
+                            <div className="mrp-idfile">{it.filePath}{it.lineNumber != null ? `:${it.lineNumber}` : ""}</div>
+                            {brief(it.description) && <p className="mrp-iddesc">{brief(it.description)}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   <h3 className="mrp-h">카테고리별 발생</h3>
                   <div className="mrp-cats">

@@ -157,7 +157,6 @@ export default function Onboarding() {
             <button className="btn co" disabled={interests.length === 0 || busy} onClick={finish}>
               {busy ? '알 배정 중…' : '시작하기 🥚'}
             </button>
-            <img src={SPR.egg} alt="" className="ml-auto" style={{ height: 34 }} />
           </div>
         </div>
       )}

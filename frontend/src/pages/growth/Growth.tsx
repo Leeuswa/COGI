@@ -104,8 +104,12 @@ function DesktopGrowth() {
         </select>
       </div>
 
-      {!trend ? (
+      {repos.length === 0 ? (
+        <div className="empty"><p>아직 성장 추이가 없어요.<br />GitHub 레포를 연동하고 PR 리뷰를 받으면 여기에 주별로 쌓여요.</p></div>
+      ) : !trend ? (
         <div className="panel"><p className="note">집계 중…</p></div>
+      ) : trend.length === 0 ? (
+        <div className="empty"><p>아직 집계할 데이터가 없어요.<br />PR 리뷰가 쌓이면 주간 발생·해결 추이가 그려져요.</p></div>
       ) : (
         <>
           <div className="panel">

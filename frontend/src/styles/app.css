@@ -1150,3 +1150,11 @@ nav.gnb .links .gnb-drop > a.on {
 /* 전체화면 좌측 코드 열 — 탭 바(고정 높이) + 코드 래프(나머지 전부)를 세로로 쌓는다 */
 .dock-code-col.side { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .dock-code-col.side .dock-code-wrap.side { flex: 1; min-height: 0; }
+
+/* 주간리포트 드릴다운 — 이슈 하나하나 카드 + 레포 드롭다운 */
+.drill-repo { margin: 14px 0 4px; padding: 8px 11px; border: 3px solid var(--navy); background: #fff; font-size: 13px; width: 100%; }
+.issue-drill { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.idrow { border: 3px solid var(--navy); background: #fdfcf7; padding: 11px 13px; }
+.idrow-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.idrow-top .mono { color: var(--sub); }
+.idrow-desc { font-size: 13px; line-height: 1.75; color: var(--sub); margin-top: 7px; }

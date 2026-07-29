@@ -89,8 +89,12 @@ export default function MobileGrowth() {
         </div>
       </section>
 
-      {!trend ? (
+      {repos.length === 0 ? (
+        <section className="mcard mempty"><p>아직 성장 추이가 없어요.<br />GitHub 레포를 연동하고 PR 리뷰를 받으면 주별로 쌓여요.</p></section>
+      ) : !trend ? (
         <p className="mnote">집계 중…</p>
+      ) : trend.length === 0 ? (
+        <section className="mcard mempty"><p>아직 집계할 데이터가 없어요.<br />PR 리뷰가 쌓이면 주간 발생·해결 추이가 그려져요.</p></section>
       ) : (
         <>
           <section className="mcard">
