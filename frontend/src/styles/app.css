@@ -1042,6 +1042,11 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .chat-skill:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
 .chat-skill:disabled { color: var(--sub); border-color: #cdd8ea; box-shadow: 2px 2px 0 #cdd8ea; cursor: default; }
 
+
+/* 주간리포트 드릴다운 — 발생/해결 건수 카드를 클릭 가능하게 (버튼이라 기본 모양 초기화) */
+.drill-card { cursor: pointer; font: inherit; text-align: center; transition: transform .08s, box-shadow .08s; }
+.drill-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--navy); background: #fffbe8; }
+.drill-hint { color: var(--coral); font-weight: 700; }
 /* ── GNB 드롭다운 그룹 — 큰 키워드 아래 하위 메뉴를 접어 넣는다. absolute라 펼쳐도 아래 콘텐츠를 안 민다 ── */
 /* 네비 높이만큼 세로로 꽉 채운다. 버튼만 감싸면 버튼 아래에 hover가 안 걸리는 빈 띠가 생겨
    마우스를 내리는 도중에 닫혀버린다. 그룹이 네비 바닥까지 닿아야 패널까지 끊김 없이 이어진다 */

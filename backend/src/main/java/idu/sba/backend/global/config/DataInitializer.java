@@ -68,6 +68,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /*
@@ -143,10 +145,10 @@ public class DataInitializer implements CommandLineRunner {
 
         seedAgreements(me);
         seedBilling(me);
-        seedRepoAndPr(admin, me, kim, lee);
+        Long teamRepoId = seedRepoAndPr(admin, me, kim, lee);
         seedWeakness(me);
-        seedLearning(me);
-        seedGrowth(me);
+        List<Long> quizIds = seedLearning(me);
+        seedGrowth(me, teamRepoId, quizIds);
         seedCourses();
         seedSkills();
         seedPets(admin, me, kim, lee);
@@ -375,7 +377,7 @@ public class DataInitializer implements CommandLineRunner {
 
     // ── 레포 2개 + 팀원 + PR 3건과 그 리뷰 결과 (팀 페이지 / PR 대시보드) ──
     // 레포 주인은 admin이다. 팀장 화면(위임·내보내기)을 admin으로 로그인해 확인할 수 있어야 해서다
-    private void seedRepoAndPr(User admin, User me, User kim, User lee) {
+    private Long seedRepoAndPr(User admin, User me, User kim, User lee) {
         GithubRepository repo1 = githubRepositoryRepository.save(
                 GithubRepository.link(admin.getId(), "900001", "cogi-backend", false, "cogi/cogi-backend"));
         GithubRepository repo2 = githubRepositoryRepository.save(
@@ -433,6 +435,8 @@ public class DataInitializer implements CommandLineRunner {
                         IssueStatus.RESOLVED),
                 issue(IssueCategory.CODE_SMELL, IssueSeverity.MINOR, "UserService.java", 40,
                         "중복된 조회 로직을 한 메서드로 모았습니다.", IssueStatus.RESOLVED)));
+
+        return repo1.getId(); // 주간 리포트 드릴다운용 PR을 여기에 심는다
     }
 
     // PR 한 건 + 완료된 리뷰 + 이슈들. daysAgo만큼 과거로 밀어야 성장추이 그래프에 주별로 흩어진다
@@ -493,7 +497,8 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     // ── 학습카드 + 푼 문제 + 연속 학습일 (LRN-002 / RET-001) ──
-    private void seedLearning(User me) {
+    // 만든 퀴즈 id를 돌려줘 주간 리포트용 과거 제출(seedGrowth)에서 재활용한다
+    private List<Long> seedLearning(User me) {
         LearningCard card = learningCardRepository.save(LearningCard.create(
                 me.getId(), "BUG", "INTERMEDIATE", "Java", "claude-haiku-4-5",
                 "널 반환은 호출한 쪽이 확인을 잊는 순간 그대로 터진다. 값이 없을 수 있다는 사실을 타입에 담아 넘기면 컴파일 단계에서 걸린다.",
@@ -532,6 +537,8 @@ public class DataInitializer implements CommandLineRunner {
         streak.recordSubmission(LocalDate.now().minusDays(1));
         streak.recordSubmission(LocalDate.now());
         userStreakRepository.save(streak);
+
+        return List.of(q1.getId(), q2.getId(), q3.getId());
     }
 
     // 퀴즈 한 문제 저장 — 보기가 없는 유형(주관식·빈칸)은 options에 null을 넣는다
@@ -599,15 +606,99 @@ public class DataInitializer implements CommandLineRunner {
                 .orElseGet(() -> petStateRepository.save(PetState.create(userId)));
     }
 
-    // ── 주간 리포트 2주치 (RET-002 / 성장추이). 이슈가 줄어드는 흐름으로 넣는다 ──
-    private void seedGrowth(User me) {
+    // ── 주간 리포트 2주치 (RET-002 / 성장추이) ──
+    // 드릴다운·카테고리 바가 실제로 뜨려면 그 주(window) 안에 me의 PR 이슈가 있어야 한다.
+    // 그래서 지난주·2주전 창에 맞춰 me의 PR을 심고, 리포트 수치는 그 이슈에서 다시 뽑는다
+    // (모달 수치 = 카테고리 바 = 드릴다운이 항상 일치).
+    private void seedGrowth(User me, Long repoId, List<Long> quizIds) {
         LocalDate thisMonday = LocalDate.now().with(java.time.DayOfWeek.MONDAY);
-        weeklyReportRepository.save(WeeklyReport.of(me.getId(),
-                thisMonday.minusWeeks(1), thisMonday.minusDays(1), 8, 5, 12, "BUG",
-                "지난주 이슈 8건 · 전주 12건 대비 4건 줄었고 5건을 해결했습니다. 최다 약점은 BUG입니다."));
-        weeklyReportRepository.save(WeeklyReport.of(me.getId(),
-                thisMonday.minusWeeks(2), thisMonday.minusWeeks(1).minusDays(1), 12, 3, 10, "SECURITY",
-                "2주 전 이슈 12건 중 3건을 해결했습니다. 최다 약점은 SECURITY입니다."));
+        LocalDate lastMon = thisMonday.minusWeeks(1);
+        LocalDate twoMon = thisMonday.minusWeeks(2);
+
+        // 지난주 PR 2건 — 발생 5 / 해결 3, 최다 BUG
+        seedWeekPr(repoId, 21, "feat: 리포트 필터 추가", me, "claude-sonnet-5", "Java", lastMon, List.of(
+                issue(IssueCategory.SECURITY, IssueSeverity.CRITICAL, "ReportController.java", 30,
+                        "권한 검증 없이 남의 리포트가 조회됩니다. userId 소유 확인을 추가하세요.", IssueStatus.OPEN),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "ReportService.java", 55,
+                        "빈 결과에서 첫 원소에 접근해 예외가 납니다. 비었는지 먼저 확인하세요.", IssueStatus.RESOLVED),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "ReportService.java", 70,
+                        "주 경계 계산이 하루 어긋납니다(off-by-one).", IssueStatus.RESOLVED)));
+        seedWeekPr(repoId, 22, "fix: 페이지네이션 경계", me, "claude-haiku-4-5", "Java", lastMon, List.of(
+                issue(IssueCategory.PERFORMANCE, IssueSeverity.MAJOR, "PageUtil.java", 18,
+                        "루프 안에서 매번 카운트 쿼리가 나갑니다. 한 번에 집계하세요.", IssueStatus.OPEN),
+                issue(IssueCategory.CODE_SMELL, IssueSeverity.MINOR, "PageUtil.java", 40,
+                        "경계 계산이 두 곳에 중복돼 있습니다.", IssueStatus.RESOLVED)));
+
+        // 2주 전 PR 2건 — 발생 5 / 해결 3, 최다 SECURITY
+        seedWeekPr(repoId, 23, "feat: 알림 발송", me, "claude-haiku-4-5", "Java", twoMon, List.of(
+                issue(IssueCategory.SECURITY, IssueSeverity.CRITICAL, "Notifier.java", 12,
+                        "액세스 토큰이 로그에 그대로 남습니다.", IssueStatus.OPEN),
+                issue(IssueCategory.SECURITY, IssueSeverity.MAJOR, "Notifier.java", 33,
+                        "HTTP로 전송해 중간자 공격에 노출됩니다. HTTPS로 바꾸세요.", IssueStatus.RESOLVED),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "Notifier.java", 50,
+                        "재시도 로직에서 예외를 삼켜 실패가 묻힙니다.", IssueStatus.RESOLVED)));
+        seedWeekPr(repoId, 24, "refactor: 메일 템플릿 정리", me, "claude-haiku-4-5", "Java", twoMon, List.of(
+                issue(IssueCategory.CODE_SMELL, IssueSeverity.MINOR, "MailTemplate.java", 22,
+                        "같은 HTML 문자열이 여러 번 반복됩니다.", IssueStatus.RESOLVED),
+                issue(IssueCategory.CONVENTION, IssueSeverity.MINOR, "MailTemplate.java", 8,
+                        "상수가 소문자로 선언돼 있습니다.", IssueStatus.OPEN)));
+
+        // 주간 리포트 "학습 활동"이 뜨도록 그 주 창에 퀴즈 제출을 심는다 (제출/정답 수를 다르게)
+        seedWeekQuizzes(me, quizIds, lastMon, 5, 4); // 지난주: 제출 5 · 정답 4 (80%)
+        seedWeekQuizzes(me, quizIds, twoMon, 4, 2);  // 2주전: 제출 4 · 정답 2 (50%)
+
+        // 심은 이슈에서 그대로 수치를 뽑아 리포트를 만든다
+        saveWeekReport(me, lastMon, twoMon);
+        saveWeekReport(me, twoMon, twoMon.minusWeeks(1));
+    }
+
+    // 그 주(weekMonday) 수요일로 퀴즈 제출을 backdate해 심는다. total 중 correct개만 정답.
+    private void seedWeekQuizzes(User me, List<Long> quizIds, LocalDate weekMonday, int total, int correct) {
+        LocalDate onDate = weekMonday.plusDays(2);
+        for (int i = 0; i < total; i++) {
+            Long quizId = quizIds.get(i % quizIds.size());
+            boolean ok = i < correct;
+            QuizSubmission s = quizSubmissionRepository.save(
+                    QuizSubmission.create(quizId, me.getId(), ok ? "정답" : "오답", ok, "BRONZE"));
+            backdateSubmission(s.getId(), onDate);
+        }
+    }
+
+    // submitted_at을 과거로 되돌린다 (@PrePersist가 now로 박아서). 주간 리포트가 주 단위로 집계할 수 있게
+    private void backdateSubmission(Long id, LocalDate onDate) {
+        int daysAgo = (int) ChronoUnit.DAYS.between(onDate, LocalDate.now());
+        if (daysAgo > 0) {
+            jdbc.update("UPDATE quiz_submissions SET submitted_at = DATE_SUB(NOW(), INTERVAL ? DAY) WHERE id = ?", daysAgo, id);
+        }
+    }
+
+    // 특정 주(weekMonday)의 수요일에 걸리도록 backdate해서 그 주 window 안에 PR을 심는다
+    private void seedWeekPr(Long repoId, int prNumber, String title, User me,
+                            String model, String language, LocalDate weekMonday, List<ReviewIssue> issues) {
+        LocalDate onDate = weekMonday.plusDays(2); // 수요일 — window 한가운데라 요일에 상관없이 안전
+        int daysAgo = (int) ChronoUnit.DAYS.between(onDate, LocalDate.now());
+        prWithIssues(repoId, prNumber, title, me, "cogi-user", model, language, daysAgo, issues);
+    }
+
+    // 그 주 [월, 다음주 월) 이슈에서 발생/해결/최다카테고리를 뽑아 리포트 저장. prevWeekStart로 전주 대비 수치까지.
+    private void saveWeekReport(User me, LocalDate weekStart, LocalDate prevWeekStart) {
+        LocalDate weekEnd = weekStart.plusDays(6); // 일요일
+        LocalDateTime from = weekStart.atStartOfDay();
+        LocalDateTime to = weekEnd.plusDays(1).atStartOfDay();
+
+        Object[] s = reviewIssueRepository.weeklySummary(me.getId(), from, to).get(0);
+        int issues = ((Number) s[0]).intValue();
+        int resolved = s[1] == null ? 0 : ((Number) s[1]).intValue();
+
+        Object[] p = reviewIssueRepository.weeklySummary(me.getId(), prevWeekStart.atStartOfDay(), from).get(0);
+        int prev = ((Number) p[0]).intValue();
+
+        var cats = reviewIssueRepository.categoryBreakdown(me.getId(), from, to);
+        String top = cats.isEmpty() ? null : String.valueOf(cats.get(0)[0]);
+
+        String summary = "이슈 " + issues + "건 중 " + resolved + "건을 해결했어요."
+                + (top != null ? " 최다 약점은 " + top + "입니다." : "");
+        weeklyReportRepository.save(WeeklyReport.of(me.getId(), weekStart, weekEnd, issues, resolved, prev, top, summary));
     }
 
     // ── 강의 추천 (LRN-003). 약점 category와 맞물려야 화면에 뜬다 ──

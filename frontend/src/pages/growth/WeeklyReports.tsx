@@ -5,6 +5,7 @@
  * (수동 재발송 API는 뒀지만 UI에선 안 씀 — 나중에 재발송 기능 붙일 때 재사용)
  */
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../../api/client';
 import { PageHead } from '../../components/ui';
 import { catKo } from '../../data/constants';
@@ -24,10 +25,18 @@ export default function WeeklyReports() {
 }
 
 function DesktopWeeklyReports() {
+  const navigate = useNavigate();
   const [reports, setReports] = useState([]);
   const [open, setOpen] = useState(null);   // 팝업에 띄운 리포트
+  const [drill, setDrill] = useState(null);  // { status, prs } — 건수 클릭 시 뜨는 PR 목록
 
   useEffect(() => { api.getWeeklyReports().then(setReports); }, []);
+
+  // 발생/해결 건수 클릭 → 그 주 PR 리뷰 목록을 띄운다
+  const openDrill = async (status) => {
+    const prs = await api.getWeeklyReportPrs(open.id, status);
+    setDrill({ status, prs });
+  };
 
 
   return (
@@ -59,21 +68,21 @@ function DesktopWeeklyReports() {
             {/* 핵심 수치 3종 + 전주 대비 */}
             {/* 3칸 균등: margin 0으로 세로 어긋남 제거 + minHeight로 높이 통일, 내용 세로 중앙 정렬 */}
             <div className="panel-grid c3" style={{ marginBottom: 20, gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
-              <div className="panel tc" style={sc}>
+              <button className="panel tc drill-card" style={sc} onClick={() => openDrill('OPEN')}>
                 <p className="note xs">발생 이슈</p>
                 <b className="stat-num">{open.issueCount}<span className="unit">건</span></b>
-                {open.prevIssueCount != null && (
+                {open.prevIssueCount != null ? (
                   <p className={`note xs ${open.issueCount <= open.prevIssueCount ? 'ok' : 'err'}`}>
                     전주 {open.prevIssueCount} → {Math.abs(Math.round((1 - open.issueCount / open.prevIssueCount) * 100))}%
                     {open.issueCount <= open.prevIssueCount ? ' 감소' : ' 증가'}
                   </p>
-                )}
-              </div>
-              <div className="panel tc" style={sc}>
+                ) : <span className="note xs drill-hint">PR 보기 →</span>}
+              </button>
+              <button className="panel tc drill-card" style={sc} onClick={() => openDrill('RESOLVED')}>
                 <p className="note xs">해결</p>
                 <b className="stat-num" style={{ color: 'var(--mint)' }}>{open.resolvedCount}<span className="unit">건</span></b>
                 <p className="note xs">해결률 {Math.round((open.resolvedCount / open.issueCount) * 100)}%</p>
-              </div>
+              </button>
               <div className="panel tc" style={sc}>
                 <p className="note xs">최다 카테고리</p>
                 <b style={{ fontSize: 13, fontFamily: 'Silkscreen, monospace' }}>{catKo(open.topCategory)}</b>
@@ -117,6 +126,36 @@ function DesktopWeeklyReports() {
                 매주 <b style={{ color: 'var(--navy)' }}>월요일 아침 9시</b>, 이 리포트가 이메일로 자동 발송돼요.
               </span>
               <button className="btn co sm ml-auto" onClick={() => setOpen(null)}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 드릴다운 — 건수 클릭 시 그 주 PR 리뷰 목록. PR 클릭하면 그 PR 상세로 이동 */}
+      {drill && (
+        <div className="modal-mask" onClick={() => setDrill(null)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3>{drill.status === 'RESOLVED' ? '해결된 이슈' : '발생 이슈'} · 지난주 PR 리뷰</h3>
+            {drill.prs.length === 0 ? (
+              <p className="note" style={{ margin: '14px 0' }}>해당하는 PR이 없어요.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '14px 0' }}>
+                {drill.prs.map((pr) => (
+                  <button key={pr.prId} className="panel report-row" onClick={() => navigate(`/app/prs/${pr.prId}`)}>
+                    <b className="mono">#{pr.prNumber}</b>
+                    <span className="note" style={{ maxWidth: '46%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {pr.title || '(제목 없음)'}
+                    </span>
+                    <span className="chip navy sm">{pr.repoName}</span>
+                    <span className="ml-auto note sm" style={{ fontWeight: 700 }}>
+                      {drill.status === 'RESOLVED' ? `해결 ${pr.resolvedCount}` : `이슈 ${pr.issueCount}`}건 →
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn wh sm" onClick={() => setDrill(null)}>뒤로</button>
             </div>
           </div>
         </div>
