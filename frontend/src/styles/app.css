@@ -997,3 +997,8 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 .chat-skill:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
 .chat-skill:disabled { color: var(--sub); border-color: #cdd8ea; box-shadow: 2px 2px 0 #cdd8ea; cursor: default; }
 
+
+/* 주간리포트 드릴다운 — 발생/해결 건수 카드를 클릭 가능하게 (버튼이라 기본 모양 초기화) */
+.drill-card { cursor: pointer; font: inherit; text-align: center; transition: transform .08s, box-shadow .08s; }
+.drill-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--navy); background: #fffbe8; }
+.drill-hint { color: var(--coral); font-weight: 700; }

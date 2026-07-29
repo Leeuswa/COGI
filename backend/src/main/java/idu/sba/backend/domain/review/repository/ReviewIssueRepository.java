@@ -74,4 +74,22 @@ public interface ReviewIssueRepository extends JpaRepository<ReviewIssue, Long> 
                                      @Param("from") LocalDateTime from,
                                      @Param("to") LocalDateTime to);
 
+    // 주간 리포트 드릴다운 — 그 주 이슈가 걸린 PR 목록(레포명·PR번호·제목 + 발생/해결 수). 발생 많은 순
+    @Query(value = """
+    SELECT p.id AS prId, g.repo_name AS repoName, p.github_pr_number AS prNumber, p.title AS title,
+           COUNT(*) AS issueCount,
+           SUM(CASE WHEN i.status = 'RESOLVED' THEN 1 ELSE 0 END) AS resolvedCount
+    FROM review_issues i
+    JOIN reviews r ON r.id = i.review_id
+    JOIN pull_requests p ON p.id = r.pr_id
+    JOIN repositories g ON g.id = p.repo_id
+    WHERE r.user_id = :userId AND r.target_type = 'PR'
+      AND i.created_at >= :from AND i.created_at < :to
+    GROUP BY p.id, g.repo_name, p.github_pr_number, p.title
+    ORDER BY issueCount DESC
+    """, nativeQuery = true)
+    List<Object[]> weeklyPrBreakdown(@Param("userId") Long userId,
+                                     @Param("from") LocalDateTime from,
+                                     @Param("to") LocalDateTime to);
+
 }

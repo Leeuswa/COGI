@@ -94,7 +94,7 @@ function DesktopGrowth() {
         <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
           <option value="ALL">팀 전체</option>
           {selectableMembers.map((m) => (
-            <option key={m.userId} value={m.userId}>@{m.githubUsername}{isMe(m) ? ' (나)' : ''}</option>
+            <option key={m.userId} value={m.userId}>{m.githubUsername ? `@${m.githubUsername}` : (m.nickname || '탈퇴한 회원')}{isMe(m) ? ' (나)' : ''}</option>
           ))}
         </select>
         <select value={period} onChange={(e) => setPeriod(e.target.value)}>

@@ -202,36 +202,44 @@ export default function PrDetail() {
         });
         flushInline();
 
-        // 높이 = 인라인 줄 lineH, 코드줄 lineH + 첫/막 줄 상하 패딩 2mm씩
-        const rowH = (r) => lineH + (r.block ? (r.first ? 2 : 0) + (r.last ? 2 : 0) : 0);
+        // 블록 코드는 줄간격(codeLH)과 상하 여백(pad)을 넉넉히 줘 자연스럽게. 인라인은 박스 없이 볼드만.
+        const codeLH = lineH + 1;
+        const pad = 3;
+        const rowH = (r) => r.block ? codeLH + (r.first ? pad : 0) + (r.last ? pad : 0) : lineH;
         if (!draw) return rows.reduce((h, r) => h + rowH(r), 0);
 
         let cy = y0;
-        rows.forEach((r) => {
+        for (let idx = 0; idx < rows.length; idx++) {
+          const r = rows[idx];
           if (r.block) {
-            if (r.first) cy += 2;
-            const rectY = cy - 3.8 - (r.first ? 2 : 0);
-            const rectH = lineH + (r.first ? 2 : 0) + (r.last ? 2 : 0);
-            fill('#1b2a4a'); pdf.rect(x0 - 1, rectY, maxW + 2, rectH, 'F');       // 네이비 블록
-            fill('#ff6b57'); pdf.rect(x0 - 1, rectY, 1.8, rectH, 'F');            // 코랄 왼쪽바
-            ink('#cfe8ff'); pdf.text(r.text, x0 + 4, cy);                         // 하늘색 코드
-            cy += lineH + (r.last ? 2 : 0);
+            // 라인마다 사각형을 그리면 경계에 얇은 흰 줄(seam)이 생긴다 → 블록 전체를 한 사각형으로 그리고 텍스트만 얹는다
+            const group = [];
+            while (idx < rows.length && rows[idx].block) { const last = rows[idx].last; group.push(rows[idx]); idx++; if (last) break; }
+            idx--; // for 증가분 보정
+            const blockTop = cy - 3.8;
+            const blockH = group.length * codeLH + pad * 2;
+            fill('#1b2a4a'); pdf.rect(x0 - 1, blockTop, maxW + 2, blockH, 'F'); // 네이비 블록(한 덩어리)
+            fill('#ff6b57'); pdf.rect(x0 - 1, blockTop, 1.6, blockH, 'F');      // 코랄 왼쪽바
+            ink('#cfe8ff');
+            let ly = cy + pad;
+            group.forEach((br) => { pdf.text(br.text, x0 + 6, ly); ly += codeLH; });
+            cy += blockH;
           } else {
             let x = x0, j = 0;
-            while (j < r.chars.length) { // 인라인 코드 크림 칩
-              if (r.chars[j].code) { let rw = 0, k = j; while (k < r.chars.length && r.chars[k].code) { rw += r.chars[k].cw; k++; } fill('#f3eee3'); const bc = rgb('#40507a'); pdf.setDrawColor(bc[0], bc[1], bc[2]); pdf.setLineWidth(0.2); pdf.roundedRect(x - 0.8, cy - 3.4, rw + 1.6, 4.8, 0.4, 0.4, 'FD'); x += rw; j = k; }
-              else { x += r.chars[j].cw; j++; }
-            }
-            x = x0; j = 0;
             while (j < r.chars.length) {
               const code = r.chars[j].code; let str = '', k = j;
               while (k < r.chars.length && r.chars[k].code === code) { str += r.chars[k].c; k++; }
-              ink(code ? '#1b2a4a' : '#2c2c2a'); pdf.text(str, x, cy);
+              if (code) {
+                // 인라인 코드 = 볼드 강조. 전용 볼드 폰트가 없어 0.15mm 겹쳐 찍어 굵게(상태 안 건드림)
+                ink('#1b2a4a'); pdf.text(str, x, cy); pdf.text(str, x + 0.15, cy);
+              } else {
+                ink('#2c2c2a'); pdf.text(str, x, cy);
+              }
               for (let z = j; z < k; z++) x += r.chars[z].cw; j = k;
             }
             cy += lineH;
           }
-        });
+        }
         return rows.reduce((h, r) => h + rowH(r), 0);
       };
 

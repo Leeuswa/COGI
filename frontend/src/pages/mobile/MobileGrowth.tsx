@@ -79,7 +79,7 @@ export default function MobileGrowth() {
         <select className="msel" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
           <option value="ALL">팀 전체</option>
           {selectableMembers.map((m) => (
-            <option key={m.userId} value={m.userId}>@{m.githubUsername}{isMe(m) ? " (나)" : ""}</option>
+            <option key={m.userId} value={m.userId}>{m.githubUsername ? `@${m.githubUsername}` : (m.nickname || '탈퇴한 회원')}{isMe(m) ? " (나)" : ""}</option>
           ))}
         </select>
         <div className="mseg mg-period">

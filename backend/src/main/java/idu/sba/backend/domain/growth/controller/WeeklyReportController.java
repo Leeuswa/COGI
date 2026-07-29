@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.growth.controller;
 
+import idu.sba.backend.domain.growth.dto.WeeklyReportPrDTO;
 import idu.sba.backend.domain.growth.dto.WeeklyReportResponseDTO;
 import idu.sba.backend.domain.growth.service.WeeklyReportService;
 import idu.sba.backend.global.common.ApiResponse;
@@ -27,5 +28,13 @@ public class WeeklyReportController {
     public ApiResponse<Void> sendMail(@AuthenticationPrincipal Long userId, @PathVariable Long reportId) {
         weeklyReportService.sendMail(userId, reportId);
         return ApiResponse.ok("메일로 보냈어요.");
+    }
+
+    // 리포트 드릴다운 — 그 주 이슈가 걸린 PR 목록 (status=OPEN: 전체 / RESOLVED: 해결 건 있는 PR만)
+    @GetMapping("/{reportId}/prs")
+    public ApiResponse<List<WeeklyReportPrDTO>> reportPrs(@AuthenticationPrincipal Long userId,
+                                                          @PathVariable Long reportId,
+                                                          @RequestParam(defaultValue = "OPEN") String status) {
+        return ApiResponse.ok(weeklyReportService.getReportPrs(userId, reportId, status));
     }
 }

@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.growth.service;
 
+import idu.sba.backend.domain.growth.dto.WeeklyReportPrDTO;
 import idu.sba.backend.domain.growth.dto.WeeklyReportResponseDTO;
 import idu.sba.backend.domain.growth.entity.WeeklyReport;
 import idu.sba.backend.domain.growth.repository.WeeklyReportRepository;
@@ -36,6 +37,23 @@ public class WeeklyReportService {
     public List<WeeklyReportResponseDTO> getMyReports(Long userId) {
         return weeklyReportRepository.findByUserIdOrderByPeriodStartDesc(userId).stream()
                 .map(this::toDto).toList();
+    }
+
+    // 리포트 드릴다운 — 그 주(period) 이슈가 걸린 PR 목록. status=RESOLVED면 해결 이슈가 있는 PR만.
+    @Transactional(readOnly = true)
+    public List<WeeklyReportPrDTO> getReportPrs(Long userId, Long reportId, String status) {
+        WeeklyReport rp = weeklyReportRepository.findById(reportId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT));
+        if (!rp.getUserId().equals(userId)) throw new BusinessException(ErrorCode.INVALID_INPUT); // 남의 리포트 차단
+
+        LocalDateTime from = rp.getPeriodStart().atStartOfDay();
+        LocalDateTime to = rp.getPeriodEnd().plusDays(1).atStartOfDay(); // periodEnd(일요일) 포함
+        boolean resolvedOnly = "RESOLVED".equalsIgnoreCase(status);
+
+        return reviewIssueRepository.weeklyPrBreakdown(userId, from, to).stream()
+                .map(WeeklyReportPrDTO::from)
+                .filter(pr -> !resolvedOnly || pr.resolvedCount() > 0) // 해결 탭이면 해결 건 있는 PR만
+                .toList();
     }
 
     private WeeklyReportResponseDTO toDto(WeeklyReport rp) {
