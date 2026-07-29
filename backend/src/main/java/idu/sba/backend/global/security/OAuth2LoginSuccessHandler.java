@@ -19,7 +19,9 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
-    private static final String FRONT_CALLBACK = "http://localhost:5173/oauth/callback";
+    // 로컬·배포 공용: application.properties의 app.frontend-url을 읽어 쓴다(하드코딩 금지)
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
     private final JwtProvider jwtProvider;
     private  final CookieUtil cookieUtil;
     private final UserRepository userRepository;
@@ -38,7 +40,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
         // 정지 계정은 소셜 로그인도 차단 (이메일 로그인 AuthServiceImpl과 동일 정책) — 토큰 발급 전에 막는다
         if (user != null && user.getStatus() == UserStatus.SUSPENDED) {
-            response.sendRedirect("http://localhost:5173/login?error=suspended");
+            response.sendRedirect(frontendUrl + "/login?error=suspended");
             return;
         }
 
@@ -51,6 +53,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         boolean isNew = user == null || !Boolean.TRUE.equals(user.getOnboardingCompleted());
 
         // 프론트 콜백으로 리다이렉트 (토큰은 쿠키에 있음)
-        response.sendRedirect(FRONT_CALLBACK + "?isNew=" + isNew);
+        response.sendRedirect(frontendUrl + "/oauth/callback?isNew=" + isNew);
     }
 }
