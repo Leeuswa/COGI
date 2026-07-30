@@ -28,6 +28,9 @@ public class Notification {
 
     private String link;  // 클릭 시 이동 경로 (예: /app)
 
+    // 이 알림을 만든 전체 공지 id (공지 알림만 채워짐). 공지 삭제 시 이 값으로 함께 지운다.
+    private Long noticeId;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
@@ -36,15 +39,21 @@ public class Notification {
         this.createdAt = LocalDateTime.now();
     }
 
-    private Notification(Long userId, String icon, String title, String text, String link) {
+    private Notification(Long userId, String icon, String title, String text, String link, Long noticeId) {
         this.userId = userId;
         this.icon = icon;
         this.title = title;
         this.text = text;
         this.link = link;
+        this.noticeId = noticeId;
     }
 
     public static Notification of(Long userId, String icon, String title, String text, String link) {
-        return new Notification(userId, icon, title, text, link);
+        return new Notification(userId, icon, title, text, link, null);
+    }
+
+    // 전체 공지에서 만든 알림 — noticeId로 공지와 연결
+    public static Notification ofNotice(Long userId, String icon, String title, String text, String link, Long noticeId) {
+        return new Notification(userId, icon, title, text, link, noticeId);
     }
 }

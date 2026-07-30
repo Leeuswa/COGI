@@ -49,9 +49,27 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public void broadcast(List<Long> userIds, String icon, String title, String text, String link) {
+        broadcast(userIds, icon, title, text, link, null);
+    }
+
+    @Override
+    @Transactional
+    public void broadcast(List<Long> userIds, String icon, String title, String text, String link, Long noticeId) {
         List<Notification> rows = userIds.stream()
-                .map(uid -> Notification.of(uid, icon, title, text, link))
+                .map(uid -> Notification.ofNotice(uid, icon, title, text, link, noticeId))
                 .toList();
         notificationRepository.saveAll(rows);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByNoticeId(Long noticeId) {
+        notificationRepository.deleteByNoticeId(noticeId);
+    }
+
+    @Override
+    @Transactional
+    public void markLegacyNoticeDeleted(String subject, String content) {
+        notificationRepository.markLegacyNoticeDeleted(subject, content);
     }
 }

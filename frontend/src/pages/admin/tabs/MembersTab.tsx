@@ -2,19 +2,25 @@
  * [관리자 탭] 회원 관리 (ADM-002, API-016~018, FR-20~21)
  * 상태(ACTIVE/SUSPENDED)·권한(USER/ADMIN) 토글 — 저장 즉시 반영이 요구사항이라 확인창 없이 바로 바꾼다.
  */
+// 정렬 우선순위: 본인(-1) 최상단 → 일반(0) → 탈퇴(1) 최하단
+const rankOf = (m, me) => (m.status === 'WITHDRAWN' ? 1 : m.email === me ? -1 : 0);
+
 export default function MembersTab({ members, onStatus, onRole, me }) {
   return (
     <div className="panel flush">
       <table className="tbl">
         <thead><tr><th>이메일</th><th>플랜</th><th>권한</th><th>상태</th><th>가입일</th><th>액션</th></tr></thead>
         <tbody>
-          {/* 본인 행을 항상 최상단으로 (원본 훼손 방지 위해 복사본 정렬) */}
-          {[...members].sort((a, b) => (b.email === me ? 1 : 0) - (a.email === me ? 1 : 0)).map((m) => {
+          {/* 본인 행은 최상단, 탈퇴 회원은 최하단 (원본 훼손 방지 위해 복사본 정렬) */}
+          {[...members]
+            .sort((a, b) => rankOf(a, me) - rankOf(b, me))
+            .map((m) => {
             const isMe = !!m.email && m.email === me; // 본인 행 — 정지/권한회수 불가(서버도 403으로 막음)
+            const gone = m.status === 'WITHDRAWN';     // 탈퇴 회원 — 익명화 이메일 대신 표기, 액션 전부 차단
             return (
             <tr key={m.id}>
               <td>
-                {m.email}
+                {gone ? <span className="note">탈퇴한 회원</span> : m.email}
                 {isMe && <span className="chip hi" style={{ marginLeft: 6 }}>본인</span>}
               </td>
               <td className="mono">{m.planName}</td>
@@ -22,8 +28,8 @@ export default function MembersTab({ members, onStatus, onRole, me }) {
               <td><span className={`chip ${m.status === 'ACTIVE' ? 'low' : 'gray'}`}>{m.status}</span></td>
               <td className="mono xs">{m.createdAt?.slice(0, 10)}</td>
               <td style={{ display: 'flex', gap: 6 }}>
-                <button className="btn wh sm" disabled={isMe} onClick={() => onStatus(m)}>{m.status === 'ACTIVE' ? '정지' : '해제'}</button>
-                <button className="btn wh sm" disabled={isMe} onClick={() => onRole(m)}>{m.role === 'ADMIN' ? '권한 회수' : '관리자로'}</button>
+                <button className="btn wh sm" disabled={isMe || gone} onClick={() => onStatus(m)}>{m.status === 'ACTIVE' ? '정지' : '해제'}</button>
+                <button className="btn wh sm" disabled={isMe || gone} onClick={() => onRole(m)}>{m.role === 'ADMIN' ? '권한 회수' : '관리자로'}</button>
               </td>
             </tr>
             );

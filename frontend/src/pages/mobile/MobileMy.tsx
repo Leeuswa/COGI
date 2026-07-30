@@ -330,7 +330,7 @@ export default function MobileMy() {
                 <li key={n.id} className={on ? "on" : ""}>
                   <button type="button" className="mmy-nq" onClick={() => setOpenNotice(on ? null : n.id)}>
                     <span>
-                      <b>{n.subject}</b>
+                      <b>{n.urgent && <span className="chip" style={{ background: 'var(--coral)', color: 'var(--white)', marginRight: 6 }}>🚨 긴급</span>}{n.subject}</b>
                       <i>{fmtDate(n.sentAt)}</i>
                     </span>
                     <em>{on ? "−" : "+"}</em>

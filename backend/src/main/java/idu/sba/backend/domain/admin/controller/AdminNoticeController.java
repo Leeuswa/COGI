@@ -24,7 +24,7 @@ public class AdminNoticeController {
     @PostMapping("/email")
     public ApiResponse<SendNoticeResponseDTO> sendNotice(@AuthenticationPrincipal Long adminId,
                                                          @Valid @RequestBody SendNoticeRequestDTO request) {
-        SendNoticeResponseDTO result = adminNoticeService.sendNoticeToAll(adminId, request.subject(), request.content());
+        SendNoticeResponseDTO result = adminNoticeService.sendNoticeToAll(adminId, request.subject(), request.content(), request.urgent());
         return ApiResponse.ok("공지 발송을 시작했습니다.", result);
     }
 
@@ -32,5 +32,12 @@ public class AdminNoticeController {
     @GetMapping
     public ApiResponse<List<NoticeResponseDTO>> getNotices() {
         return ApiResponse.ok(adminNoticeService.getNotices());
+    }
+
+    // 발송 이력에서 공지 삭제 — 관리자 화면과 사용자 공지 탭(/api/notices) 양쪽에서 사라진다
+    @DeleteMapping("/{noticeId}")
+    public ApiResponse<Void> deleteNotice(@PathVariable Long noticeId) {
+        adminNoticeService.deleteNotice(noticeId);
+        return ApiResponse.ok("공지를 삭제했습니다.", null);
     }
 }
