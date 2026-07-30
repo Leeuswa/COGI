@@ -8,6 +8,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useGame } from "../context/GameContext";
+import MobileBell from "./MobileBell";
 
 // 경로 → 화면 이름. 하단 탭에 있는 4개는 뒤로가기 대신 로고를 띄운다
 const TITLES: [string, string][] = [
@@ -30,13 +31,43 @@ const TITLES: [string, string][] = [
 
 const ROOT_TABS = ["/app", "/app/prs", "/app/cards", "/app/growth"];
 
+// 로그인 전 화면. 랜딩(/)은 목록에 없다 — 제목 없이 로고만 띄운다
+const GUEST_TITLES: [string, string][] = [
+  ["/login", "로그인"],
+  ["/signup", "회원가입"],
+  ["/find-password", "비밀번호 찾기"],
+  ["/otp", "2차 인증"],
+  ["/guest", "체험 리뷰"],
+  ["/repo-invites/accept", "초대 수락"],
+];
+
 export default function MobileHeader() {
   const { user } = useAuth();
   const { S, creditLimit } = useGame();
   const loc = useLocation();
   const nav = useNavigate();
 
-  if (!user) return null;
+  // 로그인 전에는 데스크톱 GNB가 폰에서 숨겨져 상단이 통째로 비어 있었다.
+  // 지갑·종 대신 로고(또는 뒤로)와 가입·로그인 진입만 남긴다
+  if (!user) {
+    const title = GUEST_TITLES.find(([p]) => loc.pathname.startsWith(p))?.[1];
+    const [cta, ctaLabel] = loc.pathname.startsWith("/login")
+      ? ["/signup", "회원가입"]
+      : ["/login", "로그인"];
+    return (
+      <header className="mhead">
+        {title ? (
+          <button type="button" className="mh-back" aria-label="뒤로"
+            /* 주소로 바로 들어오면 이전 기록이 없어 뒤로가기가 사이트 밖으로 나간다 */
+            onClick={() => (loc.key === "default" ? nav("/") : nav(-1))}>←</button>
+        ) : (
+          <Link to="/" className="mh-logo"><img src="/logo.png" alt="COGI" /></Link>
+        )}
+        <h1 className="mh-title">{title ?? ""}</h1>
+        <Link className="btn wh sm mh-cta" to={cta}>{ctaLabel}</Link>
+      </header>
+    );
+  }
 
   // 더 긴 경로가 먼저 잡히도록 길이순으로 찾는다 (/app/cards/3 → 학습카드)
   const title =
@@ -58,6 +89,9 @@ export default function MobileHeader() {
         <b>🪙 {S.coins}</b>
         <b>⚡ {creditLimit - S.creditUsed}</b>
       </span>
+
+      {/* 데스크톱 GNB의 종을 폰에서도 유지한다 — 학습 계획 알림이 여기로 온다 */}
+      <MobileBell loginId={user.loginId} />
     </header>
   );
 }

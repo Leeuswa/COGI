@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 // AI가 생성한 학습카드 한 장 (LRN-002). 약점 카테고리별 개념+예제로 만들어진다.
@@ -58,6 +59,10 @@ public class LearningCard {
     @Lob
     private String studyPlan; // AI가 짠 복습 계획 JSON 원문. 생성해야 채워지고 그 전엔 null
 
+    // 계획을 캘린더에 "등록"한 날. 각 단계의 실제 날짜 = 이 날 + dayOffset 이라 날짜를 따로 저장하지 않는다.
+    // null이면 계획만 짜 두고 아직 등록하지 않은 상태 — 달력에도 알림에도 안 뜬다
+    private LocalDate planStartedAt;
+
     private String grade; // 신호등 등급 RED/YELLOW/GREEN/GREEN_PLUS, 생성 시 RED
 
     private int correctCount; // 누적 정답 수, 생성 시 0
@@ -104,9 +109,16 @@ public class LearningCard {
                 badExample, goodExample, diffExplain, keyPoints, pitfalls, selfCheck);
     }
 
-    // 학습 계획은 나중에 따로 생성한다. 다시 만들면 이전 계획을 덮어쓴다
+    // 학습 계획은 나중에 따로 생성한다. 다시 만들면 이전 계획을 덮어쓴다.
+    // 계획이 바뀌면 등록도 무효다 — 옛 등록일에 새 dayOffset을 더하면 엉뚱한 날짜가 나온다
     public void updateStudyPlan(String studyPlan) {
         this.studyPlan = studyPlan;
+        this.planStartedAt = null;
+    }
+
+    // 계획을 달력에 등록 — 오늘을 기준일로 잡는다. 다시 누르면 오늘로 다시 시작한다
+    public void registerStudyPlan(LocalDate startedAt) {
+        this.planStartedAt = startedAt;
     }
 
     // 북마크 토글 (API-044-1)

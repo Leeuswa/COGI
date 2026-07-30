@@ -123,7 +123,8 @@
   background: var(--white); font-size: 11.5px; color: var(--navy); text-align: center;
 }
 .ms-icon { font-size: 21px; line-height: 1; }
-.ms-my { display: block; text-align: center; margin-top: 12px; }
+/* 시트 맨 아래 버튼(마이페이지·로그아웃). button은 display:block이어도 내용 폭으로 줄어 폭을 준다 */
+.ms-my { display: block; width: 100%; text-align: center; margin-top: 12px; }
 
 /* ═══════════ 모바일 앱 셸 (≤640px) ═══════════
    웹페이지가 아니라 앱처럼 — 헤더와 탭바는 고정이고 가운데 본문만 스크롤한다.
@@ -139,7 +140,8 @@
   .app-body {
     flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
-  /* 앱에서는 웹 푸터를 감춘다 — 하단 탭바가 그 자리를 쓴다 */
+  /* 앱에서는 웹 푸터를 감춘다 — 셸의 마지막 칸은 하단 탭바가 쓴다.
+     로그인 전에도 같은 셸이라, 푸터를 두면 스크롤 안 되는 바가 화면 아래에 박힌다 */
   .ft { display: none; }
 
   /* 터치 기기라 hover는 안 걸리고 누르는 반응만 남긴다 */
@@ -179,9 +181,53 @@
     color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .mh-wallet { flex-shrink: 0; display: flex; gap: 8px; }
+  /* 데스크톱 네비와 같은 이유로 굵기 400 — Silkscreen Bold는 '4'가 메워져 깨져 보인다 */
   .mh-wallet b {
-    font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--navy); white-space: nowrap;
+    font-family: 'Silkscreen', monospace; font-size: 12px; font-weight: 400;
+    color: var(--navy); white-space: nowrap;
   }
+  /* ── 알림 종 ──
+     코인·크레딧 오른쪽. 제목이 flex:1이라 종을 넣어도 가운데 정렬은 유지된다 */
+  .mh-bell {
+    position: relative; flex-shrink: 0; width: 32px; height: 32px;
+    background: none; border: none; font-size: 18px; line-height: 1; padding: 0;
+  }
+  .mh-bell i {
+    position: absolute; top: -3px; right: -4px; font-style: normal;
+    font-family: 'Silkscreen', monospace; font-size: 10px; font-weight: 400;
+    min-width: 16px; height: 16px; line-height: 14px;
+    background: var(--coral); color: var(--white); border: 2px solid var(--navy);
+    border-radius: 9px;
+  }
+
+  /* 알림 시트 — 데스크톱 드롭다운은 폰에서 화면 밖으로 나간다 */
+  .mnoti-dim { position: fixed; inset: 0; background: rgba(27, 42, 74, .45); z-index: 60; }
+  .mnoti-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 61;
+    background: var(--white); border-top: 3px solid var(--navy);
+    border-radius: 18px 18px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+    max-height: 78dvh; overflow-y: auto;
+    animation: sheetUp .18s ease-out; /* 더보기 시트와 같은 동작 */
+  }
+  .mnoti-sheet h2 { font-size: 15px; color: var(--navy); margin: 6px 0 12px; }
+  .mnoti-empty { font-size: 13px; color: var(--sub); padding: 18px 2px 22px; }
+  .mnoti-list { list-style: none; display: flex; flex-direction: column; gap: 9px; margin-bottom: 14px; }
+  .mnoti-list li {
+    display: flex; gap: 10px; align-items: flex-start;
+    border: 2px solid var(--navy); border-radius: 12px; padding: 11px 12px; background: #fdfcf7;
+  }
+  .mnoti-list li.go:active { background: var(--yellow); }
+  .mn-icon { flex-shrink: 0; font-size: 17px; line-height: 1.3; }
+  .mn-body { flex: 1; min-width: 0; }
+  .mn-body b { display: block; font-size: 13.5px; color: var(--navy); margin-bottom: 3px; }
+  /* 본문은 접지 않는다 — 폰에서 두 번 눌러 펴는 것보다 한 번에 읽는 게 낫다 */
+  .mn-body p { font-size: 12.5px; color: var(--sub); line-height: 1.7; white-space: pre-wrap; }
+  .mn-body em { display: block; font-style: normal; font-size: 11.5px; color: var(--coral); margin-top: 6px; }
+  .mn-x {
+    flex-shrink: 0; width: 26px; height: 26px; font-size: 13px; line-height: 1;
+    background: none; border: none; color: var(--sub);
+  }
+
   /* 앱 헤더가 제목을 맡으니 화면 안 배지·제목은 뺀다 */
   .app-main .page-head .badge, .app-main .page-head .sec-title { display: none; }
   .app-main .page-head { margin-bottom: 10px; }
@@ -285,4 +331,34 @@
 
   /* 그리드 자식이 콘텐츠 폭 때문에 늘어나는 걸 막는다 */
   .dash-grid > *, .dash-col > *, .panel-grid > * { min-width: 0; }
+}
+
+/* ═══════════ 로그인 전 화면 (≤640px) ═══════════
+   로그인 후와 같은 앱 셸을 쓴다 — 헤더는 고정이고 .app-body만 스크롤한다.
+   문서 전체를 스크롤시켜 보니 html·body의 overflow-x:hidden과 겹쳐
+   손가락으로 쓸어올리는 터치 스크롤이 먹지 않았다 */
+@media (max-width: 640px) {
+  /* 상단바 오른쪽 진입 버튼 — 높이는 앱 공통 44px을 그대로 쓴다(헤더 56px 안에 들어간다) */
+  .mh-cta { flex-shrink: 0; padding: 10px 12px; font-size: 12px; box-shadow: 2px 2px 0 var(--navy); }
+
+  /* 전용 화면이 없는 페이지의 <section> 여백. 랜딩 데스크톱 값(92px)은 폰에서 과하다 */
+  section { padding: 52px 16px; }
+
+  /* ── 코기 기기 ──
+     폰에서는 기기가 화면 절반을 먹어 아래 내용이 접힘선에 걸린다.
+     LCD·패드·여백을 줄여 549px → 464px. 랜딩·대시보드 양쪽에서 같은 크기로 쓴다 */
+  .device { box-shadow: 6px 6px 0 var(--navy); padding: 16px 16px 18px; }
+  .device .brand { margin-bottom: 8px; }
+  .lcd { height: 190px; }
+  .meta-row { margin-top: 10px; }
+  .stats { margin-top: 10px; gap: 6px 14px; }
+  .stat .bar { height: 10px; }
+  .pad { margin-top: 11px; gap: 8px; }
+  .pad button { padding: 7px 3px 6px; }
+  .pad button .ico { font-size: 14px; margin-bottom: 2px; }
+  .pad button small { font-size: 10.5px; }
+
+  /* ── 인증 카드 ── */
+  .auth-wrap { min-height: 0; padding: 22px 14px 40px; }
+  .auth-card { padding: 24px 18px; box-shadow: none; }
 }

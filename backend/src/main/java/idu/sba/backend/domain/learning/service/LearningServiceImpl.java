@@ -5,6 +5,7 @@ import idu.sba.backend.domain.learning.dto.CardHistoryResponseDTO;
 import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardCreateRequestDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardResponseDTO;
+import idu.sba.backend.domain.learning.dto.PlanDateResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmissionResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
@@ -28,6 +29,7 @@ import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardRepository;
 import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
 import idu.sba.backend.domain.learning.repository.WeaknessStatRepository;
+import idu.sba.backend.domain.notification.service.NotificationService;
 import idu.sba.backend.domain.payment.entity.Plan;
 import idu.sba.backend.domain.payment.service.CreditUsageService;
 import idu.sba.backend.domain.payment.service.SubscriptionService;
@@ -49,6 +51,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.json.JsonReadFeature;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -101,6 +104,7 @@ public class LearningServiceImpl implements LearningService {
     private final AiSkillRepository aiSkillRepository;
     private final AiSkillFavoriteRepository aiSkillFavoriteRepository;
     private final AiSkillRecommendationRepository aiSkillRecommendationRepository;
+    private final NotificationService notificationService; // 오늘 계획 알림
 
     // (카테고리 코드, 언어)로 이슈를 묶는 집계 키 — 언어는 null 가능
     private record StatKey(String category, String language) {}
@@ -278,6 +282,94 @@ public class LearningServiceImpl implements LearningService {
         card.updateStudyPlan(parseStudyPlanSteps(result.content()));
 
         return LearningCardResponseDTO.of(card);
+    }
+
+    @Override
+    @Transactional
+    public LearningCardResponseDTO registerStudyPlan(Long userId, Long cardId) {
+        LearningCard card = requireOwnedCard(userId, cardId);
+        if (card.getStudyPlan() == null || card.getStudyPlan().isBlank()) {
+            throw new BusinessException(ErrorCode.LEARNING_CARD_NOT_FOUND); // 계획을 짜기 전엔 등록할 게 없다
+        }
+        card.registerStudyPlan(LocalDate.now());
+        return LearningCardResponseDTO.of(card);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PlanDateResponseDTO> getPlanDates(Long userId, LocalDate from, LocalDate to) {
+        return expandPlans(userId).stream()
+                .filter(p -> !p.date().isBefore(from) && !p.date().isAfter(to))
+                .sorted(Comparator.comparing(PlanDateResponseDTO::date))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<PlanDateResponseDTO> ensureTodayPlanNotifications(Long userId) {
+        LocalDate today = LocalDate.now();
+        List<PlanDateResponseDTO> all = expandPlans(userId);
+
+        // 그날 할 단계가 있을 때만 알린다. 없는 날은 조용히 넘어간다(예고 알림은 두지 않는다)
+        List<PlanDateResponseDTO> todays = all.stream()
+                .filter(p -> p.date().equals(today))
+                .sorted(Comparator.comparing(PlanDateResponseDTO::cardId).thenComparing(PlanDateResponseDTO::stepNo))
+                .toList();
+
+        for (PlanDateResponseDTO s : todays) {
+            // link가 곧 중복 판정 키다 — 카드·단계가 다르면 각각 따로 알린다
+            notificationService.createOncePerDay(userId, "📘",
+                    "오늘의 학습 계획 " + s.stepNo() + "단계", describe(s),
+                    "/app/cards/" + s.cardId() + "?step=" + s.stepNo());
+        }
+        return todays;
+    }
+
+    // 알림 본문 — 제목 + 소요시간 + 그날 집중할 것
+    private static String describe(PlanDateResponseDTO s) {
+        return s.title()
+                + (s.minutes() != null ? " (" + s.minutes() + "분)" : "")
+                + (s.focus() != null && !s.focus().isBlank() ? "\n" + s.focus() : "");
+    }
+
+    /** 등록된 카드의 계획 JSON을 단계별 날짜로 펼친다. 날짜는 planStartedAt + dayOffset. */
+    private List<PlanDateResponseDTO> expandPlans(Long userId) {
+        List<PlanDateResponseDTO> out = new ArrayList<>();
+        for (LearningCard card : learningCardRepository.findByUserIdAndPlanStartedAtIsNotNull(userId)) {
+            if (card.getStudyPlan() == null || card.getStudyPlan().isBlank()) continue;
+            JsonNode steps;
+            try {
+                steps = objectMapper.readTree(card.getStudyPlan());
+            } catch (Exception e) {
+                // 옛 계획이 깨져 있어도 달력 전체가 죽지 않게 그 카드만 건너뛴다
+                log.warn("학습 계획 파싱 실패 - cardId={}", card.getId(), e);
+                continue;
+            }
+            if (!steps.isArray()) continue;
+
+            int no = 0;
+            for (JsonNode step : steps) {
+                no++;
+                out.add(new PlanDateResponseDTO(
+                        card.getPlanStartedAt().plusDays(step.path("dayOffset").asLong(0)),
+                        card.getId(),
+                        card.getCategory(),
+                        no,
+                        text(step.path("title")),
+                        text(step.path("focus")),
+                        step.path("minutes").isNumber() ? step.path("minutes").asInt() : null));
+            }
+        }
+        return out;
+    }
+
+    // 문자열이 아닌 노드에서 asString()이 던지는 경우까지 막는다 — 옛 계획 스키마가 달라도 죽지 않게
+    private static String text(JsonNode node) {
+        try {
+            return node.isNull() || node.isMissingNode() ? null : node.asString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override

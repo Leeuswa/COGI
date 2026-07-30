@@ -1,0 +1,186 @@
+/*
+ * 모바일 랜딩 (MobileLanding.tsx 전용).
+ * 공통 껍데기(.mapp .mcard .mnote .mlead)는 mobile.css에 있고 여기선 랜딩 고유 부분만.
+ * 640px 초과에서는 이 파일 규칙을 만나지 않으므로 데스크톱 랜딩과 섞이지 않는다.
+ */
+@media (max-width: 640px) {
+  /* ── 한 구간 = 한 화면 ──
+     스크롤 컨테이너는 앱 셸의 .app-body다. 거기에 스냅을 걸어야 구간이 화면에 딱 걸린다.
+     구간 높이를 dvh로 잡고 내용을 세로 가운데에 모으면, 폰 높이가 달라도 같은 그림이 나온다.
+     내용이 작은 폰에서 넘치면 min-height라 구간이 늘어나며 그대로 스크롤된다(잘리지 않는다) */
+  .app-body:has(.mland) { scroll-snap-type: y mandatory; }
+  /* 여백은 페이지가 각자 준다. .mapp와 특이도가 같으면 파일 순서에 지므로 둘 다 건다.
+     overflow는 반드시 풀어야 한다 — .mapp의 overflow-x:hidden이 .mland를 스크롤
+     컨테이너로 만들어서, 페이지가 실제로 스크롤되는 .app-body 대신 여기에 스냅됐다.
+     가로 넘침은 .app-body가 이미 잘라낸다 */
+  .mapp.mland { padding: 0; gap: 0; overflow: visible; }
+  .ml-page {
+    min-height: calc(100dvh - 56px - env(safe-area-inset-top));
+    scroll-snap-align: start; scroll-snap-stop: always;
+    display: flex; flex-direction: column; justify-content: center; gap: 10px;
+    padding: 14px 12px;
+  }
+  /* ── 페이지 표시 ──
+     스크롤바가 없는 스텝 방식이라 지금 몇 쪽인지, 아래로 더 있는지를 이걸로 알린다.
+     페이지 안쪽 여백을 먹지 않게 셸 위에 띄운다(.app-shell이 100dvh라 fixed로 충분) */
+  /* 폰은 아래쪽 — 엄지가 닿는 자리고, 오른쪽 세로 줄은 내용과 겹쳐 보였다 */
+  .ml-steps-nav {
+    position: fixed; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 30; display: flex; justify-content: center; align-items: center; gap: 7px;
+  }
+  .ml-steps-nav i {
+    width: 7px; height: 7px; border-radius: 50%;
+    border: 2px solid var(--navy); background: transparent;
+  }
+  .ml-steps-nav i.on { background: var(--coral); border-color: var(--coral); }
+  /* 화살표는 점과 같은 줄에 — 점만으로는 "내려도 된다"가 안 읽힌다.
+     따로 띄우면 두 겹이 돼 카드 아래를 더 먹는다 */
+  .ml-more {
+    font-size: 15px; line-height: 1; color: var(--coral); margin-left: 3px;
+    animation: mlMore 1.6s ease-in-out infinite;
+  }
+  @keyframes mlMore { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+
+  /* ── 첫 화면 ── */
+  /* 첫 화면은 가운데 정렬 — 데스크톱도 좁은 폭에서는 히어로를 가운데로 모은다.
+     아래 설명·목록 카드는 읽는 글이라 왼쪽 그대로 둔다 */
+  .ml-hero { padding: 14px 16px 14px; text-align: center; }
+  .ml-badge {
+    display: inline-block; font-family: 'Silkscreen', monospace; font-size: 10.5px;
+    background: var(--navy); color: var(--yellow);
+    padding: 5px 9px; letter-spacing: .5px; margin-bottom: 10px;
+  }
+  .ml-hero h1 { font-size: 22px; line-height: 1.45; margin-bottom: 8px; }
+  /* 데스크톱 하이라이트와 같은 노란 밴드. 폰에서는 밴드가 줄바꿈에 걸려 조각나지 않게 inline-block */
+  .ml-hero h1 .hl {
+    display: inline-block; background: var(--yellow); box-shadow: 0 0 0 3px var(--yellow);
+  }
+  .ml-hero .mnote { margin-bottom: 13px; }
+  .ml-hero .btn + .btn { margin-top: 9px; }
+
+  /* 코기 기기 카드는 앱 카드와 같은 리듬으로 */
+  .mland .device { width: 100%; box-shadow: none; border-width: 2px; border-radius: 16px; }
+  /* 첫 페이지가 [소개 카드 + 기기 + 안내 한 줄]로 끝나야 한다.
+     px로 못 박으면 화면 낮은 폰에서 기기가 페이지 밖으로 밀린다 */
+  .mland .lcd { height: clamp(150px, 20dvh, 210px); }
+  .mland .mlead { text-align: center; color: var(--coral); }
+
+  /* ── 리뷰 예시 ── */
+  .ml-rev { border: 2px solid var(--navy); border-radius: 12px; padding: 12px 13px; background: #fdfcf7; }
+  .ml-rev-head {
+    display: flex; justify-content: space-between;
+    font-family: 'GalmuriMono11', monospace; font-size: 11px; color: var(--sub);
+    border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 10px;
+  }
+  .ml-rev-line { font-family: 'GalmuriMono11', monospace; font-size: 11.5px; line-height: 2.1; color: var(--navy); }
+  .ml-rev-line .sev { font-size: 10.5px; padding: 2px 5px; margin-right: 6px; }
+  .ml-rev-foot {
+    margin-top: 9px; padding-top: 8px; border-top: 2px dotted var(--sky2);
+    font-family: 'GalmuriMono11', monospace; font-size: 11.5px; color: var(--coral); line-height: 1.7;
+  }
+  .ml-bullets { list-style: none; margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+  .ml-bullets li { font-size: 12px; line-height: 1.75; color: var(--sub); }
+  .ml-bullets li b { display: block; font-size: 13px; color: var(--navy); margin-bottom: 2px; }
+
+  /* ── 성장 루프 ── */
+  .ml-steps { list-style: none; display: flex; flex-direction: column; gap: 11px; }
+  .ml-steps li { display: flex; gap: 11px; align-items: flex-start; }
+  .ml-n {
+    flex-shrink: 0; width: 30px; height: 30px; line-height: 26px; text-align: center;
+    font-family: 'Silkscreen', monospace; font-size: 12px; font-weight: 400;
+    color: var(--white); background: var(--navy); border: 2px solid var(--navy); border-radius: 9px;
+  }
+  .ml-steps li:nth-child(1) .ml-n { background: var(--coral); }
+  .ml-steps li:nth-child(2) .ml-n { background: #c9862e; }
+  .ml-steps li:nth-child(3) .ml-n { background: var(--mint); }
+  .ml-steps b, .ml-cares b { display: block; font-size: 13.5px; color: var(--navy); margin-bottom: 3px; }
+  .ml-steps p, .ml-cares p { font-size: 12px; line-height: 1.75; color: var(--sub); }
+
+  /* ── 케어 = 학습 ── */
+  .ml-cares { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .ml-cares li { display: flex; gap: 11px; align-items: flex-start; }
+  .ml-em { flex-shrink: 0; font-size: 20px; line-height: 1.4; }
+
+  /* ── 성장 단계 ── */
+  .ml-stages { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* 5장이라 마지막 한 장이 남는다. 줄을 채워 빈칸이 안 생기게 */
+  .ml-stages .ml-stage:last-child { grid-column: span 2; }
+  .ml-stage {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    border: 2px solid var(--navy); border-radius: 12px; padding: 12px 8px; background: #fdfcf7;
+  }
+  .ml-stage img { height: 46px; width: auto; margin-bottom: 4px; }
+  .ml-stage:last-child img { height: 58px; }
+  .ml-stage b { font-size: 12.5px; color: var(--navy); }
+  .ml-stage i { font-style: normal; font-family: 'GalmuriMono11', monospace; font-size: 11px; color: var(--sub); }
+
+  /* ── 플랜 ── */
+  .ml-plans { display: flex; flex-direction: column; gap: 8px; }
+  .ml-plan { border: 2px solid var(--navy); border-radius: 12px; padding: 10px 12px; background: #fdfcf7; }
+  .ml-plan.mid { background: #fff6d6; }
+  /* 이름 · 크레딧 · 가격을 한 줄에. 하루 크레딧이 플랜을 고르는 실제 기준이라 크게 */
+  .ml-plan-top { display: flex; align-items: baseline; gap: 8px; }
+  .ml-plan-top b { font-family: 'Silkscreen', monospace; font-size: 15px; font-weight: 400; color: var(--navy); }
+  /* 숫자는 Silkscreen이 뭉개져 보여서 GalmuriMono로 (Bold 없이) */
+  .ml-cred { margin-left: auto; font-family: 'GalmuriMono11', monospace; font-size: 15px; color: var(--navy); white-space: nowrap; }
+  .ml-cred i { font-style: normal; font-size: 10px; color: var(--sub); margin-left: 3px; }
+  .ml-price {
+    font-family: 'GalmuriMono11', monospace; font-size: 12.5px; color: var(--sub);
+    white-space: nowrap; padding-left: 8px; border-left: 2px solid var(--sky2);
+  }
+  .ml-price i { font-style: normal; font-size: 10px; }
+  /* 모델은 칩으로 — 줄글로 늘어놓으면 플랜마다 어디까지 늘었는지가 안 읽힌다 */
+  .ml-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 7px 0 6px; }
+  .ml-chip {
+    font-family: 'GalmuriMono11', monospace; font-size: 10.5px; line-height: 1.7;
+    color: var(--navy); background: var(--white);
+    border: 2px solid var(--navy); border-radius: 999px; padding: 0 8px;
+  }
+  .ml-chips-plus { font-size: 10.5px; color: var(--sub); }
+  .ml-plan.mid .ml-chip { border-color: var(--coral); color: var(--coral); }
+  .ml-plan p { font-size: 11.5px; line-height: 1.65; color: #33406b; }
+
+  /* ── 화면이 낮은 폰 ──
+     카드 두 장이 한 페이지에 안 들어가 페이지 안에서 또 스크롤이 생긴다.
+     내용은 그대로 두고 여백·행간만 한 단계 조여 회수한다 (≈50px) */
+  @media (max-height: 900px) {
+    .ml-page { padding: 8px 12px; gap: 8px; }
+    .mland .mcard { padding: 12px 13px; }
+    .mland .mcard-head { margin-bottom: 9px; }
+    .ml-hero h1 { font-size: 20px; }
+    .ml-rev-line { line-height: 1.9; }
+    .ml-bullets { gap: 7px; margin-top: 10px; }
+    .ml-bullets li { line-height: 1.65; }
+    .ml-steps { gap: 9px; }
+    .ml-cares { gap: 10px; }
+    .ml-stage { padding: 9px 8px; }
+    .ml-plan { padding: 10px 12px; }
+    .ml-plans { gap: 8px; }
+    .mland .lcd { height: clamp(150px, 18dvh, 200px); }
+    .ml-hero .mnote { margin-bottom: 10px; }
+    .ml-hero .btn + .btn { margin-top: 8px; }
+    .ml-team { margin-top: 10px; }
+  }
+
+  /* ── 마지막 진입 ──
+     배경·테두리는 다른 카드와 똑같이 둔다. 남색으로 뒤집었더니 이 카드만 떠 보였다 */
+  .ml-end { text-align: center; padding: 16px 16px 14px; }
+  /* 대장 코기 — 여기까지 읽은 사람에게 보여주는 마지막 단계 */
+  .ml-end-corgi { height: 44px; width: auto; margin: 0 auto 6px; display: block; }
+  .ml-end h2 { font-size: 17.5px; line-height: 1.6; color: var(--navy); margin-bottom: 7px; }
+  /* 제목 강조는 히어로와 같은 노란 밴드 */
+  .ml-end h2 .hl {
+    display: inline-block; background: var(--yellow);
+    box-shadow: 0 0 0 3px var(--yellow);
+  }
+  .ml-end p { font-size: 12.5px; line-height: 1.7; color: var(--sub); margin-bottom: 11px; }
+  /* 체험은 부차 동선이라 버튼 대신 밑줄 링크로 — 버튼 두 개면 어디를 눌러야 할지 흐려진다 */
+  .ml-end-alt {
+    display: inline-block; margin-top: 10px; font-size: 12px; color: var(--coral);
+    border-bottom: 2px solid var(--coral); padding-bottom: 1px;
+  }
+  .ml-team {
+    margin: 11px 0 0; padding-top: 9px; border-top: 2px dotted var(--sky2);
+    font-size: 11px; line-height: 1.8; color: var(--sub);
+  }
+}

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonRawValue;
 import idu.sba.backend.domain.learning.entity.LearningCard;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.util.List;
 
 // 학습카드 응답 (목록/상세/생성 공용) — 프론트 Cards.tsx·CardDetail.tsx 필드명에 맞춤
@@ -37,6 +38,9 @@ public class LearningCardResponseDTO {
     @JsonRawValue
     private final String studyPlan;
 
+    // 계획을 달력에 등록한 날. null이면 아직 등록 전 — 화면에서 버튼 문구를 가른다
+    private final LocalDate planStartedAt;
+
     private LearningCardResponseDTO(LearningCard card) {
         this.id = card.getId();
         this.category = card.getCategory();
@@ -55,6 +59,7 @@ public class LearningCardResponseDTO {
         this.pitfalls = splitLines(card.getPitfalls());
         this.selfCheck = splitLines(card.getSelfCheck());
         this.studyPlan = card.getStudyPlan();
+        this.planStartedAt = card.getPlanStartedAt();
     }
 
     public static LearningCardResponseDTO of(LearningCard card) {

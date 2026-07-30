@@ -68,6 +68,7 @@ export function AuthProvider({ children }) {
     try { await apiLogout(); } catch { /* 네트워크 실패해도 클라이언트는 로그아웃 처리 */ }
     localStorage.removeItem('cogi-user');
     localStorage.removeItem('cogi-expires');
+    // 코기 스탯 캐시는 GameProvider가 user가 빠지는 걸 보고 지운다 (여기서 지워도 곧 덮어쓴다)
     setUser(null);
   };
 

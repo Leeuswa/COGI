@@ -5,7 +5,7 @@
  * 기능은 데스크톱과 같다 — 북마크·완료·퀴즈 생성/제출·학습계획·지난 문제·캘린더 등록.
  */
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import * as api from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useGame } from "../../context/GameContext";
@@ -51,6 +51,17 @@ export default function MobileCardDetail() {
   const [past, setPast] = useState(null);
 
   useEffect(() => { api.getLearningCard(cardId).then(setCard); }, [cardId]);
+
+  // 알림에서 넘어온 단계(?step=3) — 카드를 다 그린 뒤 그 자리로 스크롤하고 강조한다
+  const [searchParams] = useSearchParams();
+  const step = Number(searchParams.get("step")) || 0;
+  useEffect(() => {
+    if (!card || !step) return;
+    const id = requestAnimationFrame(() => {
+      document.getElementById(`plan-step-${step}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [card, step]);
 
   // 복습 탭을 처음 열 때만 불러온다
   useEffect(() => {
@@ -100,10 +111,19 @@ export default function MobileCardDetail() {
     finally { setPlanning(false); }
   };
 
-  // 계획 전체를 한 번에 캘린더로 — 단계마다 누르지 않아도 되게 .ics를 한 번에 내려준다
-  const exportPlan = () => {
-    plan.forEach((s) => api.downloadIcs(card, dateAfter(s.dayOffset)));
-    notify(`${plan.length}개 일정을 캘린더 파일로 내려받았어요`);
+  // 계획 전체를 한 번에 — .ics로 내려받고(외부 캘린더), 서버에도 등록한다(우리 달력·알림). 데스크톱과 같다
+  const exportPlan = async () => {
+    // 파일은 하나로 — 단계마다 내려받으면 14개가 우수수 떨어진다
+    api.downloadPlanIcs(card, plan.map((s, i) => ({
+      date: dateAfter(s.dayOffset), stepNo: i + 1, title: s.title, focus: s.focus, minutes: s.minutes,
+    })));
+    try {
+      const updated = await api.registerStudyPlan(card.id);
+      setCard((c) => ({ ...c, planStartedAt: updated.planStartedAt }));
+      notify(`${plan.length}개 일정을 등록했어요. 홈 달력에서 확인하세요`);
+    } catch (e) {
+      notify(e.message || "파일은 받았지만 달력 등록에 실패했어요");
+    }
   };
 
   const toggleBm = async () => {
@@ -264,7 +284,7 @@ export default function MobileCardDetail() {
           {plan && (
             <ol className="mcd-plan">
               {plan.map((s, i) => (
-                <li key={i}>
+                <li key={i} id={`plan-step-${i + 1}`} className={step === i + 1 ? "on" : ""}>
                   <div className="mp-head">
                     <span className="mp-no">{i + 1}</span>
                     <b>{s.title}</b>
@@ -295,7 +315,7 @@ export default function MobileCardDetail() {
           {plan && (
             <div className="mcd-planfoot">
               <p>총 {plan.length}단계 · {plan.reduce((sum, s) => sum + (s.minutes ?? 0), 0)}분</p>
-              <button className="btn co sm full" onClick={exportPlan}>📅 전체 일정 한 번에 등록</button>
+              <button className="btn co sm full" onClick={exportPlan}>📅 전체 일정 한 번에 등록 &amp; 저장</button>
             </div>
           )}
         </section>

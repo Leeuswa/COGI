@@ -23,7 +23,9 @@ import PreviewDock from "./PreviewDock";
 import useIsMobile from "../../hooks/useIsMobile";
 import MobileStudio from "../mobile/MobileStudio";
 
-const isFrontend = (f) => /\.(html|css)$/i.test(f.path) || f.kind === "frontend";
+// 뱃지는 "프론트 파일이냐"만 본다. 미리보기 가능 여부(isPreviewable)와는 다른 질문이다
+const isFrontend = (f) =>
+  /\.(html?|css|s[ac]ss|less|jsx?|tsx?|vue|svelte)$/i.test(f.path) || f.kind === "frontend";
 // 미리보기는 iframe에 문서를 통째로 넣는 방식이라 뿌리가 될 수 있는 건 HTML뿐이다.
 // CSS·JS만 있는 PR을 열면 코드 글자만 나오니 자동으로 펴지 않는다 (그건 자산으로 딸려 붙는다)
 const isPreviewable = (f) => /\.html?$/i.test(f.path);

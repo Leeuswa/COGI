@@ -5,6 +5,7 @@ import idu.sba.backend.domain.learning.dto.CardHistoryResponseDTO;
 import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardCreateRequestDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardResponseDTO;
+import idu.sba.backend.domain.learning.dto.PlanDateResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmissionResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
@@ -13,6 +14,7 @@ import idu.sba.backend.domain.learning.dto.SkillRecommendRequestDTO;
 import idu.sba.backend.domain.learning.dto.SkillByWeaknessResponseDTO;
 import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface LearningService {
@@ -44,6 +46,15 @@ public interface LearningService {
     // 학습 계획 생성 (AI 호출 + 크레딧 소모). days는 3·5·7·14 중 하나이고 그 기간만큼만 짠다.
     // 다시 만들면 이전 계획을 덮어쓴다
     LearningCardResponseDTO createStudyPlan(Long userId, Long cardId, int days);
+
+    // 짜 둔 계획을 달력에 등록 — 오늘을 기준일로 잡는다. 이때부터 달력·알림에 뜬다
+    LearningCardResponseDTO registerStudyPlan(Long userId, Long cardId);
+
+    // 등록된 계획의 단계를 날짜로 펼쳐서 준다(구간 필터). 대시보드 달력이 쓴다
+    List<PlanDateResponseDTO> getPlanDates(Long userId, LocalDate from, LocalDate to);
+
+    // 오늘 할 단계가 있으면 알림을 만든다(같은 단계는 하루 한 번). 만들었든 아니든 오늘 단계를 돌려준다
+    List<PlanDateResponseDTO> ensureTodayPlanNotifications(Long userId);
 
     // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 AI 호출도 크레딧도 없다
     List<AiSkillResponseDTO> getAiSkills(Long userId, String provider);

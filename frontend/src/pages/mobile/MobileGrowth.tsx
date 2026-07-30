@@ -137,7 +137,7 @@ export default function MobileGrowth() {
           <div className="mg-stats">
             <div className="mcard"><b>{total}</b><i>기간 내 이슈</i></div>
             <div className="mcard"><b className="ok">{solved}</b><i>해결 완료</i></div>
-            <div className="mcard"><b className="co">{S.streak}</b><i>연속 학습</i></div>
+            <div className="mcard"><b className="co">{S.totalDays}</b><i>총 학습일</i></div>
           </div>
 
           <section className="mcard">

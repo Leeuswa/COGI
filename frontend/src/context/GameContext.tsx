@@ -20,9 +20,18 @@ const today = () => new Date().toISOString().slice(0, 10);
 // 플랜별 일일 크레딧 상한 (FR-85)
 const CREDIT_LIMIT = { FREE: 20, PRO: 40, MAX: 70 };
 
+// 코기 캐시는 계정별로 나눈다. 한 키에 몰아 두면 세션 만료 401(client.ts)처럼
+// 페이지가 통째로 리로드되는 경로에서 로그아웃 처리가 못 돌아,
+// 그 계정 코기가 비로그인 랜딩에 Lv.2로 그대로 남는다
+const petKey = (u) => (u ? `cogi-game-${u.userId ?? u.email}` : 'cogi-game');
+const cachedUser = () => {
+  try { return JSON.parse(localStorage.getItem('cogi-user') || 'null'); } catch { return null; }
+};
+
 const DEFAULT = {
   coins: 30, hun: 60, hap: 60, cln: 60, xp: 0,   // 원본 다마고치 초기값 그대로
-  streak: 0, lastSubmitDate: null, submitDays: [], // submitDays: 최근 제출 날짜 목록(달력 점 찍기용)
+  // streak은 "연속" 학습일이라 하루 걸리면 0. totalDays는 끊겨도 줄지 않는 누적 학습일이라 별개다
+  streak: 0, totalDays: 0, lastSubmitDate: null, submitDays: [], // submitDays: 최근 제출 날짜 목록(달력 점 찍기용)
   lastCheckIn: null,             // 출석 코인 지급일 (하루 1회)
   creditUsed: 0, creditDate: today(),
 };
@@ -33,7 +42,7 @@ export function GameProvider({ children }) {
   const [S, setS] = useState(() => {
     try {
       // 코기 스탯은 서버에서 받아 덮어쓴다. 여기 캐시는 새로고침 직후 잠깐 보여줄 용도
-      const saved = JSON.parse(localStorage.getItem('cogi-game') || 'null');
+      const saved = JSON.parse(localStorage.getItem(petKey(cachedUser())) || 'null');
       if (!saved) return DEFAULT;
       // 날짜가 넘어갔으면 크레딧 리셋 (자정 초기화 흉내 — 실제론 서버 배치)
       if (saved.creditDate !== today()) { saved.creditUsed = 0; saved.creditDate = today(); }
@@ -51,8 +60,17 @@ export function GameProvider({ children }) {
   const loaded = useRef(false); // 서버 값을 받기 전에 저장을 쏘면 기본값으로 덮어써 버린다
 
   // 로그인한 계정의 코기를 불러온다. 계정이 바뀌면 그 계정 코기로 갈아끼운다
+  const prevUser = useRef(user);
   useEffect(() => {
-    if (!user) { loaded.current = false; return; }
+    const was = prevUser.current;
+    prevUser.current = user;
+    if (!user) {
+      loaded.current = false;
+      // 로그아웃 — 화면에 떠 있는 그 계정 코기를 내린다(캐시는 계정 키에 따로 있다).
+      // 비로그인으로 처음 들어온 방문자(was == null)의 체험 코기는 건드리지 않는다
+      if (was) setS(DEFAULT);
+      return;
+    }
     let alive = true;
     api.getPetState().then((pet) => {
       if (!alive || !pet) return;
@@ -72,6 +90,7 @@ export function GameProvider({ children }) {
       setS((prev) => ({
         ...prev,
         streak: r.streak ?? 0,
+        totalDays: r.totalDays ?? 0,
         submitDays: days,
         lastSubmitDate: days.length > 0 ? days[days.length - 1] : null, // 오름차순이라 마지막이 최근
       }));
@@ -83,7 +102,7 @@ export function GameProvider({ children }) {
   const update = useCallback((patch) => {
     setS((prev) => {
       const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch };
-      localStorage.setItem('cogi-game', JSON.stringify(next));
+      localStorage.setItem(petKey(user), JSON.stringify(next));
 
       // 코기 스탯만 서버로. 먹이 주기처럼 연달아 눌리는 동작이라 잠깐 모았다 한 번에 보낸다
       if (loaded.current) {
@@ -97,7 +116,7 @@ export function GameProvider({ children }) {
       }
       return next;
     });
-  }, []);
+  }, [user]); // 저장 키가 계정별이라 user가 바뀌면 새로 만든다
 
   // 우하단 토스트. 연속 호출되면 마지막 것만 남는다 (그게 자연스러움)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,6 +183,7 @@ export function GameProvider({ children }) {
       ...p,
       creditUsed: credit?.usedCredits ?? p.creditUsed,
       streak: retention?.streak ?? p.streak,
+      totalDays: retention?.totalDays ?? p.totalDays,
       submitDays: retention?.submitDays ?? p.submitDays, // 달력 점도 서버 값으로
     })),
   };
