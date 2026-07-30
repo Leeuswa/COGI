@@ -73,6 +73,17 @@ export default function FindPassword() {
     try {
       await api.passwordReset(resetToken, pw);
       nav('/login', { state: { notice: '비밀번호가 재설정됐어요. 새 비밀번호로 로그인하세요.' } });
+    } catch (ex) {
+      // 재설정 토큰이 만료(410)/사용됨/무효면 저장을 다시 눌러도 소용없다 — 이메일부터 다시 밟게 되돌린다.
+      // ponytail: 코드 필드가 없어 메시지 매칭으로 판별. 세 문구 모두 "재설정 토큰"을 포함(만료/무효/사용됨).
+      if (ex.status === 410 || /재설정 토큰/.test(ex.message || '')) {
+        setCode(''); setResetToken(null); setPw(''); setPw2('');
+        setStep(1);
+        setErr('재설정 시간이 지났어요. 이메일부터 다시 진행해주세요.');
+      } else {
+        // 그 외(기존 비번과 동일 등)는 서버 메시지 그대로 step3에 노출
+        setErr(ex.message || '비밀번호 변경에 실패했어요. 다시 시도해주세요.');
+      }
     } finally { setBusy(false); }
   };
 
@@ -92,6 +103,7 @@ export default function FindPassword() {
               <label>이메일</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
+            {err && <p className="err">{err}</p>}
             <button className="btn co" disabled={busy}>{busy ? '발송 중…' : '인증코드 받기'}</button>
           </form>
         )}
