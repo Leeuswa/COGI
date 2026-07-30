@@ -49,7 +49,8 @@ export default function MobilePlan() {
   const startBillingAuth = async (planId) => {
     const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
     if (!clientKey) { notify("결제 설정(clientKey)이 없습니다"); return; }
-    const customerKey = crypto.randomUUID();
+    // crypto.randomUUID는 secure context(HTTPS/localhost)에만 있다 — HTTP로 띄운 IP 접속에선 없어서 폴백을 둔다.
+    const customerKey = crypto.randomUUID?.() ?? `k${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
     const tossPayments = await loadTossPayments(clientKey);
     const payment = tossPayments.payment({ customerKey });
     await payment.requestBillingAuth({

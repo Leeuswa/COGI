@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 
-export default function SecurityTab({ user, totp, onSetup, onEnable, busy }) {
+export default function SecurityTab({ user, totp, onSetup, onEnable, onDisable, busy }) {
   const [code, setCode] = useState('');
   // 소셜 계정은 인증을 제공자에 위임 — 앱 자체 TOTP는 이메일 계정에만 연다
   const isSocial = user.provider === 'KAKAO' || user.provider === 'GITHUB';
@@ -25,7 +25,18 @@ export default function SecurityTab({ user, totp, onSetup, onEnable, busy }) {
           </p>
         </>
       ) : user.totpEnabled ? (
-        <p style={{ fontSize: 13.5 }}><span className="chip low">활성</span> 2차 인증이 켜져 있어요.</p>
+        // 이미 활성 — 재설정은 막고(백엔드도 차단), 해제만 가능
+        <>
+          <p style={{ fontSize: 13.5, marginBottom: 12 }}>
+            <span className="chip low">활성</span> 2차 인증이 <b>완료</b>됐어요. 다음 로그인부터 6자리를 물어봅니다.
+          </p>
+          <button className="btn wh sm" onClick={onDisable} disabled={busy}>
+            {busy ? '해제 중…' : '2차 인증 해제'}
+          </button>
+          <p className="note sm" style={{ marginTop: 10, color: 'var(--sub)' }}>
+            비밀번호를 바꾸거나 기기를 바꾸려면 해제 후 다시 설정하세요.
+          </p>
+        </>
       ) : totp ? (
         // setup 완료, 아직 미활성 — 앱 등록 후 코드로 확정
         <>

@@ -181,6 +181,10 @@ export const totpEnable = (code) =>
     ? (code === '000000' ? mock({ ok: true }) : Promise.reject(new Error('OTP 불일치')))
     : http('POST', '/api/users/me/totp/enable', { code });
 
+// POST /api/users/me/totp/disable — 2차 인증 해제
+export const totpDisable = () =>
+  USE_MOCK ? mock({ ok: true }) : http('POST', '/api/users/me/totp/disable');
+
 // API-006-2 POST /api/auth/totp/verify — 6자리 코드 검증 후 최종 JWT
 export const totpVerify = (totpCode, tempToken) =>
   USE_MOCK
@@ -610,6 +614,10 @@ export const getWeeklyReports = () =>
 // 리포트 드릴다운 — 그 주 이슈가 걸린 PR 목록 (status: 'OPEN' 전체 / 'RESOLVED' 해결)
 export const getWeeklyReportPrs = (reportId, status) =>
   USE_MOCK ? mock([]) : http('GET', `/api/users/me/weekly-reports/${reportId}/prs?status=${status}`);
+
+// 리포트 드릴다운(이슈 단위) — 그 주 이슈 하나하나 (status: 'OPEN' 전체 / 'RESOLVED' 해결된 것만)
+export const getWeeklyReportIssues = (reportId, status) =>
+  USE_MOCK ? mock([]) : http('GET', `/api/users/me/weekly-reports/${reportId}/issues?status=${status}`);
 // 리포트는 매주 월요일 자동 메일 발송 → 수동 발송 API 없음
 
 // 내가 이미 연동해둔 레포 목록 — 팀 화면(TeamPage)이 "내 팀 = 내가 연동한 레포"를 보여줄 때 씀

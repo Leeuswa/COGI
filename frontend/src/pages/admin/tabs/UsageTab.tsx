@@ -5,12 +5,16 @@
  */
 import { useState } from 'react';
 
-// 벤더 분류(GEMINI/CLAUDE/OPENAI) + 고정 색상. 모델명 접두사로 판별.
+// 벤더 분류 + 고정 색상. 모델명 접두사로 판별.
+// real=true 는 벤더 Admin API로 실사용량을 받아오는 벤더 — 그래프/누적바도 그 값을 쓴다.
+// GEMINI/GROQ는 usage API가 없어 우리 자체집계(ai_usage_logs)를 그대로 쓴다.
 const VENDORS = [
-  { key: 'GEMINI', color: '#4c6ef5', match: (s) => s.startsWith('gemini') },
-  { key: 'CLAUDE', color: '#f59f00', match: (s) => s.startsWith('claude') },
-  { key: 'OPENAI', color: '#12b886', match: (s) => s.startsWith('gpt') || s.startsWith('openai') },
+  { key: 'GEMINI', color: '#4c6ef5', real: false, match: (s) => s.startsWith('gemini') },
+  { key: 'GROQ',   color: '#e8590c', real: false, match: (s) => s.startsWith('llama') || s.startsWith('groq') },
+  { key: 'CLAUDE', color: '#f59f00', real: true,  match: (s) => s.startsWith('claude') },
+  { key: 'OPENAI', color: '#12b886', real: true,  match: (s) => s.startsWith('gpt') || s.startsWith('openai') },
 ];
+const REAL_KEYS = new Set(VENDORS.filter((v) => v.real).map((v) => v.key));
 const vendorOf = (m) => VENDORS.find((v) => v.match((m || '').toLowerCase()))?.key || null;
 const BUDGET_USD = 10; // 벤더별 상한 $10 — 이 금액의 토큰 환산치가 바의 100%
 
@@ -30,13 +34,27 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
   for (let k = SHOW_DAYS - 1; k >= 0; k--) days.push(new Date(endMs - k * DAY_MS).toISOString().slice(0, 10));
   const byDay = {};
   for (const key of days) byDay[key] = {};
+  // 하이브리드: 벤더 Admin API는 '오늘' 사용량을 최대 하루 늦게 준다. 그래서 조회 끝이 실제 오늘일 때만,
+  // 오늘 하루는 벤더값 대신 우리 자체집계(ai_usage_logs)로 실시간 표시하고 어제 이하는 벤더 실측을 쓴다.
+  // (오늘치 비용은 우리 계산 = 추정, 다음 날 벤더 버킷이 나오면 실측으로 대체됨)
+  const _t = new Date();
+  const realToday = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, '0')}-${String(_t.getDate()).padStart(2, '0')}`;
+  const liveDay = range.to === realToday ? realToday : null;  // null이면 과거 조회 → 전부 벤더 실측
+  // 자체집계: GEMINI/GROQ는 전 기간, CLAUDE/OPENAI(real)는 '오늘'만(실시간).
   for (const u of usage) {
     const day = (u.createdAt || '').slice(0, 10);
     const bucket = byDay[day]; // 최근 5일에 속하지 않으면 undefined
     if (!bucket) continue;
     const v = vendorOf(u.modelName);
     if (!v) continue;
+    if (REAL_KEYS.has(v) && day !== liveDay) continue; // real 벤더의 과거일은 아래 벤더 실측이 채움
     bucket[v] = (bucket[v] || 0) + (u.inputTokens || 0) + (u.outputTokens || 0);
+  }
+  // CLAUDE/OPENAI — 벤더 Admin API 실사용량. '오늘'(liveDay)은 위 자체집계가 채우므로 건너뛴다.
+  for (const p of providerUsage) {
+    const bucket = byDay[p.date];
+    if (!bucket || !REAL_KEYS.has(p.vendor) || p.date === liveDay) continue;
+    bucket[p.vendor] = (bucket[p.vendor] || 0) + (p.inputTokens || 0) + (p.outputTokens || 0);
   }
   // y스케일: 보이는 벤더들의 일자별 값 중 최댓값
   const maxTokens = Math.max(1, ...days.flatMap((d) => visibleVendors.map((v) => byDay[d][v.key] || 0)));
@@ -49,12 +67,19 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
   const fmt = (t) => (t >= 1000 ? `${(t / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(t)); // 1840 → 1.8k
 
   // 벤더별 누적 토큰/비용(기간 전체) — 진행바는 $10 예산 대비 사용률
+  // 그래프와 같은 소스·같은 하이브리드 규칙 — GEMINI/GROQ는 자체집계, CLAUDE/OPENAI는 오늘=자체집계·과거=벤더.
   const vendorTok = {}, vendorCost = {};
   for (const u of usage) {
     const v = vendorOf(u.modelName);
     if (!v) continue;
+    if (REAL_KEYS.has(v) && (u.createdAt || '').slice(0, 10) !== liveDay) continue;
     vendorTok[v] = (vendorTok[v] || 0) + (u.inputTokens || 0) + (u.outputTokens || 0);
     vendorCost[v] = (vendorCost[v] || 0) + Number(u.cost || 0);
+  }
+  for (const p of providerUsage) {
+    if (!REAL_KEYS.has(p.vendor) || p.date === liveDay) continue;
+    vendorTok[p.vendor] = (vendorTok[p.vendor] || 0) + (p.inputTokens || 0) + (p.outputTokens || 0);
+    vendorCost[p.vendor] = (vendorCost[p.vendor] || 0) + Number(p.cost || 0);
   }
 
   return (
@@ -74,9 +99,10 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
       <div className="panel">
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
           <b>일자별 토큰 사용량 (벤더별)</b>
-          <span className="note sm">최근 5일 · 범례를 눌러 선을 켜고/끌 수 있어요 · 우리 로그(ai_usage_logs) 기준</span>
+          <span className="note sm">최근 5일 · 범례를 눌러 켜고/끌 수 있어요 · CLAUDE·OPENAI는 어제까지 벤더 실측, 오늘은 실시간 추정(우리 로그) · GEMINI·GROQ는 우리 로그(ai_usage_logs)</span>
         </div>
-        {usage.length === 0 || days.length === 0 ? (
+        {/* CLAUDE/OPENAI는 벤더 Admin API(providerUsage)로 따로 들어오므로, 자체집계가 비어도 그린다 */}
+        {(usage.length === 0 && providerUsage.length === 0) || days.length === 0 ? (
           <p className="note sm">이 기간에 사용 기록이 없어요.</p>
         ) : (
           <>
@@ -136,7 +162,7 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
       </div>
 
       {/* 벤더별 누적 사용량 — $10 예산 대비 사용률 (기간 전체) */}
-      {usage.length > 0 && (
+      {(usage.length > 0 || providerUsage.length > 0) && (
         <div className="panel">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
             <b>모델별 누적 사용량</b>
@@ -165,32 +191,6 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
           })}
         </div>
       )}
-
-      {/* 벤더 대시보드 실사용량 — 위 그래프/바는 우리 자체집계, 이건 벤더가 보고한 실제 수치 */}
-      <div className="panel">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-          <b>벤더 실사용량 (대시보드 기준)</b>
-          <span className="note sm">OpenAI · Anthropic Admin API · 선택 기간 · Gemini는 usage API 미제공</span>
-        </div>
-        {providerUsage.length === 0 ? (
-          <p className="note sm">벤더 Admin 키가 설정되지 않았거나 이 기간에 벤더 기록이 없어요.</p>
-        ) : (
-          <table className="tbl">
-            <thead><tr><th>일자</th><th>벤더</th><th>IN</th><th>OUT</th><th>비용(USD)</th></tr></thead>
-            <tbody>
-              {providerUsage.map((p) => (
-                <tr key={`${p.vendor}-${p.date}`}>
-                  <td className="mono xs">{p.date}</td>
-                  <td><span className="chip navy">{p.vendor}</span></td>
-                  <td className="mono">{(p.inputTokens || 0).toLocaleString()}</td>
-                  <td className="mono">{(p.outputTokens || 0).toLocaleString()}</td>
-                  <td className="mono">{p.cost == null ? '—' : `$${Number(p.cost).toFixed(4)}`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
 
       <div className="panel flush">
         <table className="tbl">

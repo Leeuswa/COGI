@@ -26,8 +26,10 @@ class ProviderUsageClientTest {
         assertThat(tokens[1]).isEqualTo(340);
     }
 
+    // 대시보드 "총 입력 토큰"과 맞추려면 캐시 토큰은 세지 않아야 한다.
+    // cache_read까지 더하면 캐시 읽기가 대부분이라 실측이 대시보드의 수십 배로 벌어진다.
     @Test
-    void Anthropic_results에서_쪼개진_input_토큰을_모두_합산한다() {
+    void Anthropic_results에서_캐시_토큰은_빼고_순수_입력만_센다() {
         String json = """
                 [{"uncached_input_tokens":900,
                   "cache_read_input_tokens":100,
@@ -37,7 +39,7 @@ class ProviderUsageClientTest {
 
         long[] tokens = ProviderUsageClient.sumTokens(objectMapper.readTree(json));
 
-        assertThat(tokens[0]).isEqualTo(1060); // 900 + 100 + 50 + 10 (중첩 객체까지)
+        assertThat(tokens[0]).isEqualTo(900); // cache_read(100), cache_creation(50+10) 제외
         assertThat(tokens[1]).isEqualTo(250);
     }
 

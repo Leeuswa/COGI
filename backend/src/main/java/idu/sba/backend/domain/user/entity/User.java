@@ -218,6 +218,12 @@ public class User {
         this.totpEnabled = true; // 로그인시 2차 인증 요구 대상
     }
 
+    // 2차 인증 해제 — 시크릿까지 비워 다시 켜려면 setup부터
+    public void disableTotp() {
+        this.totpSecret = null;
+        this.totpEnabled = false;
+    }
+
 
 
 }
