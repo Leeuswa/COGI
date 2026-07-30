@@ -288,6 +288,24 @@ section { padding: 92px 5vw; }
 .char li { font-size: 12.5px; line-height: 1.8; padding: 6px 0 6px 20px; position: relative; color: #33406b; }
 .char li::before { content: "▸"; position: absolute; left: 2px; color: var(--coral); }
 .char .btn { width: 100%; }
+/* 모델 칩 — 랜딩(.lp)과 로그인 요금제(Plan.tsx) 공용 베이스. .lp에선 아래 미디어쿼리가 덮어씀 */
+.char .chips { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: 12px 0; }
+.char .chips-plus { font-family: 'GalmuriMono11', monospace; font-size: 12.5px; color: var(--sub); align-self: center; }
+.char .chip {
+  font-family: 'GalmuriMono11', monospace; font-size: 12.5px; line-height: 1.9;
+  color: var(--navy); background: var(--white); border: 2px solid var(--navy); padding: 1px 9px;
+}
+.char.mid .chip { border-color: var(--coral); color: var(--coral); }
+/* 로그인 요금제 화면(Plan.tsx) — 추천 배지·크림/노랑 없이, 정사각형에 가깝게 크게.
+   내용을 이름·가격·크레딧·모델칩으로 줄이고, 버튼은 margin-top:auto로 카드 바닥에 맞춘다. */
+.plan-cards { grid-template-columns: repeat(3, 1fr); margin-bottom: 22px; }
+.plan-cards .char { padding: 30px 26px; }
+.plan-cards .char .credit { margin-top: 4px; }
+.plan-cards .char .chips { margin: 16px 0 14px; }
+/* "아래 플랜 전부 +"를 한 줄 차지하게 해 모델 칩이 다음 줄로 내려가게 */
+.plan-cards .char .chips-plus { flex-basis: 100%; }
+.plan-cards .char .btn { margin-top: auto; }        /* 버튼 하단 정렬 — FREE만 처지던 문제 해결 */
+.plan-cards .char.current { transform: none; background: var(--white); outline: 3px solid var(--coral); }
 .plan-note { margin-top: 20px; text-align: center; font-family: 'GalmuriMono11', monospace; font-size: 12px; color: var(--sub); }
 
 /* ───── 최종 CTA / 푸터 ───── */
@@ -347,9 +365,9 @@ footer.ft {
      .final은 밤하늘이 디자인이라 제외 — 투명하게 하면 흰 글씨가 안 보인다 */
   .lp section:not(.final) { background: transparent; border-top: 0; border-bottom: 0; }
 
-  /* 마지막 화면은 푸터까지 한 화면에 담는다 — mandatory 스냅은 마지막 지점 뒤로
-     넘어가지 않아서, 푸터가 그 뒤에 있으면 아래가 잘려 안 내려간다. 푸터 실측 126px */
-  .lp > .final { min-height: calc(100dvh - 76px - 126px); }
+  /* 마지막 화면(#plan)은 푸터까지 한 화면에 담는다 — mandatory 스냅은 마지막 지점 뒤로
+     넘어가지 않아서, 푸터가 그 뒤에 있으면 아래가 잘려 안 내려간다. GNB 76 + 푸터 실측 76 */
+  .lp > #plan { min-height: calc(100dvh - 76px - 76px); }
   /* 위 계산이 어긋나도(폰트·패딩 변경) 끝까지는 내려가게 푸터도 스냅 지점으로 */
   body:has(.lp) .ft { scroll-snap-align: end; }
 }

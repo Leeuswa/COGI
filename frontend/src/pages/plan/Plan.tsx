@@ -13,20 +13,8 @@ import { useGame } from "../../context/GameContext";
 import { PageHead } from "../../components/ui";
 import useIsMobile from "../../hooks/useIsMobile";
 import MobilePlan from "../mobile/MobilePlan";
-
-// 모델 ID에서 버전 토큰 제거하고 표시용 이름으로. "gpt-5.6-luna" → "GPT Luna"
-const fmtModels = (csv) =>
-  (csv ?? "")
-    .split(",")
-    .filter(Boolean)
-    .map((id) =>
-      id
-        .split("-")
-        .filter((seg) => !/^\d/.test(seg)) // 버전 세그먼트(4, 5, 4-8, 3.5 등) 제거
-        .map((seg) => (seg === "gpt" ? "GPT" : seg.charAt(0).toUpperCase() + seg.slice(1)))
-        .join(" "),
-    )
-    .join(", ");
+// 랜딩 요금제 카드와 같은 모델 칩. 두 화면이 한 소스를 쓴다
+import { addedModels } from "../../data/plans";
 
 // 폰이면 데스크톱 본체를 아예 mount하지 않는다.
 // 한 컴포넌트 안에서 갈랐더니 조건부 return 위의 useEffect가 그대로 돌아 같은 API를 두 번 때렸다.
@@ -165,8 +153,10 @@ function DesktopPlan() {
         </div>
       )}
 
-      <div className="panel-grid c3">
-        {plans.map((p) => {
+      {/* 랜딩 요금제 섹션과 같은 픽셀 카드(.char). 현재/선택은 .current.
+          plan-cards = 추천 배지·크림색 없이 정사각형에 가깝게 (landing.css 스코프) */}
+      <div className="chars plan-cards">
+        {plans.map((p, i) => {
           // 현재 플랜은 서버 실제값(getMyPlan) 기준. user.planName(localStorage 캐시)은 로딩 전 폴백만.
           const currentName = mine?.planName ?? user.planName;
           const currentPrice = plans.find((x) => x.name === currentName)?.price ?? 0;
@@ -180,6 +170,7 @@ function DesktopPlan() {
           // 정책: 다운그레이드 없음(업그레이드+해지만). 유료인데 현재보다 저렴하면 전환 불가.
           const isDowngrade = !isCancelled && p.name !== "FREE" && p.price < currentPrice;
           const highlighted = isCurrent || isFreeSelected; // 선택/현재 강조 스타일
+          const added = addedModels(plans, i); // 상위 플랜에서 새로 열리는 모델만 칩으로
 
           // 버튼 상태 결정
           let btnLabel, btnDisabled = false, btnOnClick = () => setPaying(p);
@@ -194,48 +185,28 @@ function DesktopPlan() {
           return (
             <div
               key={p.id}
-              className={`panel plan-card ${highlighted ? "current" : ""}`}
+              className={`char ${highlighted ? "current" : ""}`}
             >
               {isCurrent && <div className="plan-flag">현재 이용 중</div>}
               {isFreeSelected && <div className="plan-flag">전환 예정</div>}
               {isReservedPlan && <div className="plan-flag">해지 예약됨</div>}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <b
-                  style={{ fontFamily: "Silkscreen, monospace", fontSize: 16 }}
-                >
-                  {p.name}
-                </b>
+              <div className="pname">{p.name}</div>
+              <div className="model">
+                {p.price === 0 ? "무료" : `₩${p.price.toLocaleString()} / 월`}
               </div>
-              <p style={{ fontSize: 22, margin: "10px 0 2px" }}>
-                {p.price === 0 ? "₩0" : `₩${p.price.toLocaleString()}`}
-                <span className="note xs">/월</span>
-              </p>
-              <div
-                style={{
-                  fontSize: 12.5,
-                  color: "var(--sub)",
-                  marginBottom: 12,
-                }}
-              >
-                <div style={{ fontWeight: 700 }}>사용 가능 모델</div>
-                <div style={{ margin: "2px 0 8px" }}>{fmtModels(p.allowedModels)}</div>
-                <div>일 {p.dailyCreditLimit}크레딧</div>
+              <div className="credit">
+                {p.dailyCreditLimit}
+                <small>credits 초기화</small>
               </div>
-              <ul
-                style={{
-                  listStyle: "none",
-                  fontSize: 12.5,
-                  lineHeight: 2,
-                  marginBottom: 16,
-                }}
-              >
-                {(p.features ?? []).map((ft) => (
-                  <li key={ft}>• {ft}</li>
+              {/* 고를 수 있는 모델 — 상위 플랜은 "아래 플랜 전부 +" 뒤 줄바꿈 후 모델명 */}
+              <div className="chips">
+                {i > 0 && <span className="chips-plus">아래 플랜 전부 +</span>}
+                {added.map((m) => (
+                  <span className="chip" key={m}>{m}</span>
                 ))}
-              </ul>
+              </div>
               <button
-                className={`btn ${btnDisabled ? "wh" : "co"} sm`}
-                style={{ width: "100%" }}
+                className={`btn ${btnDisabled ? "wh" : "co"}`}
                 disabled={btnDisabled || busy}
                 onClick={btnOnClick}
               >

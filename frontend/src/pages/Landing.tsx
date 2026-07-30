@@ -3,7 +3,7 @@
  * 바뀐 건 CTA뿐: "GitHub으로 시작" → 회원가입/로그인 라우팅 (요구사항 7).
  * 섹션 순서/문구/애니메이션은 원본 그대로 유지.
  */
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import * as api from '../api/client';
 import { PLAN_FALLBACK, PLAN_FOOTNOTE, PLAN_NOTE, addedModels } from '../data/plans';
@@ -34,7 +34,7 @@ export default function Landing() {
       <ReviewSection />
       <div className="lp-duo"><LoopSection /><CareSection /></div>
       <PetSection />
-      <div className="lp-duo lp-last"><PlanSection /><FinalCta /></div>
+      <PlanSection />
       <SnapNav />
     </div>
   );
@@ -311,33 +311,6 @@ function PlanSection() {
             );
           })}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function FinalCta() {
-  const starsRef = useRef(null);
-  // 반짝이 별 14개를 랜덤 배치 (원본 스크립트 이식)
-  useEffect(() => {
-    const box = starsRef.current;
-    for (let i = 0; i < 14; i++) {
-      const s = document.createElement('i');
-      s.style.left = 4 + Math.random() * 92 + '%';
-      s.style.top = 8 + Math.random() * 84 + '%';
-      s.style.animationDelay = Math.random() * 1.6 + 's';
-      box.appendChild(s);
-    }
-    return () => { box.innerHTML = ''; };
-  }, []);
-
-  return (
-    <section className="final">
-      <div className="stars" ref={starsRef} />
-      <div className="wrap">
-        <h2>오늘 미션을 끝내면,<br />코기가 꼬리를 흔듭니다</h2>
-        <p>가입 1분. 다음 PR부터 코기가 함께 뜁니다.</p>
-        <Link className="btn" to="/signup">지금 시작하기</Link>
       </div>
     </section>
   );
