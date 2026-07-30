@@ -45,8 +45,10 @@ export default function Admin() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    api.adminAiUsage(range.from, range.to).then(setUsage);
-    api.getReviewLatency(range.from, range.to).then(setLatency);
+    // 실패하면 조용히 빈 화면이 되던 걸 알림으로 드러낸다 (403/500 vs 데이터없음 구분용)
+    api.adminAiUsage(range.from, range.to).then(setUsage)
+      .catch((e) => notify(e?.message || 'AI 사용량을 불러오지 못했어요.'));
+    api.getReviewLatency(range.from, range.to).then(setLatency).catch(() => setLatency(null));
     // 벤더 API가 느리거나 키가 없어도 다른 탭 데이터는 그대로 뜨게 실패를 흡수한다
     api.adminProviderUsage(range.from, range.to).then(setProviderUsage).catch(() => setProviderUsage([]));
     api.adminMembers().then(setMembers);
