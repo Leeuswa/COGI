@@ -74,6 +74,8 @@
   .mapp .mcd-days { grid-template-columns: repeat(4, 1fr); margin-top: 10px; }
   .mcd-plan { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
   .mcd-plan li { border: 2px solid var(--navy); border-radius: 12px; padding: 12px 13px; }
+  /* 알림에서 ?step= 을 달고 들어온 단계 — 스크롤만 하면 어디로 왔는지 모른다 */
+  .mcd-plan li.on { background: #fffbea; border-color: var(--yellow); border-width: 3px; }
   .mp-head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
   .mp-no {
     flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;

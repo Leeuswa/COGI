@@ -8,7 +8,7 @@
  * 퀴즈 보상은 다마고치와 연결: 정답 +20코인, 오답 +5코인.
  */
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
@@ -87,6 +87,18 @@ function DesktopCardDetail() {
     api.getLearningCard(cardId).then(setCard);
   }, [cardId]);
 
+  // 알림에서 넘어온 단계(?step=3) — 카드를 다 그린 뒤 그 자리로 스크롤하고 잠깐 강조한다
+  const [searchParams] = useSearchParams();
+  const step = Number(searchParams.get('step')) || 0;
+  useEffect(() => {
+    if (!card || !step) return;
+    // 계획 목록이 DOM에 올라온 다음 프레임에 찾는다
+    const id = requestAnimationFrame(() => {
+      document.getElementById(`plan-step-${step}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [card, step]);
+
   if (!card) {
     return (
       <main className="app-main">
@@ -119,10 +131,21 @@ function DesktopCardDetail() {
     finally { setPlanning(false); }
   };
 
-  // 계획 전체를 한 번에 캘린더로 — 단계마다 누르지 않아도 되게 .ics 하나로 묶어 내려준다
-  const exportPlan = () => {
-    plan.forEach((s) => api.downloadIcs(card, dateAfter(s.dayOffset)));
-    notify(`${plan.length}개 일정을 캘린더 파일로 내려받았어요`);
+  // 계획 전체를 한 번에 — .ics로 내려받고(외부 캘린더), 서버에도 등록한다(우리 달력·알림).
+  // 등록해야 대시보드 달력에 뜨고 그날 아침 알림이 생긴다
+  const exportPlan = async () => {
+    // 파일은 하나로 — 단계마다 내려받으면 14개가 우수수 떨어진다
+    api.downloadPlanIcs(card, plan.map((s, i) => ({
+      date: dateAfter(s.dayOffset), stepNo: i + 1, title: s.title, focus: s.focus, minutes: s.minutes,
+    })));
+    try {
+      const updated = await api.registerStudyPlan(card.id);
+      setCard((c) => ({ ...c, planStartedAt: updated.planStartedAt }));
+      notify(`${plan.length}개 일정을 등록했어요. 대시보드 달력에서 확인하세요`);
+    } catch (e) {
+      // 파일은 이미 내려갔으므로 그 사실과 실패를 구분해서 알린다
+      notify(e.message || '파일은 받았지만 달력 등록에 실패했어요');
+    }
   };
 
   // 유형을 바꿔서 다시 풀기 — 문제를 접고 유형 선택 화면으로
@@ -414,7 +437,8 @@ function DesktopCardDetail() {
               {plan.map((s, i) => {
                 const date = dateAfter(s.dayOffset); // 캘린더에 넘길 실제 날짜
                 return (
-                  <li key={i} className="plan-step">
+                  <li key={i} id={`plan-step-${i + 1}`}
+                    className={`plan-step ${step === i + 1 ? 'on' : ''}`}>
                     <span className="ps-dot">
                       <b>{i + 1}</b>
                       <em>{s.minutes}분</em>
@@ -443,7 +467,7 @@ function DesktopCardDetail() {
               <span className="note sm">
                 총 {plan.length}단계 · {plan.reduce((sum, s) => sum + (s.minutes ?? 0), 0)}분
               </span>
-              <button className="btn co sm" onClick={exportPlan}>📅 전체 일정 한 번에 등록</button>
+              <button className="btn co sm" onClick={exportPlan}>📅 전체 일정 한 번에 등록 &amp; 저장</button>
             </div>
           </>
         )}

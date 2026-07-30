@@ -5,6 +5,7 @@ import idu.sba.backend.domain.learning.dto.LearningCardBookmarkRequestDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardCompleteRequestDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardCreateRequestDTO;
 import idu.sba.backend.domain.learning.dto.LearningCardResponseDTO;
+import idu.sba.backend.domain.learning.dto.PlanDateResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizCreateRequestDTO;
 import idu.sba.backend.domain.learning.dto.QuizResponseDTO;
 import idu.sba.backend.domain.learning.dto.QuizSubmissionResponseDTO;
@@ -13,9 +14,11 @@ import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
 import idu.sba.backend.domain.learning.service.LearningService;
 import idu.sba.backend.global.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -74,6 +77,28 @@ public class LearningCardController {
                                                                 @PathVariable Long cardId,
                                                                 @RequestParam(defaultValue = "7") int days) {
         return ApiResponse.ok(learningService.createStudyPlan(userId, cardId, days));
+    }
+
+    // 계획을 달력에 등록 — 오늘이 기준일이 되고 이때부터 대시보드 달력·알림에 뜬다. AI 호출 없음
+    @PostMapping("/{cardId}/study-plan/register")
+    public ApiResponse<LearningCardResponseDTO> registerStudyPlan(@AuthenticationPrincipal Long userId,
+                                                                  @PathVariable Long cardId) {
+        return ApiResponse.ok(learningService.registerStudyPlan(userId, cardId));
+    }
+
+    // 등록된 계획을 날짜로 펼쳐 준다 — 대시보드 달력이 그 달 구간으로 부른다 (읽기 전용)
+    @GetMapping("/plan-dates")
+    public ApiResponse<List<PlanDateResponseDTO>> planDates(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ApiResponse.ok(learningService.getPlanDates(userId, from, to));
+    }
+
+    // 오늘 할 단계가 있으면 알림을 만든다(같은 단계는 하루 한 번). 조회 API에 쓰기를 섞지 않으려고 POST로 뺐다
+    @PostMapping("/plan-notifications/today")
+    public ApiResponse<List<PlanDateResponseDTO>> todayPlanNotifications(@AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(learningService.ensureTodayPlanNotifications(userId));
     }
 
     // API-046: 퀴즈 제출·채점 (정답이면 신호등 승급)

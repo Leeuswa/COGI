@@ -24,6 +24,8 @@ const TABS: [string, string][] = [
   ["list", "추천 스킬"],
   ["weak", "내 약점"],
   ["ask", "질문하기"],
+  // AI 추천은 새로 받으면 이전 결과를 덮어쓴다. 별을 달아 둔 것만 여기 남는다
+  ["fav", "즐겨찾기"],
 ];
 
 export default function MobileSkills() {
@@ -43,6 +45,25 @@ export default function MobileSkills() {
   const toggleFavorite = async (skill) => {
     setSkills((prev) => prev.map((s) => (s.id === skill.id ? { ...s, isFavorite: !s.isFavorite } : s)));
     await api.toggleSkillFavorite(skill.id);
+  };
+
+  // 즐겨찾기 — 탭에 들어올 때마다 다시 부른다. 다른 탭에서 별을 켜고 넘어오면 바로 보여야 한다
+  const [favorites, setFavorites] = useState(null);
+  useEffect(() => {
+    if (tab !== "fav") return;
+    setFavorites(null);
+    api.getFavoriteSkills().then(setFavorites).catch(() => setFavorites([]));
+  }, [tab]);
+
+  // 여기서 별을 끄면 목록에서 빠진다 — 즐겨찾기 목록이니 남아 있으면 이상하다
+  const unfavorite = async (skill) => {
+    setFavorites((prev) => prev.filter((s) => s.id !== skill.id));
+    try {
+      await api.toggleSkillFavorite(skill.id);
+    } catch {
+      setFavorites((prev) => [...prev, skill]);
+      notify("즐겨찾기를 바꾸지 못했어요");
+    }
   };
 
   // AI에게 직접 추천받기 — 큐레이션에 없을 때 자유 입력으로 물어본다 (크레딧 1)
@@ -168,45 +189,28 @@ export default function MobileSkills() {
           </section>
         ) : (
           skills.map((s) => (
-            <section key={s.id} className="mcard msk">
-              <div className="msk-head">
-                <b>{s.title}</b>
-                <button className={`msk-star ${s.isFavorite ? "on" : ""}`}
-                  onClick={() => toggleFavorite(s)}
-                  aria-label={s.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}>
-                  {s.isFavorite ? "★" : "☆"}
-                </button>
-              </div>
-
-              <div className="msk-tags">
-                <span className="msk-cat">{CATEGORY_KO[s.category] ?? s.category}</span>
-                {/* 내 약점과 겹치면 눈에 띄게 — 이게 이 화면의 핵심이다 */}
-                {weakness.includes(s.category) && <span className="msk-mine">내 약점</span>}
-              </div>
-
-              <p className="msk-desc">{s.description}</p>
-
-              <div className="msk-how">
-                <b>이렇게 씁니다</b>
-                <p>{s.howTo}</p>
-              </div>
-
-              {/* AI가 만들어 준 스킬만 붙여넣을 프롬프트를 들고 있다 */}
-              {s.prompt && (
-                <>
-                  <pre className="msk-rec-prompt">{s.prompt}</pre>
-                  <button className="btn wh sm full" onClick={() => copyPrompt(s.prompt)}>프롬프트 복사</button>
-              </>
-            )}
-
-            {s.url && (
-              <a className="msk-doc" href={s.url} target="_blank" rel="noreferrer">공식 문서 보기 ↗</a>
-            )}
-          </section>
-        ))
-      )}
+            <SkillCard key={s.id} skill={s} weakness={weakness}
+              onStar={() => toggleFavorite(s)} onCopy={copyPrompt} />
+          ))
+        )}
 
         </>
+      )}
+
+      {/* ── 즐겨찾기 ── */}
+      {tab === "fav" && (
+        !favorites ? (
+          <p className="mnote">불러오는 중…</p>
+        ) : favorites.length === 0 ? (
+          <section className="mcard mempty">
+            <p>아직 즐겨찾기한 스킬이 없어요.<br />AI 추천은 다시 받으면 이전 결과가 사라지니 즐겨찾기로 저장해두세요!</p>
+          </section>
+        ) : (
+          favorites.map((s) => (
+            <SkillCard key={s.id} skill={s} weakness={weakness}
+              onStar={() => unfavorite(s)} onCopy={copyPrompt} />
+          ))
+        )
       )}
 
       {/* ── 스킬 질문하기 ── */}
@@ -235,6 +239,45 @@ export default function MobileSkills() {
 }
 
 // 추천 항목 카드 — 약점 기반과 자유 입력이 같은 응답 모양이라 한 벌로 쓴다
+// 스킬 카드 한 장 — 큐레이션 목록과 즐겨찾기가 같은 DTO를 쓴다(둘 다 ai_skills 행)
+function SkillCard({ skill: s, weakness, onStar, onCopy }) {
+  return (
+    <section className="mcard msk">
+      <div className="msk-head">
+        <b>{s.title}</b>
+        <button className={`msk-star ${s.isFavorite ? "on" : ""}`}
+          onClick={onStar}
+          aria-label={s.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}>
+          {s.isFavorite ? "★" : "☆"}
+        </button>
+      </div>
+
+      <div className="msk-tags">
+        <span className="msk-cat">{CATEGORY_KO[s.category] ?? s.category}</span>
+        {/* 내 약점과 겹치면 눈에 띄게 — 이게 이 화면의 핵심이다 */}
+        {weakness.includes(s.category) && <span className="msk-mine">내 약점</span>}
+      </div>
+
+      <p className="msk-desc">{s.description}</p>
+
+      <div className="msk-how">
+        <b>이렇게 씁니다</b>
+        <p>{s.howTo}</p>
+      </div>
+
+      {/* AI가 만들어 준 스킬만 붙여넣을 프롬프트를 들고 있다 */}
+      {s.prompt && (
+        <>
+          <pre className="msk-rec-prompt">{s.prompt}</pre>
+          <button className="btn wh sm full" onClick={() => onCopy(s.prompt)}>프롬프트 복사</button>
+        </>
+      )}
+
+      {s.url && <a className="msk-doc" href={s.url} target="_blank" rel="noreferrer">공식 문서 보기 ↗</a>}
+    </section>
+  );
+}
+
 function RecItems({ items, onStar, onCopy }) {
   return items.map((it) => (
     <div key={it.skillId ?? it.title} className="msk-rec-item">

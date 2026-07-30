@@ -24,7 +24,7 @@ export default function Growth() {
 
 function DesktopGrowth() {
   const { user } = useAuth();
-  const [streak, setStreak] = useState(0); // 서버 연속 학습일 (retention-status)
+  const [totalDays, setTotalDays] = useState(0); // 누적 학습일 (retention-status)
   const [trend, setTrend] = useState(null);
   const [compare, setCompare] = useState(null); // { labels, series }
   const [period, setPeriod] = useState('4W');
@@ -39,8 +39,8 @@ function DesktopGrowth() {
       setRepos(list);
       if (list.length > 0) setRepoId(list[0].repoId);
     });
-    // 연속 학습일 — 서버(user_streaks) 값. 없으면 0
-    api.getRetentionStatus().then((r) => setStreak(r?.currentStreak ?? 0)).catch(() => setStreak(0));
+    // 누적 학습일 — 제출한 날의 수. currentStreak(연속)은 하루 걸리면 0이라 "총 학습일"이 될 수 없다
+    api.getRetentionStatus().then((r) => setTotalDays(r?.totalDays ?? 0)).catch(() => setTotalDays(0));
   }, []);
 
   // 선택한 레포의 팀원 목록. 레포 바뀌면 팀원 필터는 '팀 전체'로 초기화
@@ -238,7 +238,7 @@ function DesktopGrowth() {
               <p className="note xs">해결 완료</p>
             </div>
             <div className="panel stat-card">
-              <span className="stat-num" style={{ color: 'var(--coral)' }}>{streak}<span className="unit">일</span></span>
+              <span className="stat-num" style={{ color: 'var(--coral)' }}>{totalDays}<span className="unit">일</span></span>
               <p className="note xs">총 학습일</p>
             </div>
           </div>
