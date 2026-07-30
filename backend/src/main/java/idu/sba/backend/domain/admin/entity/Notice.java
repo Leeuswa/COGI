@@ -29,6 +29,8 @@ public class Notice {
     private Integer successCount; // 발송 완료 후 채워짐(진행 중엔 null)
     private Integer failCount;
 
+    private boolean urgent; // 긴급공지 여부 — true면 이메일까지 발송, 화면에 '긴급' 표시
+
     @Enumerated(EnumType.STRING)
     private NoticeStatus status; // SENDING → 발송 끝나면 SENT
 
@@ -41,16 +43,21 @@ public class Notice {
         this.createdAt = LocalDateTime.now();
     }
 
-    private Notice(Long senderId, String subject, String content, int recipientCount) {
+    private Notice(Long senderId, String subject, String content, int recipientCount, boolean urgent) {
         this.senderId = senderId;
         this.subject = subject;
         this.content = content;
         this.recipientCount = recipientCount;
+        this.urgent = urgent;
         this.status = NoticeStatus.SENDING;
     }
 
     public static Notice create(Long senderId, String subject, String content, int recipientCount) {
-        return new Notice(senderId, subject, content, recipientCount);
+        return new Notice(senderId, subject, content, recipientCount, false);
+    }
+
+    public static Notice create(Long senderId, String subject, String content, int recipientCount, boolean urgent) {
+        return new Notice(senderId, subject, content, recipientCount, urgent);
     }
 
     // 비동기 발송 완료 후 결과 기록

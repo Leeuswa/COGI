@@ -640,12 +640,17 @@ export const adminChangeRole = (userId, role) =>
   USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/admin/members/${userId}/role`, { role });
 
 // API-019 POST /api/admin/notices/email — 전체 공지 발송(비동기 시작). 결과는 이력 목록에서 확인
-export const adminSendNotice = (subject, content) =>
-  USE_MOCK ? mock({ noticeId: 1, recipientCount: 1 }) : http('POST', '/api/admin/notices/email', { subject, content });
+// urgent=true(긴급공지)면 이메일+알림, 아니면 인앱 알림만
+export const adminSendNotice = (subject, content, urgent = false) =>
+  USE_MOCK ? mock({ noticeId: 1, recipientCount: 1 }) : http('POST', '/api/admin/notices/email', { subject, content, urgent });
 
 // GET /api/admin/notices — 공지 발송 이력(최신순)
 export const adminNotices = () =>
   USE_MOCK ? mock([]) : http('GET', '/api/admin/notices');
+
+// DELETE /api/admin/notices/{id} — 발송 이력에서 공지 삭제
+export const adminDeleteNotice = (id) =>
+  USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/admin/notices/${id}`);
 
 // API-020 / API-021 — 수준별 리뷰 지침 조회/저장 (FR-24~25)
 export const adminGetGuidelines = () =>

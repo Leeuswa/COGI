@@ -14,10 +14,11 @@ public record NoticeResponseDTO(
         Integer successCount, // 발송 중이면 null
         Integer failCount,
         NoticeStatus status,  // "SENDING"/"SENT"
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        boolean urgent        // 긴급공지 여부 — 이력에 '긴급' 표시
 ) {
     public static NoticeResponseDTO of(Notice n) {
         return new NoticeResponseDTO(n.getId(), n.getSubject(), n.getContent(), n.getRecipientCount(),
-                n.getSuccessCount(), n.getFailCount(), n.getStatus(), n.getCreatedAt());
+                n.getSuccessCount(), n.getFailCount(), n.getStatus(), n.getCreatedAt(), n.isUrgent());
     }
 }

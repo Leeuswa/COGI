@@ -85,15 +85,26 @@ export default function Admin() {
     }
   };
 
-  const sendNotice = async () => {
+  const sendNotice = async (urgent = false) => {
     if (!notice.subject.trim() || !notice.content.trim() || busy) return;
     setBusy(true);
     try {
-      const res = await api.adminSendNotice(notice.subject, notice.content);
-      notify(`${res.recipientCount}명에게 공지 발송을 시작했어요 — 결과는 이력에서 확인하세요.`);
+      const res = await api.adminSendNotice(notice.subject, notice.content, urgent);
+      notify(urgent
+        ? `🚨 긴급공지 — ${res.recipientCount}명에게 메일+알림 발송을 시작했어요.`
+        : `${res.recipientCount}명에게 인앱 알림을 보냈어요 (메일 없음).`);
       setNotice({ subject: '', content: '' });
-      api.adminNotices().then(setNotices); // 방금 보낸 건(발송 중)을 이력에 반영
+      api.adminNotices().then(setNotices); // 방금 보낸 건을 이력에 반영
     } finally { setBusy(false); }
+  };
+
+  const deleteNotice = async (n) => {
+    if (!window.confirm(`"${n.subject}" 공지를 삭제할까요? 이미 발송된 메일·알림은 되돌릴 수 없어요.`)) return;
+    try {
+      await api.adminDeleteNotice(n.id);
+      setNotices((ns) => ns.filter((x) => x.id !== n.id));
+      notify('공지를 삭제했어요.');
+    } catch (e) { notify(e?.message || '공지 삭제에 실패했어요.'); }
   };
 
   const saveGuide = async (level) => {
@@ -143,7 +154,7 @@ export default function Admin() {
 
       {tab === 'usage' && <UsageTab usage={usage} range={range} setRange={setRange} latency={latency} providerUsage={providerUsage} />}
       {tab === 'members' && <MembersTab members={members} onStatus={changeStatus} onRole={changeRole} me={user.email} />}
-      {tab === 'notice' && <NoticeTab notice={notice} setNotice={setNotice} onSend={sendNotice} busy={busy} notices={notices} onRefresh={() => api.adminNotices().then(setNotices)} />}
+      {tab === 'notice' && <NoticeTab notice={notice} setNotice={setNotice} onSend={sendNotice} busy={busy} notices={notices} onRefresh={() => api.adminNotices().then(setNotices)} onDelete={deleteNotice} />}
       {tab === 'guides' && guides && <GuidesTab guides={guides} setGuides={setGuides} onSave={saveGuide} />}
       {tab === 'terms' && <TermsTab terms={terms} setTerms={setTerms} onSave={saveTerm} />}
       {tab === 'faq' && <FaqTab faqs={faqs} onCreate={createFaq} onUpdate={updateFaq} onDelete={deleteFaq} />}

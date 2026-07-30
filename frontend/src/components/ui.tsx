@@ -258,12 +258,37 @@ function Bell({ loginId }) {
           )}
         </div>
       )}
-      {picked && (
+      {picked && (() => {
+        const urgent = picked.icon === '🚨'; // 긴급공지 알림은 브로드캐스트 때 🚨 아이콘으로 온다
+        return (
         <div className="modal-mask" onClick={() => setPicked(null)}>
-          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h3>{picked.icon} {picked.title}</h3>
-            <p style={{ fontSize: 13.5, lineHeight: 1.9, margin: '14px 0 22px', whiteSpace: 'pre-wrap' }}>{picked.text}</p>
-            <div className="row" style={{ gap: 8 }}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
+               style={{ padding: 0, maxWidth: 440 }}>
+            {/* 헤더 — 긴급이면 코랄, 아니면 네이비 (COGI 팔레트, 각진 블록) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '18px 22px',
+                          background: urgent ? 'var(--coral)' : 'var(--navy)', color: 'var(--white)',
+                          borderBottom: '3px solid var(--navy)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                             width: 46, height: 46, fontSize: 24, flexShrink: 0,
+                             background: 'var(--white)', color: 'var(--navy)',
+                             border: '3px solid var(--navy)', boxShadow: '3px 3px 0 var(--navy)' }}>{picked.icon}</span>
+              <div style={{ minWidth: 0 }}>
+                {urgent && <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, letterSpacing: 1,
+                                          background: 'var(--yellow)', color: 'var(--navy)', border: '2px solid var(--navy)',
+                                          padding: '1px 7px', marginBottom: 5 }}>긴급 공지</span>}
+                <b style={{ display: 'block', fontSize: 16, lineHeight: 1.35 }}>{picked.title}</b>
+              </div>
+            </div>
+            {/* 본문 — '내용' 라벨 + 박스 */}
+            <div style={{ padding: '18px 22px 6px' }}>
+              <b style={{ display: 'block', fontSize: 12, fontWeight: 800, color: 'var(--sub)', marginBottom: 8 }}>내용</b>
+              <div style={{ border: '2px solid var(--navy)', background: 'var(--white)', padding: '14px 16px',
+                            boxShadow: '3px 3px 0 var(--navy)' }}>
+                <p style={{ fontSize: 13.5, lineHeight: 1.9, margin: 0, whiteSpace: 'pre-wrap', color: 'var(--navy)' }}>{picked.text}</p>
+              </div>
+            </div>
+            {/* 푸터 */}
+            <div className="row" style={{ gap: 8, justifyContent: 'flex-end', padding: '14px 22px 20px' }}>
               {picked.link && picked.link !== '/app' && (
                 <button className="btn co sm" onClick={() => { nav(picked.link); setPicked(null); }}>바로가기</button>
               )}
@@ -271,7 +296,8 @@ function Bell({ loginId }) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </span>
   );
 }

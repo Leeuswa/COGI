@@ -28,7 +28,10 @@ export default function NoticeTab() {
         return (
           <div key={n.id} className={`faq-item${isOpen ? ' open' : ''}`}>
             <button type="button" className="faq-q" onClick={() => setOpen(isOpen ? null : n.id)}>
-              <span className="faq-q-text">{n.subject}</span>
+              <span className="faq-q-text">
+                {n.urgent && <span className="chip" style={{ background: 'var(--coral)', color: 'var(--white)', marginRight: 6 }}>🚨 긴급</span>}
+                {n.subject}
+              </span>
               <span className="mono xs" style={{ color: 'var(--sub)' }}>{fmt(n.sentAt)}</span>
               <span className="faq-caret">{isOpen ? '−' : '+'}</span>
             </button>
