@@ -21,4 +21,8 @@ public interface QuizSubmissionRepository extends JpaRepository<QuizSubmission, 
     // 제출 달력 점 — 최근 몇 주치만 가져와 서비스에서 날짜로 접는다.
     // DB에서 distinct date로 뽑으면 벤더 함수를 타야 해서, 몇 주 분량은 그냥 다 읽는 게 싸다
     List<QuizSubmission> findByUserIdAndSubmittedAtGreaterThanEqual(Long userId, LocalDateTime from);
+
+    // 전체 총 학습일 — 위와 같은 이유로 distinct date를 DB에 맡기지 않고 다 읽어 서비스에서 접는다.
+    // ponytail: 한 사람의 퀴즈 제출 전량이라 지금은 작다. 수만 건이 되면 count(distinct date) 쿼리로 바꾼다
+    List<QuizSubmission> findByUserId(Long userId);
 }

@@ -29,6 +29,8 @@ const TABS: [string, string][] = [
   ['list', '추천 스킬'],
   ['weak', '내 약점에 맞는 스킬'],
   ['ask', '스킬 질문하기'],
+  // AI 추천은 새로 받으면 이전 결과를 덮어쓴다. 별을 달아 둔 것만 여기 남아 계속 볼 수 있다
+  ['fav', '즐겨찾기'],
 ];
 
 // 폰이면 데스크톱 본체를 아예 mount하지 않는다.
@@ -137,6 +139,28 @@ function DesktopSkills() {
     notify('복사했어요. 쓰는 AI에 그대로 붙여넣으세요');
   };
 
+  // ── 즐겨찾기 ──
+  // 탭에 들어올 때마다 다시 부른다. 다른 탭에서 별을 켜고 넘어오면 바로 보여야 한다
+  const [favorites, setFavorites] = useState(null);
+  useEffect(() => {
+    if (tab !== 'fav') return;
+    setFavorites(null);
+    api.getFavoriteSkills()
+      .then(setFavorites)
+      .catch((e) => { setFavorites([]); notify(e.message || '즐겨찾기를 불러오지 못했어요'); });
+  }, [tab]);
+
+  // 여기서 별을 끄면 목록에서 빠진다 — 즐겨찾기 목록이니 남아 있으면 이상하다
+  const unfavorite = async (skill) => {
+    setFavorites((prev) => prev.filter((s) => s.id !== skill.id));
+    try {
+      await api.toggleSkillFavorite(skill.id);
+    } catch (e) {
+      setFavorites((prev) => [...prev, skill]); // 서버가 거절했으면 되돌린다
+      notify(e.message || '즐겨찾기를 바꾸지 못했어요');
+    }
+  };
+
 
   return (
     <main className="app-main">
@@ -234,51 +258,78 @@ function DesktopSkills() {
             </div>
           ) : (
             skills.map((s) => (
-              <div key={s.id} className="panel skill-card">
-                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <b style={{ fontSize: 15 }}>{s.title}</b>
-                    <div className="row" style={{ gap: 6, marginTop: 8 }}>
-                      <span className="chip navy">{CATEGORY_KO[s.category] ?? s.category}</span>
-                      {/* 내 약점과 겹치면 눈에 띄게 — 이게 이 화면의 핵심이다 */}
-                      {weakness.includes(s.category) && <span className="chip hi">내 약점</span>}
-                    </div>
-                  </div>
-                  <button
-                    className={`star ${s.isFavorite ? 'on' : ''}`}
-                    onClick={() => toggleFavorite(s)}
-                    title={s.isFavorite ? '즐겨찾기 해제' : '즐겨찾기'}>
-                    {s.isFavorite ? '★' : '☆'}
-                  </button>
-                </div>
-
-                <p style={{ fontSize: 13.5, lineHeight: 2, marginTop: 12 }}>{s.description}</p>
-
-                <div className="skill-how">
-                  <b>이렇게 씁니다</b>
-                  <p>{s.howTo}</p>
-                </div>
-
-                {/* AI가 만들어 준 스킬만 붙여넣을 프롬프트를 들고 있다. 공용 큐레이션 행은 없다 */}
-                {s.prompt && (
-                  <div className="skill-rec-prompt">
-                    <pre>{s.prompt}</pre>
-                    <button className="btn wh sm" onClick={() => copyPrompt(s.prompt)}>복사</button>
-                  </div>
-                )}
-
-                {s.url && (
-                  <a className="link-line" href={s.url} target="_blank" rel="noreferrer"
-                    style={{ display: 'inline-block', marginTop: 12, fontSize: 12.5 }}>
-                    공식 문서 보기 →
-                  </a>
-                )}
-              </div>
+              <SkillCard key={s.id} skill={s} weakness={weakness}
+                onStar={() => toggleFavorite(s)} onCopy={copyPrompt} />
             ))
           )}
         </>
       )}
+
+      {/* ── 즐겨찾기 ── */}
+      {tab === 'fav' && (
+        !favorites ? (
+          <div className="panel"><p className="note">불러오는 중…</p></div>
+        ) : favorites.length === 0 ? (
+          <div className="panel">
+            <p className="note">
+              아직 즐겨찾기한 스킬이 없어요.<br />
+              AI 추천은 다시 받으면 이전 결과가 사라지니 즐겨찾기로 저장해두세요!
+            </p>
+          </div>
+        ) : (
+          favorites.map((s) => (
+            <SkillCard key={s.id} skill={s} weakness={weakness}
+              onStar={() => unfavorite(s)} onCopy={copyPrompt} />
+          ))
+        )
+      )}
     </main>
+  );
+}
+
+// 스킬 카드 한 장 — 큐레이션 목록과 즐겨찾기가 같은 DTO를 쓴다(둘 다 ai_skills 행)
+function SkillCard({ skill: s, weakness, onStar, onCopy }) {
+  return (
+    <div className="panel skill-card">
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <b style={{ fontSize: 15 }}>{s.title}</b>
+          <div className="row" style={{ gap: 6, marginTop: 8 }}>
+            <span className="chip navy">{CATEGORY_KO[s.category] ?? s.category}</span>
+            {/* 내 약점과 겹치면 눈에 띄게 — 이게 이 화면의 핵심이다 */}
+            {weakness.includes(s.category) && <span className="chip hi">내 약점</span>}
+          </div>
+        </div>
+        <button
+          className={`star ${s.isFavorite ? 'on' : ''}`}
+          onClick={onStar}
+          title={s.isFavorite ? '즐겨찾기 해제' : '즐겨찾기'}>
+          {s.isFavorite ? '★' : '☆'}
+        </button>
+      </div>
+
+      <p style={{ fontSize: 13.5, lineHeight: 2, marginTop: 12 }}>{s.description}</p>
+
+      <div className="skill-how">
+        <b>이렇게 씁니다</b>
+        <p>{s.howTo}</p>
+      </div>
+
+      {/* AI가 만들어 준 스킬만 붙여넣을 프롬프트를 들고 있다. 공용 큐레이션 행은 없다 */}
+      {s.prompt && (
+        <div className="skill-rec-prompt">
+          <pre>{s.prompt}</pre>
+          <button className="btn wh sm" onClick={() => onCopy(s.prompt)}>복사</button>
+        </div>
+      )}
+
+      {s.url && (
+        <a className="link-line" href={s.url} target="_blank" rel="noreferrer"
+          style={{ display: 'inline-block', marginTop: 12, fontSize: 12.5 }}>
+          공식 문서 보기 →
+        </a>
+      )}
+    </div>
   );
 }
 

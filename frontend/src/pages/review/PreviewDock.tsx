@@ -141,6 +141,14 @@ const ENGINE = `<script id="__cogi_engine">
       full: pretty(clone.outerHTML) }, '*');
   };
 
+  /* 링크·폼 이동 차단 — srcDoc 문서의 기준 주소는 부모(우리 앱)라서
+     원본의 상대 링크(../index.html)가 우리 주소로 풀린다. 미리보기는 화면 확인용이라 따라갈 곳이 없다.
+     mousedown 의 preventDefault 로는 click 기본동작이 안 막혀 따로 잡는다 */
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('a[href], area[href]')) e.preventDefault();
+  }, true);
+  document.addEventListener('submit', (e) => e.preventDefault(), true);
+
   /* 호버 미리 표시 */
   let hoverEl = null;
   document.addEventListener('mouseover', (e) => {

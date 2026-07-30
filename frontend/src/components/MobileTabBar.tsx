@@ -4,7 +4,7 @@
  * 로그인 상태에서만 뜬다. 탭에 없는 화면은 '더보기'에서 연다.
  */
 import { useState } from "react";
-import { NavLink, Link, useLocation } from "react-router-dom";
+import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 // 엄지로 자주 누르는 5개만 탭에 둔다. 나머지는 더보기 시트로
@@ -29,9 +29,10 @@ const MORE = [
 ];
 
 export default function MobileTabBar() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [openMore, setOpenMore] = useState(false);
   const loc = useLocation();
+  const nav = useNavigate();
 
   if (!user) return null; // 로그인 전에는 안 띄운다
 
@@ -54,6 +55,11 @@ export default function MobileTabBar() {
             <Link to="/app/my" className="btn wh sm ms-my" onClick={() => setOpenMore(false)}>
               마이페이지
             </Link>
+            {/* 데스크톱 GNB의 로그아웃은 폰에서 GNB째로 숨겨져 나갈 길이 없었다 */}
+            <button type="button" className="btn wh sm ms-my"
+              onClick={() => { setOpenMore(false); signOut(); nav("/"); }}>
+              로그아웃
+            </button>
           </div>
         </>
       )}

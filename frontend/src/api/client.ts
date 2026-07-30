@@ -462,6 +462,19 @@ export const createQuiz = (cardId, questionType = 'MULTIPLE_CHOICE', modelName =
 export const createStudyPlan = (cardId, days = 7) =>
   USE_MOCK ? mock({ studyPlan: [] }, 900) : http('POST', `/api/learning-cards/${cardId}/study-plan?days=${days}`);
 
+// 계획을 달력에 등록 — 오늘이 기준일이 되고 이때부터 대시보드 달력·알림에 뜬다. AI를 안 부르니 크레딧도 안 든다
+export const registerStudyPlan = (cardId) =>
+  USE_MOCK ? mock({ planStartedAt: new Date().toISOString().slice(0, 10) })
+    : http('POST', `/api/learning-cards/${cardId}/study-plan/register`);
+
+// 등록된 계획을 날짜로 펼쳐 받는다 — 대시보드 달력이 그 달 구간으로 부른다
+export const getPlanDates = (from, to) =>
+  USE_MOCK ? mock([]) : http('GET', `/api/learning-cards/plan-dates?from=${from}&to=${to}`);
+
+// 오늘 계획이 있으면 알림을 만든다(같은 단계는 하루 한 번). 조회가 아니라 쓰기라 POST다
+export const ensureTodayPlanNotifications = () =>
+  USE_MOCK ? mock([]) : http('POST', '/api/learning-cards/plan-notifications/today');
+
 // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 크레딧을 안 쓴다
 // category는 약점 화면에서 넘어온 필터 — 없으면 그 AI의 전체 목록
 export const getAiSkills = (provider = 'CLAUDE', category = null) =>
@@ -695,22 +708,50 @@ export function googleCalendarUrl(card, date) {
   return 'https://calendar.google.com/calendar/render?' + p.toString();
 }
 
-// 애플 캘린더: .ics 파일을 만들어 다운로드 (아웃룩도 이걸로 열림)
-export function downloadIcs(card, date) {
-  const d = date.replaceAll('-', '');
-  const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//COGI//KR',
-    'BEGIN:VEVENT',
-    `DTSTART:${d}T090000`,
-    `DTEND:${d}T091500`,
-    `SUMMARY:[COGI] ${card.category} 학습 (5분 미션)`,
-    `DESCRIPTION:약점카드 학습 — COGI 학습 가이드 자동 생성`,
-    'END:VEVENT', 'END:VCALENDAR',
-  ].join('\r\n');
+// .ics 본문 조립 — 일정 여러 개를 한 파일에 담는다. 캘린더 앱은 VEVENT를 여러 개 받아 한 번에 등록한다.
+// 쉼표·세미콜론·줄바꿈은 RFC 5545에서 구분자라 이스케이프해야 한다(안 하면 뒷부분이 잘린다)
+const icsText = (s) => String(s ?? '').replace(/[\\;,]/g, (m) => '\\' + m).replace(/\r?\n/g, '\\n');
+
+function buildIcs(events) {
+  const body = events.flatMap(({ date, summary, description }) => {
+    const d = date.replaceAll('-', '');
+    return [
+      'BEGIN:VEVENT',
+      `UID:cogi-${d}-${Math.random().toString(36).slice(2, 8)}@cogi`,
+      `DTSTART:${d}T090000`,
+      `DTEND:${d}T091500`,
+      `SUMMARY:${icsText(summary)}`,
+      `DESCRIPTION:${icsText(description)}`,
+      'END:VEVENT',
+    ];
+  });
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//COGI//KR', ...body, 'END:VCALENDAR'].join('\r\n');
+}
+
+function saveIcs(ics, filename) {
   const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
   const a = document.createElement('a');
-  a.href = url; a.download = `cogi-mission-${date}.ics`; a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+// 애플 캘린더: 단계 하나만 (아웃룩도 이걸로 열림)
+export function downloadIcs(card, date) {
+  saveIcs(buildIcs([{
+    date,
+    summary: `[COGI] ${card.category} 학습 (5분 미션)`,
+    description: '약점카드 학습 — COGI 학습 가이드 자동 생성',
+  }]), `cogi-mission-${date}.ics`);
+}
+
+// 계획 전체를 파일 하나로. steps는 [{ date, stepNo, title, minutes }]
+export function downloadPlanIcs(card, steps) {
+  const ics = buildIcs(steps.map((s) => ({
+    date: s.date,
+    summary: `[COGI] ${card.category} ${s.stepNo}단계 · ${s.title}`,
+    description: `${s.focus ?? ''}${s.minutes ? `\n예상 ${s.minutes}분` : ''}\nCOGI 학습 계획에서 자동 생성`,
+  })));
+  saveIcs(ics, `cogi-plan-${card.category}-${steps[0]?.date ?? 'plan'}.ics`);
 }
 
 // 카카오 캘린더: REST API(POST /v2/api/calendar/create/event)가 필요해서 백엔드 경유.
