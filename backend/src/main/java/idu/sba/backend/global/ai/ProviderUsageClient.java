@@ -50,17 +50,32 @@ public class ProviderUsageClient {
     // (벤더 대시보드는 Workbench·다른 앱까지 합산하므로, 숫자를 맞추려면 이 필터가 필요하다).
     private final List<String> openaiApiKeyIds;
     private final List<String> claudeApiKeyIds;
+    // Claude 전용 워크스페이스 id. 값이 있으면 토큰·비용 모두 이 워크스페이스로만 좁힌다.
+    // cost_report는 api_key 필터를 지원 안 해서(비용은 워크스페이스 단위로만 갈라짐), 키별 비용을 정확히
+    // 맞추려면 워크스페이스로 분리하는 수밖에 없다. 이 값이 있으면 claudeApiKeyIds는 무시된다.
+    private final String claudeWorkspaceId;
     private final RestClient openai;
     private final RestClient claude;
+
+    // 벤더 Admin API는 rate limit이 빡빡한데, 화면 한 번 열면 (토큰+비용)×2벤더로 최대 ~96콜을 때린다.
+    // 관리자가 새로고침 몇 번 하면 429로 막히므로, 같은 (from,to) 결과를 잠깐 재사용한다.
+    // ponytail: 인메모리 단일 컨테이너 캐시. 여러 인스턴스로 뜨거나 실시간성이 필요하면 Redis로 승격.
+    private static final Duration CACHE_TTL = Duration.ofMinutes(10);
+    private static final int CACHE_MAX_ENTRIES = 64;  // 관리자가 스크립트로 범위를 무한정 바꿔도 무한 증가 방지
+    private final Map<String, Cached> cache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record Cached(Instant at, List<ProviderUsageResponseDTO> data) {}
 
     public ProviderUsageClient(@Value("${ai.openai.adminKey:}") String openaiAdminKey,
                                @Value("${ai.claude.adminKey:}") String claudeAdminKey,
                                @Value("${ai.openai.apiKeyIds:}") String openaiApiKeyIds,
-                               @Value("${ai.claude.apiKeyIds:}") String claudeApiKeyIds) {
+                               @Value("${ai.claude.apiKeyIds:}") String claudeApiKeyIds,
+                               @Value("${ai.claude.workspaceId:}") String claudeWorkspaceId) {
         this.openaiAdminKey = openaiAdminKey;
         this.claudeAdminKey = claudeAdminKey;
         this.openaiApiKeyIds = splitIds(openaiApiKeyIds);
         this.claudeApiKeyIds = splitIds(claudeApiKeyIds);
+        this.claudeWorkspaceId = claudeWorkspaceId == null ? "" : claudeWorkspaceId.trim();
 
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build());
@@ -82,6 +97,21 @@ public class ProviderUsageClient {
 
     /** from~to(포함) 구간의 벤더별·일자별 사용량. 한 벤더가 실패해도 다른 벤더 결과는 그대로 돌려준다. */
     public List<ProviderUsageResponseDTO> fetch(LocalDate from, LocalDate to) {
+        String key = from + "|" + to;
+        Cached hit = cache.get(key);
+        if (hit != null && Duration.between(hit.at(), Instant.now()).compareTo(CACHE_TTL) < 0) {
+            return hit.data();
+        }
+        List<ProviderUsageResponseDTO> data = fetchUncached(from, to);
+        // 전부 빈 결과(키 미설정 or 두 벤더 다 실패)는 캐시 안 함 — 일시적 429가 10분 고정되지 않게.
+        if (!data.isEmpty()) {
+            if (cache.size() >= CACHE_MAX_ENTRIES) cache.clear();  // 단순 상한: 넘으면 통째로 비운다
+            cache.put(key, new Cached(Instant.now(), data));
+        }
+        return data;
+    }
+
+    private List<ProviderUsageResponseDTO> fetchUncached(LocalDate from, LocalDate to) {
         List<ProviderUsageResponseDTO> out = new ArrayList<>();
         out.addAll(safeFetch("OPENAI", () -> fetchOpenAi(from, to)));
         out.addAll(safeFetch("CLAUDE", () -> fetchClaude(from, to)));
@@ -129,18 +159,27 @@ public class ProviderUsageClient {
         String start = from.atStartOfDay().atOffset(ZoneOffset.UTC).toString();
         String end = to.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC).toString();
 
+        boolean byWorkspace = !claudeWorkspaceId.isBlank();
+
         Map<LocalDate, Agg> byDate = new LinkedHashMap<>();
+        // 토큰: 워크스페이스가 지정되면 그걸로 좁히고(가장 정확), 아니면 기존 api_key_ids 필터로 대체.
         Map<String, Object> usageQuery = new LinkedHashMap<>(Map.of(
                 "starting_at", start, "ending_at", end, "bucket_width", "1d", "limit", DAILY_BUCKET_LIMIT));
-        // cost_report는 api_key_ids 필터를 지원하지 않는다 — 비용은 조직 전체로 남는다(아래 costQuery는 그대로).
-        if (!claudeApiKeyIds.isEmpty()) usageQuery.put("api_key_ids[]", claudeApiKeyIds);
+        if (byWorkspace) usageQuery.put("workspace_ids[]", List.of(claudeWorkspaceId));
+        else if (!claudeApiKeyIds.isEmpty()) usageQuery.put("api_key_ids[]", claudeApiKeyIds);
         for (JsonNode bucket : buckets(claude, "/v1/organizations/usage_report/messages", usageQuery, true, claudeAdminKey)) {
             agg(byDate, claudeBucketDate(bucket)).addTokens(bucket.path("results"));
         }
-        // cost_report는 bucket_width를 받지 않는다(1일 고정).
-        Map<String, Object> costQuery = Map.of("starting_at", start, "ending_at", end, "limit", DAILY_BUCKET_LIMIT);
+        // 비용: cost_report는 bucket_width도 api_key 필터도 안 받는다(1일 고정, 워크스페이스 단위로만 갈라짐).
+        // 워크스페이스가 지정되면 group_by=workspace_id로 쪼갠 뒤 그 워크스페이스 몫만 합산 = 대시보드와 정확히 일치.
+        // 없으면 조직 전체 비용(예전 동작 그대로).
+        Map<String, Object> costQuery = new LinkedHashMap<>(Map.of(
+                "starting_at", start, "ending_at", end, "limit", DAILY_BUCKET_LIMIT));
+        if (byWorkspace) costQuery.put("group_by[]", List.of("workspace_id"));
         for (JsonNode bucket : buckets(claude, "/v1/organizations/cost_report", costQuery, true, claudeAdminKey)) {
-            agg(byDate, claudeBucketDate(bucket)).addCost(bucket.path("results"), CENTS_PER_USD);
+            JsonNode results = bucket.path("results");
+            BigDecimal cents = byWorkspace ? sumCostForWorkspace(results, claudeWorkspaceId) : sumCost(results);
+            agg(byDate, claudeBucketDate(bucket)).addCentsCost(cents);
         }
         return toDtos("CLAUDE", byDate);
     }
@@ -222,6 +261,26 @@ public class ProviderUsageClient {
             BigDecimal c = sumCost(results).divide(divisor, 6, java.math.RoundingMode.HALF_UP);
             cost = cost == null ? c : cost.add(c);
         }
+
+        // 이미 합산된 센트값을 USD로 환산해 누적 (Anthropic 비용 전용).
+        void addCentsCost(BigDecimal cents) {
+            BigDecimal c = cents.divide(CENTS_PER_USD, 6, java.math.RoundingMode.HALF_UP);
+            cost = cost == null ? c : cost.add(c);
+        }
+    }
+
+    // cost_report를 group_by=workspace_id로 쪼갰을 때, 지정한 워크스페이스 몫(센트)만 합산한다.
+    // results[]의 각 항목은 workspace_id + amount(센트 문자열)를 갖는다.
+    static BigDecimal sumCostForWorkspace(JsonNode results, String workspaceId) {
+        BigDecimal acc = BigDecimal.ZERO;
+        if (results != null && results.isArray()) {
+            for (JsonNode r : results) {
+                if (workspaceId.equals(text(r.path("workspace_id")))) {
+                    acc = acc.add(decimal(r.path("amount")));
+                }
+            }
+        }
+        return acc;
     }
 
     // 벤더 대시보드의 "총 입력 토큰"과 숫자를 맞추기 위해, 캐시 토큰을 뺀 순수 입력만 센다.
