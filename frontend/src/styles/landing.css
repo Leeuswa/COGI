@@ -173,18 +173,6 @@
 .pad button small { display: block; font-family: 'GalmuriMono11', monospace; font-size: 11px; color: var(--sub); }
 .pad .study { background: var(--yellow); }
 
-/* ───── 마퀴 ───── */
-.marquee {
-  border-top: 3px solid var(--navy); border-bottom: 3px solid var(--navy);
-  background: var(--navy); color: var(--sky);
-  overflow: hidden; white-space: nowrap;
-  font-family: 'Silkscreen', monospace; font-size: 13px; padding: 12px 0;
-}
-.marquee .track { display: inline-block; animation: mq 26s linear infinite; }
-@keyframes mq { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.marquee span { padding: 0 26px; }
-.marquee .dot { color: var(--yellow); }
-
 /* ───── 공통 섹션 ───── */
 section { padding: 92px 5vw; }
 .wrap { max-width: 1080px; margin: 0 auto; }
@@ -250,6 +238,7 @@ section { padding: 92px 5vw; }
 .care p { font-size: 13px; color: var(--sub); line-height: 1.9; }
 
 /* ───── 성장 단계 ───── */
+.pet-sec { background: var(--sky2); border-top: 3px solid var(--navy); border-bottom: 3px solid var(--navy); }
 .g-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
 .g-card {
   background: var(--white); border: 3px solid var(--navy);
@@ -315,4 +304,281 @@ section { padding: 92px 5vw; }
 footer.ft {
   background: var(--navy); color: #aebfe0;
   text-align: center; padding: 20px 24px 56px; font-size: 12.5px; line-height: 2;
+}
+
+/* ═══════════ 로그인 전 랜딩 — 화면 배분 (641px 이상) ═══════════
+   콘텐츠 양으로 화면을 나눈다. 전부 묶으면 섹션당 412px밖에 안 남아 글씨를 줄여야 하고
+   ("다 작아 보인다"), 전부 단독이면 작은 섹션에 여백만 남는다.
+   많은 것(리뷰·루프·플랜)은 단독 화면, 작은 것(케어·성장단계)만 .lp-duo로 묶는다.
+   묶음은 스냅 한 칸으로 센다 — 페이지 점도 duo 하나에 하나다.
+
+   문서가 스크롤하므로 스냅은 html에 걸고, sticky GNB(76px)에 가리지 않게
+   높이에서 빼고 scroll-margin으로 밀어 준다. .lp는 랜딩에만 붙는다 —
+   대시보드가 같은 InfoSections를 쓰기 때문에 섹션 태그로 잡으면 거기까지 걸린다. */
+@media (min-width: 641px) {
+  html:has(.lp) { scroll-snap-type: y mandatory; }
+
+  .lp > .hero, .lp > section, .lp > .lp-duo {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;      /* 한 번에 여러 화면을 건너뛰지 않게 */
+    scroll-margin-top: 76px;
+    min-height: calc(100dvh - 76px);
+    position: relative; overflow: hidden;   /* 구름을 자기 안에서 자른다 */
+  }
+  .lp > .hero { align-items: center; }   /* 히어로는 자체 2열 grid — display를 덮으면 안 된다 */
+
+  /* 단독 화면 */
+  .lp > section { display: flex; align-items: center; padding: clamp(26px, 3.8vh, 52px) 5vw; }
+  /* 묶음 화면 — 위아래로 나누고, 남는 높이만 두 섹션이 갈라 갖는다.
+     반씩 강제로 나누면 내용이 적은 쪽이 다시 텅 빈다 */
+  .lp-duo { display: flex; flex-direction: column; }
+  .lp-duo > section {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; align-items: center;
+    padding: clamp(10px, 1.4vh, 24px) 5vw;
+  }
+  /* 히어로는 .wrap을 안 쓰고 섹션 폭을 그대로 쓴다. 나머지 섹션은 .wrap의 1080px에
+     갇혀 있어서 2페이지부터 갑자기 좁아 보였고, 가로 배치도 힘들었다 */
+  /* flex 자식이라 width를 안 주면 폭이 콘텐츠 기준으로 줄어든다(882px까지 좁아졌다) */
+  .lp .wrap { position: relative; z-index: 2; width: 100%; max-width: min(1560px, 92vw); }
+
+  /* 배경·테두리를 걷어내 화면끼리 이어 보이게. 묶음 화면 가운데 굵은 선도 이것 때문이었고,
+     그 불투명 배경이 구름까지 덮고 있었다.
+     .final은 밤하늘이 디자인이라 제외 — 투명하게 하면 흰 글씨가 안 보인다 */
+  .lp section:not(.final) { background: transparent; border-top: 0; border-bottom: 0; }
+
+  /* 마지막 화면은 푸터까지 한 화면에 담는다 — mandatory 스냅은 마지막 지점 뒤로
+     넘어가지 않아서, 푸터가 그 뒤에 있으면 아래가 잘려 안 내려간다. 푸터 실측 126px */
+  .lp > .final { min-height: calc(100dvh - 76px - 126px); }
+  /* 위 계산이 어긋나도(폰트·패딩 변경) 끝까지는 내려가게 푸터도 스냅 지점으로 */
+  body:has(.lp) .ft { scroll-snap-align: end; }
+}
+
+/* ── 아래 화면에도 흘러가는 구름 ──
+   히어로에만 있던 도트 구름을 나머지 화면에도 이어 붙인다. JSX를 늘리지 않으려고
+   가상 요소로 두 개씩 띄운다(모양·애니메이션은 .cloud와 같은 값).
+   .lp 안에서만 걸리므로 대시보드의 InfoSections에는 안 뜬다. */
+@media (min-width: 641px) {
+  .lp > section:not(.final)::before, .lp > section:not(.final)::after,
+  .lp-duo::before, .lp-duo::after {
+    content: ''; position: absolute; z-index: 1; pointer-events: none;
+    height: 14px; width: 14px; background: var(--white);
+    box-shadow: 14px -14px 0 var(--white), 28px -14px 0 var(--white), 42px -14px 0 var(--white),
+                -14px 0 0 var(--white), 56px 0 0 var(--white), 14px -28px 0 var(--white), 28px -28px 0 var(--white);
+    opacity: .85; animation: drift linear infinite;
+  }
+  .lp > *::before { top: 12%; animation-duration: 61s; }
+  .lp > *::after { top: 72%; animation-duration: 74s; animation-delay: -28s; }
+  /* 화면마다 높이·속도를 어긋나게 — 같은 자리에서 반복돼 보이지 않게 */
+  .lp > *:nth-child(3)::before { top: 23%; animation-duration: 55s; animation-delay: -13s; }
+  .lp > *:nth-child(3)::after { top: 64%; animation-duration: 79s; animation-delay: -34s; }
+  .lp > *:nth-child(4)::before { top: 8%; animation-duration: 68s; animation-delay: -21s; }
+  .lp > *:nth-child(4)::after { top: 79%; animation-duration: 58s; animation-delay: -7s; }
+  .lp > *:nth-child(5)::before { top: 17%; animation-duration: 72s; animation-delay: -41s; }
+  .lp > *:nth-child(5)::after { top: 67%; animation-duration: 63s; animation-delay: -16s; }
+}
+
+/* ── 가독성 · 다듬기 (641px 이상) ──
+   단독 화면은 세로를 온전히 쓰니 글씨와 카드를 키운다.
+   묶음 화면(.lp-duo) 안은 한 단계 작게 — 두 섹션이 한 화면을 나눠 쓴다 */
+@media (min-width: 641px) {
+  .lp .badge { margin-bottom: 10px; box-shadow: 3px 3px 0 var(--navy); }
+  .lp .sec-title { font-size: clamp(23px, 2.1vw, 34px); margin-bottom: 10px; }
+  .lp .sec-lead {
+    font-size: clamp(15.5px, 1.15vw, 18px); line-height: 1.95;
+    /* 리드와 카드 사이가 벌어져 카드가 아래로 밀려 보였다 */
+    margin-bottom: clamp(12px, 1.8vh, 24px); max-width: 46em;
+  }
+  .lp-duo .sec-title { font-size: clamp(20px, 1.7vw, 27px); margin-bottom: 8px; }
+  .lp-duo .sec-lead { font-size: clamp(14.5px, 1vw, 16px); line-height: 1.8; margin-bottom: clamp(8px, 1.2vh, 18px); }
+  .lp-duo .badge { margin-bottom: 8px; }
+
+  /* ── 리뷰 (단독 화면) — 왼쪽 예시, 오른쪽 설명 2×2 ── */
+  .lp .rev-grid { grid-template-columns: 1fr 1.15fr; gap: clamp(20px, 2.4vw, 40px); align-items: center; }
+  /* space-between으로 분산했더니 라인 사이가 억지로 벌어졌다.
+     패널은 내용 높이대로 두고 그리드 위에 붙인다 */
+  .lp .rev-panel { padding: clamp(18px, 2.4vh, 30px); border-radius: 12px; align-self: center; }
+  .lp .rev-head {
+    border-bottom: 3px dotted var(--sky2); font-size: clamp(12.5px, 1vw, 15px);
+    padding-bottom: 13px; margin-bottom: 16px;
+  }
+  .lp .rev-line { font-size: clamp(14px, 1.05vw, 16px); line-height: 2.15; }
+  .lp .rev-line .sev { font-size: clamp(11.5px, .9vw, 13.5px); padding: 3px 9px; }
+  .lp .rev-foot { font-size: clamp(12.5px, 1vw, 15px); margin-top: 15px; padding-top: 13px; }
+  /* 2×2로 두면 카드가 좁아 문장이 잘게 쪼개진다. 한 줄에 하나씩 두고 가로로 길게 */
+  .lp .rev-list { display: grid; grid-template-columns: 1fr; gap: clamp(9px, 1.3vh, 16px); }
+  .lp .rev-list li {
+    border-radius: 12px;
+    padding: clamp(12px, 1.7vh, 20px) clamp(16px, 1.3vw, 24px);
+    font-size: clamp(14px, 1.02vw, 15.5px); line-height: 1.8;
+  }
+  .lp .rev-list li b { font-size: clamp(15.5px, 1.15vw, 17.5px); margin-bottom: 6px; }
+
+  /* ── 성장 루프 (단독 화면) — 4열 유지, 카드를 세로로 키운다 ── */
+  /* 루프·케어를 한 화면에 묶으므로 카드는 가로 한 행(4열/3열)로 두고 세로를 줄인다 */
+  .lp .loop-grid { grid-template-columns: repeat(4, 1fr); gap: clamp(12px, 1.4vw, 22px); }
+  .lp .l-card { border-radius: 12px; padding: clamp(11px, 1.5vh, 18px) clamp(13px, 1vw, 18px); }
+  .lp .l-card .n { font-size: clamp(11.5px, .9vw, 13.5px); padding: 5px 11px; margin-bottom: 10px; box-shadow: 3px 3px 0 var(--sky2); }
+  .lp .l-card h3 { font-size: clamp(14.5px, 1.15vw, 17px); margin-bottom: 7px; }
+  .lp .l-card p { font-size: clamp(13px, .98vw, 14.5px); line-height: 1.8; }
+  .l-spr { display: block; margin: clamp(6px, 1vh, 12px) auto 0; height: clamp(28px, 3.6vh, 44px); width: auto; }
+
+  /* ── 케어 (묶음 화면 위칸) — 3열 ── */
+  .lp .care-grid { grid-template-columns: repeat(3, 1fr); gap: clamp(12px, 1.4vw, 22px); }
+  .lp .care { border-radius: 12px; padding: clamp(11px, 1.4vh, 18px) clamp(14px, 1.1vw, 20px); text-align: center; }
+  .lp .care .head { margin-bottom: 9px; justify-content: center; }
+  .lp .care .head h3 { font-size: clamp(15px, 1.2vw, 19px); }
+  .lp .care .head .em { font-size: clamp(21px, 1.8vw, 28px); }
+  /* 비용은 코인 칩처럼 각지고 노랗게 (폰 카드에서 가져온 것) */
+  .lp .care .map {
+    background: var(--yellow); color: var(--navy);
+    border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy);
+    font-family: 'Silkscreen', monospace; font-size: clamp(11px, .85vw, 13px); letter-spacing: .5px;
+  }
+  .lp .care p { font-size: clamp(13.5px, 1vw, 15px); line-height: 1.8; }
+  .care-spr { display: block; margin: clamp(6px, 1vh, 12px) auto 0; height: clamp(28px, 3.6vh, 46px); width: auto; }
+
+  /* ── 성장 단계 (묶음 화면 아래칸) — 5열 ── */
+  .lp .g-grid { gap: clamp(10px, 1.2vw, 20px); }
+  .lp .g-card { border-radius: 12px; padding: clamp(9px, 1.2vh, 15px) 12px; }
+  .lp .g-card .box { height: clamp(78px, 10.5vh, 130px); border-radius: 8px; }
+  .lp .g-card .box img { height: clamp(48px, 6.8vh, 82px); }
+  .lp .g-card .box img.sm { height: clamp(36px, 5vh, 60px); }
+  .lp .g-card .box img.lg { height: clamp(60px, 8.4vh, 102px); }
+  .lp .g-card h3 { font-size: clamp(13.5px, 1.02vw, 16px); margin-top: 10px; }
+  .lp .g-card p { font-size: clamp(12.5px, .92vw, 14px); }
+
+  /* ── 플랜 (단독 화면) — 하루 크레딧을 크게, 모델은 칩으로 ── */
+  /* 설명이 문장 단위로 끊기니 카드가 넓을 필요가 없다. 가운데로 모아 균형을 잡는다.
+     원본은 가운데(PRO)를 1.15fr로 넓혀 강조했는데 셋의 폭이 달라 어색했다 — 같은 폭으로 */
+  .lp .chars { grid-template-columns: repeat(3, 1fr); gap: clamp(14px, 1.4vw, 24px); }
+  .lp .char { border-radius: 12px; padding: clamp(11px, 1.5vh, 20px) clamp(13px, 1vw, 18px); }
+  .lp .char .pname { font-size: clamp(18px, 1.5vw, 25px); }
+  .lp .char .model { font-size: clamp(12px, .95vw, 14px); margin: 5px 0 10px; }
+  .lp .char .credit {
+    font-family: 'GalmuriMono11', monospace;
+    font-size: clamp(21px, 2.4vh, 30px); padding: clamp(6px, 1vh, 12px) 0;
+  }
+  .lp .char .credit small { font-size: clamp(11px, .9vw, 12.5px); margin-top: 5px; }
+  .lp .char .chips {
+    display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;
+    margin: clamp(8px, 1.2vh, 14px) 0;
+  }
+  .lp .char .chip {
+    font-family: 'GalmuriMono11', monospace; font-size: clamp(11px, .88vw, 13px); line-height: 1.9;
+    color: var(--navy); background: var(--white); border: 2px solid var(--navy); padding: 1px 9px;
+  }
+  .lp .char.mid .chip { border-color: var(--coral); color: var(--coral); }
+  .lp .char .chips-plus {
+    font-family: 'GalmuriMono11', monospace; font-size: clamp(11px, .88vw, 13px);
+    color: var(--sub); align-self: center;
+  }
+  .lp .char ul { margin: 7px 0 10px; }
+    /* 플랜 설명의 
+(문장 경계)을 그대로 끊는다 — data/plans.ts 참고 */
+  .lp .char li { font-size: clamp(13px, .98vw, 14.5px); line-height: 1.8; padding: 4px 0 4px 16px; white-space: pre-line; }
+  .lp .plan-note { font-size: clamp(12px, .95vw, 13.5px); margin-top: clamp(8px, 1.4vh, 16px); }
+
+  /* ── 마지막 CTA (단독 화면 + 푸터) ── */
+  .lp .final h2 { font-size: clamp(21px, 2vw, 32px); }
+  .lp .final p {
+    font-size: clamp(13px, 1.05vw, 15.5px);
+    margin: clamp(10px, 1.6vh, 18px) 0 clamp(16px, 2.4vh, 24px);
+  }
+
+  /* 줄바꿈은 문구에 직접 넣는다(쉼표·마침표 기준). 남은 자동 줄바꿈은 어절에서만 */
+  .lp .sec-lead, .lp .rev-list li, .lp .care p, .lp .l-card p { word-break: keep-all; }
+}
+
+/* 페이지 표시 — 데스크톱은 오른쪽 여백이 넓어 세로로 둔다. 폰은 MobileLanding이 따로 그린다.
+   묶은 화면(.lp-duo)은 점 하나로 센다 — 대상 선택자를 Landing.tsx의 SNAP_SEL과 맞춰 둔다 */
+.lp-nav { display: none; }
+@media (min-width: 641px) {
+  .lp-nav {
+    position: fixed; right: 18px; top: 50%; transform: translateY(-50%); z-index: 30;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .lp-nav button {
+    width: 10px; height: 10px; padding: 0; border-radius: 50%;
+    border: 3px solid var(--navy); background: transparent; cursor: pointer;
+  }
+  .lp-nav button:hover { background: var(--yellow); }
+  .lp-nav button.on { background: var(--coral); border-color: var(--coral); }
+  .lp-more {
+    margin-top: 2px; font-size: 15px; line-height: 1; color: var(--coral); pointer-events: none;
+    animation: lpMore 1.6s ease-in-out infinite;
+  }
+  @keyframes lpMore { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+}
+
+/* 플랜 화면 — 설명 한 문장이 한 줄에 들어가야 카드가 안 어색하다.
+   좌우 여백을 줄여 카드 폭을 확보한다 (641px 이상) */
+@media (min-width: 641px) {
+  .lp #plan { padding-left: clamp(16px, 2.4vw, 40px); padding-right: clamp(16px, 2.4vw, 40px); }
+  .lp #plan .wrap { max-width: min(1440px, 96vw); }
+}
+
+/* ── 리뷰 화면 배치 (641px 이상) ──
+   설명 4장을 제목·리드 아래에만 두면 오른쪽이 화면 아래로 밀려 위가 텅 빈다.
+   그래서 리드 행부터 오른쪽 열에 걸치게 했다. 단 제목까지 왼쪽 열에 넣으면
+   폭 517px에 갇혀 두 줄로 접히므로 제목은 두 열을 다 쓴다.
+   rev-grid는 display:contents로 투명하게 만들어 자식(패널·목록)을 wrap 그리드에 직접 앉힌다 */
+@media (min-width: 641px) {
+  .lp #review .wrap {
+    /* 카드 폭을 더 줄여 봤지만(패널 519 / 카드 390) 답답했다 — 이 비율이 낫다 */
+    display: grid; grid-template-columns: 1.2fr .85fr;
+    grid-template-rows: auto auto auto 1fr;
+    column-gap: clamp(20px, 2.4vw, 40px); align-items: start;
+  }
+  /* 배지는 그리드 칸을 꽉 채우면 안 된다 — 내용 폭만 */
+  .lp #review .badge { grid-area: 1 / 1; justify-self: start; }
+  .lp #review .sec-title { grid-area: 2 / 1 / 3 / -1; }
+  .lp #review .sec-lead { grid-area: 3 / 1; }
+  .lp #review .rev-grid { display: contents; }
+  .lp #review .rev-panel { grid-area: 4 / 1; align-self: start; }
+  /* 오른쪽 열 — 리드 행부터 패널 아래까지 */
+  .lp #review .rev-list { grid-area: 3 / 2 / 5 / 3; align-self: center; }
+}
+
+/* ── 플랜 화면 (641px 이상) ──
+   설명 한 문장이 한 줄에 들어가야 카드가 안 어색하다. 좌우 여백을 줄여 폭을 확보한다 */
+@media (min-width: 641px) {
+  .lp #plan { padding-left: clamp(12px, 1.6vw, 32px); padding-right: clamp(12px, 1.6vw, 32px); }
+  .lp #plan .wrap { max-width: min(1500px, 98vw); }
+  .lp #plan .char { padding-left: clamp(11px, .9vw, 16px); padding-right: clamp(11px, .9vw, 16px); }
+  .lp #plan .char li { padding-left: 14px; }
+  /* 카드 폭은 "교과서 예제 … 예제로."가 한 줄에 들어가는 최소치(실측 372px)에
+     여유 12px만 더한 384px. 3열 + gap 36px = 1188px */
+  .lp #plan .chars { max-width: 1188px; margin: 0 auto; }
+}
+
+/* ── 마지막 화면 = 플랜 + CTA + 푸터 (641px 이상) ──
+   CTA(남색 배경)가 화면의 35%를 갖고 플랜이 나머지를 쓴다. 비율을 flex로 못 박아야
+   CTA 위아래 여백이 확보된다 — 내용 높이대로 두면 글이 서로 붙어 보였다.
+   푸터까지 한 화면이므로 예산은 100dvh − GNB(76) − 푸터(64) */
+@media (min-width: 641px) {
+  /* height까지 줘야 아래 flex의 35%가 기준을 갖는다(min-height만으로는 퍼센트가 안 풀린다).
+     빼는 값은 GNB 76px + 랜딩 푸터 실측 76px — 어긋나면 마지막 화면이 그만큼 밀려 잘린다 */
+  .lp > .lp-last { min-height: calc(100dvh - 76px - 76px); height: calc(100dvh - 76px - 76px); }
+  .lp-last .final { flex: 0 0 35%; display: flex; align-items: center; }
+
+  /* 플랜 — 남은 3/5에 들어가도록 헤더·꼬리말 여백을 줄여 위로 올린다 */
+  /* 가운데 정렬이면 위가 헐렁하고, 위에 딱 붙이면 답답하다 — 위에 붙이되 여백을 준다 */
+  .lp-last #plan {
+    flex: 1 1 auto; align-items: flex-start;
+    /* 위는 넉넉히, 아래(남색 CTA와 맞닿는 쪽)는 붙인다 */
+    padding-top: clamp(18px, 2.6vh, 34px); padding-bottom: clamp(0px, .2vh, 4px);
+  }
+  .lp-last #plan .badge { margin-bottom: 6px; padding: 5px 12px; }
+  .lp-last #plan .sec-title { margin-bottom: 6px; }
+  .lp-last #plan .sec-lead { margin-bottom: clamp(8px, 1.1vh, 15px); }
+  .lp-last .plan-note { margin-top: clamp(4px, .6vh, 9px); }
+
+  /* 플랜 카드 자체는 건드리지 않는다 — 섹션 여백만 줄여 위로 올렸다 */
+}
+
+/* 랜딩 푸터 — 아래 패딩 56px은 모바일 탭바를 피하려고 준 값이다.
+   데스크톱 랜딩에서는 그 자리가 필요 없고, 그만큼 마지막 화면 예산이 늘어난다 */
+@media (min-width: 641px) {
+  body:has(.lp) footer.ft { padding: 12px 24px 14px; }
 }
