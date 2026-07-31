@@ -1,6 +1,7 @@
 package idu.sba.backend.domain.pr.dto;
 
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
+import idu.sba.backend.domain.review.dto.ReviewQuestionResponseDTO;
 import lombok.Getter;
 
 import java.util.List;
@@ -12,17 +13,21 @@ public class PrReviewResponseDTO {
     private final PrDetailResponseDTO pr;
     private final List<ReviewIssueResponseDTO> issues;
     private final List<PrReviewHistoryItemDTO> reviewHistory; //최신순, 재검토가 없었으면 1건
+    private final List<ReviewQuestionResponseDTO> questions; //최신 리뷰에 달린 후속 질문 기록(2026-07-29), 시간순
 
     private PrReviewResponseDTO(PrDetailResponseDTO pr, List<ReviewIssueResponseDTO> issues,
-                                 List<PrReviewHistoryItemDTO> reviewHistory) {
+                                 List<PrReviewHistoryItemDTO> reviewHistory,
+                                 List<ReviewQuestionResponseDTO> questions) {
         this.pr = pr;
         this.issues = issues;
         this.reviewHistory = reviewHistory;
+        this.questions = questions;
     }
 
     public static PrReviewResponseDTO of(PrDetailResponseDTO pr, List<ReviewIssueResponseDTO> issues,
-                                          List<PrReviewHistoryItemDTO> reviewHistory) {
-        return new PrReviewResponseDTO(pr, issues, reviewHistory);
+                                          List<PrReviewHistoryItemDTO> reviewHistory,
+                                          List<ReviewQuestionResponseDTO> questions) {
+        return new PrReviewResponseDTO(pr, issues, reviewHistory, questions);
     }
 
 }

@@ -14,7 +14,9 @@ import idu.sba.backend.domain.review.entity.IssueCategory;
 import idu.sba.backend.domain.review.entity.IssueSeverity;
 import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
+import idu.sba.backend.domain.review.entity.ReviewQuestion;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
+import idu.sba.backend.domain.review.repository.ReviewQuestionRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -43,6 +45,7 @@ class PrServiceImplTest {
     @Mock private RepoMemberRepository repoMemberRepository;
     @Mock private ReviewRepository reviewRepository;
     @Mock private ReviewIssueRepository reviewIssueRepository;
+    @Mock private ReviewQuestionRepository reviewQuestionRepository;
     @Mock private UserRepository userRepository;
     @Mock private GithubApiClient githubApiClient;
 
@@ -169,6 +172,26 @@ class PrServiceImplTest {
 
         assertThat(result.getIssues()).hasSize(1);
         assertThat(result.getPr().getAuthorName()).isEqualTo("작성자닉네임");
+    }
+
+    @Test
+    void 최신_리뷰에_후속_질문_기록이_있으면_시간순으로_함께_반환한다() {
+        Review review = Review.createFromPr(USER_ID, PR_ID, "claude-haiku-4-5");
+        setField(review, "id", 900L);
+
+        when(pullRequestRepository.findById(PR_ID)).thenReturn(Optional.of(pr()));
+        when(githubRepositoryRepository.findById(REPO_ID)).thenReturn(Optional.of(repo()));
+        when(repoMemberRepository.findByRepoIdAndUserId(REPO_ID, USER_ID))
+                .thenReturn(Optional.of(RepoMember.of(REPO_ID, USER_ID, RepoRole.MEMBER)));
+        when(reviewRepository.findTopByPrIdOrderByCreatedAtDesc(PR_ID)).thenReturn(Optional.of(review));
+        when(reviewIssueRepository.findByReviewId(900L)).thenReturn(List.of());
+        when(reviewQuestionRepository.findByReviewIdOrderByCreatedAtAsc(900L)).thenReturn(List.of(
+                ReviewQuestion.of(900L, "이거 팀장 승인 필요한 이슈인가요?", "네, CRITICAL이라 승인이 필요해요.")));
+
+        var result = service.getPrReview(USER_ID, PR_ID);
+
+        assertThat(result.getQuestions()).hasSize(1);
+        assertThat(result.getQuestions().get(0).getQuestion()).isEqualTo("이거 팀장 승인 필요한 이슈인가요?");
     }
 
     @Test

@@ -19,8 +19,10 @@ import idu.sba.backend.domain.review.entity.IssueSeverity;
 import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.entity.ReviewStatus;
+import idu.sba.backend.domain.review.entity.ReviewQuestion;
 import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
+import idu.sba.backend.domain.review.repository.ReviewQuestionRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -51,6 +53,7 @@ class ReviewServiceImplTest {
 
     @Mock private ReviewRepository reviewRepository;
     @Mock private ReviewIssueRepository reviewIssueRepository;
+    @Mock private ReviewQuestionRepository reviewQuestionRepository;
     @Mock private AiUsageLogRepository aiUsageLogRepository;
     @Mock private UserRepository userRepository;
     @Mock private SubscriptionService subscriptionService;
@@ -411,6 +414,20 @@ class ReviewServiceImplTest {
         assertThat(result.getIssues()).hasSize(1);
     }
 
+    @Test
+    void getHistoryDetail_후속_질문_기록도_시간순으로_함께_반환한다() {
+        when(reviewRepository.findById(10L)).thenReturn(Optional.of(review(10L, USER_ID)));
+        when(reviewIssueRepository.findByReviewId(10L)).thenReturn(List.of());
+        when(reviewQuestionRepository.findByReviewIdOrderByCreatedAtAsc(10L)).thenReturn(List.of(
+                ReviewQuestion.of(10L, "왜 문제인가요?", "옵셔널 체이닝을 쓰면 안전해요.")));
+
+        var result = service.getHistoryDetail(USER_ID, 10L);
+
+        assertThat(result.getQuestions()).hasSize(1);
+        assertThat(result.getQuestions().get(0).getQuestion()).isEqualTo("왜 문제인가요?");
+        assertThat(result.getQuestions().get(0).getAnswer()).isEqualTo("옵셔널 체이닝을 쓰면 안전해요.");
+    }
+
     // ---------- createFromPrImport (Studio "PR 가져오기" 리뷰 [설계 추론]) ----------
 
     @Test
@@ -580,6 +597,12 @@ class ReviewServiceImplTest {
         verify(creditUsageService).checkAndConsumeFixed(USER_ID, 1);
         verify(creditUsageService, never()).checkAndConsume(any(), any()); //모델 등급 기준 소모가 아님
         verify(aiUsageLogRepository).save(any());
+        // 질문/답변 내용 자체를 저장해야 리뷰 히스토리·PR 리뷰 상세에서 다시 볼 수 있음(2026-07-29)
+        var captor = org.mockito.ArgumentCaptor.forClass(ReviewQuestion.class);
+        verify(reviewQuestionRepository).save(captor.capture());
+        assertThat(captor.getValue().getReviewId()).isEqualTo(10L);
+        assertThat(captor.getValue().getQuestion()).isEqualTo("왜 문제인가요?");
+        assertThat(captor.getValue().getAnswer()).isEqualTo("옵셔널 체이닝을 쓰면 안전해요.");
     }
 
     @Test

@@ -14,10 +14,12 @@ import idu.sba.backend.domain.repo.entity.RepoMember;
 import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
 import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
 import idu.sba.backend.domain.review.dto.ReviewIssueResponseDTO;
+import idu.sba.backend.domain.review.dto.ReviewQuestionResponseDTO;
 import idu.sba.backend.domain.review.entity.IssueSeverity;
 import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
+import idu.sba.backend.domain.review.repository.ReviewQuestionRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -37,6 +39,7 @@ public class PrServiceImpl implements PrService {
     private final RepoMemberRepository repoMemberRepository;
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
+    private final ReviewQuestionRepository reviewQuestionRepository;
     private final UserRepository userRepository;
     private final GithubApiClient githubApiClient;
 
@@ -51,18 +54,20 @@ public class PrServiceImpl implements PrService {
         RepoMember member = repoMemberRepository.findByRepoIdAndUserId(repo.getId(), currentUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REPO_MEMBER));
 
-        List<ReviewIssueResponseDTO> issues = reviewRepository.findTopByPrIdOrderByCreatedAtDesc(prId)
-                .map(Review::getId)
-                .map(reviewIssueRepository::findByReviewId)
-                .map(list -> list.stream().map(ReviewIssueResponseDTO::of).toList())
-                .orElse(List.of()); //아직 리뷰가 없으면(PR이 OPEN) 빈 목록 — 예외 아님
+        Long latestReviewId = reviewRepository.findTopByPrIdOrderByCreatedAtDesc(prId).map(Review::getId).orElse(null);
+        List<ReviewIssueResponseDTO> issues = latestReviewId == null ? List.of() //아직 리뷰가 없으면(PR이 OPEN) 빈 목록 — 예외 아님
+                : reviewIssueRepository.findByReviewId(latestReviewId).stream().map(ReviewIssueResponseDTO::of).toList();
+        // 후속 질문 기록(2026-07-29) — 최신 리뷰(위 issues와 동일 리뷰) 기준, 시간순
+        List<ReviewQuestionResponseDTO> questions = latestReviewId == null ? List.of()
+                : reviewQuestionRepository.findByReviewIdOrderByCreatedAtAsc(latestReviewId).stream()
+                        .map(ReviewQuestionResponseDTO::of).toList();
 
         List<PrReviewHistoryItemDTO> reviewHistory = reviewRepository.findByPrIdOrderByCreatedAtDesc(prId).stream()
                 .map(this::toHistoryItem)
                 .toList();
 
         return PrReviewResponseDTO.of(PrDetailResponseDTO.of(pr, resolveAuthorName(pr), member.getRole().name()),
-                issues, reviewHistory);
+                issues, reviewHistory, questions);
     }
 
     //재검토로 이슈가 안 나오게 된 이력까지 완전히 추적하진 않지만(설계 추론, [간단 버전]),

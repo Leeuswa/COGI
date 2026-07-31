@@ -17,6 +17,7 @@ import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
 import idu.sba.backend.domain.learning.repository.LearningCardRepository;
 import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
 import idu.sba.backend.domain.learning.repository.WeaknessStatRepository;
+import idu.sba.backend.domain.notification.service.NotificationService;
 import idu.sba.backend.domain.retention.service.RetentionService;
 import idu.sba.backend.domain.payment.entity.Plan;
 import idu.sba.backend.domain.payment.service.CreditUsageService;
@@ -68,6 +69,7 @@ class LearningCardServiceTest {
     @Mock private AiSkillRepository aiSkillRepository;
     @Mock private AiSkillFavoriteRepository aiSkillFavoriteRepository;
     @Mock private AiSkillRecommendationRepository aiSkillRecommendationRepository; // 스킬 추천 이력
+    @Mock private NotificationService notificationService;
     @Mock private Plan plan;
 
     private LearningServiceImpl service;
@@ -84,7 +86,7 @@ class LearningCardServiceTest {
                 learningCardRepository, learningCardQuizRepository, quizSubmissionRepository,
                 subscriptionService, creditUsageService, aiReviewClient, aiUsageLogRepository, new ObjectMapper(),
                 retentionService, courseRepository, new LearningPromptBuilder(),
-                aiSkillRepository, aiSkillFavoriteRepository, aiSkillRecommendationRepository);
+                aiSkillRepository, aiSkillFavoriteRepository, aiSkillRecommendationRepository, notificationService);
     }
 
     private void setField(Object target, String fieldName, Object value) {
