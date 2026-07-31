@@ -22,10 +22,13 @@ import idu.sba.backend.domain.review.dto.ReviewUploadRequestDTO;
 import idu.sba.backend.domain.review.entity.AiUsageLog;
 import idu.sba.backend.domain.review.entity.IssueCategory;
 import idu.sba.backend.domain.review.entity.IssueSeverity;
+import idu.sba.backend.domain.review.dto.ReviewQuestionResponseDTO;
 import idu.sba.backend.domain.review.entity.Review;
 import idu.sba.backend.domain.review.entity.ReviewIssue;
+import idu.sba.backend.domain.review.entity.ReviewQuestion;
 import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
+import idu.sba.backend.domain.review.repository.ReviewQuestionRepository;
 import idu.sba.backend.domain.review.repository.ReviewRepository;
 import idu.sba.backend.domain.user.entity.Level;
 import idu.sba.backend.domain.user.entity.User;
@@ -62,6 +65,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final ReviewIssueRepository reviewIssueRepository;
+    private final ReviewQuestionRepository reviewQuestionRepository;
     private final AiUsageLogRepository aiUsageLogRepository;
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
@@ -276,7 +280,10 @@ public class ReviewServiceImpl implements ReviewService {
         List<ReviewIssueResponseDTO> issues = reviewIssueRepository.findByReviewId(reviewId).stream()
                 .map(ReviewIssueResponseDTO::of)
                 .toList();
-        return ReviewHistoryDetailResponseDTO.of(review, issues);
+        List<ReviewQuestionResponseDTO> questions = reviewQuestionRepository.findByReviewIdOrderByCreatedAtAsc(reviewId).stream()
+                .map(ReviewQuestionResponseDTO::of)
+                .toList();
+        return ReviewHistoryDetailResponseDTO.of(review, issues, questions);
     }
 
     // Studio "PR 가져오기" 리뷰 [설계 추론] — 웹훅 경로(createFromPr)와 달리 실제 로그인 사용자가 호출하므로
@@ -370,6 +377,9 @@ public class ReviewServiceImpl implements ReviewService {
 
             aiUsageLogRepository.save(AiUsageLog.of(userId, review.getModelName(),
                     result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_QUESTION));
+            // 예전엔 질문/답변 내용 자체를 어디에도 저장하지 않아 프론트 sessionStorage가 지워지면
+            // (탭 종료, 새 리뷰 시작) 영구히 사라졌음 — 리뷰 히스토리/PR 리뷰 상세에서 다시 볼 수 있게 저장(2026-07-29)
+            reviewQuestionRepository.save(ReviewQuestion.of(reviewId, question, result.content()));
 
             return AskQuestionResponseDTO.of(result.content());
         } catch (BusinessException e) {

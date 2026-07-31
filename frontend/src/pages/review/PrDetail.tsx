@@ -79,7 +79,7 @@ export default function PrDetail() {
     );
   }
 
-  const { pr, issues, reviewHistory = [] } = data;
+  const { pr, issues, reviewHistory = [], questions = [] } = data;
   const resolved = issues.filter((it) => it.status === 'RESOLVED').length;
   const ignored = issues.filter((it) => it.status === 'IGNORED').length;
   const open_ = issues.filter((it) => it.status === 'OPEN').length;
@@ -417,6 +417,27 @@ export default function PrDetail() {
           </div>
         </div>
       ))}
+
+      {/* 후속 질문 기록(2026-07-29) — 최신 리뷰에 달린 질문/답변. 예전엔 탭을 닫으면 사라졌었다 */}
+      {questions.length > 0 && (
+        <div className="panel" style={{ marginTop: 18 }}>
+          <b style={{ fontSize: 14 }}>💬 후속 질문 ({questions.length}건)</b>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            {questions.map((q, i) => (
+              <div key={i} style={{ fontSize: 13.5, lineHeight: 1.9, paddingBottom: 10, borderBottom: i < questions.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                <div style={{ marginBottom: 6 }}>
+                  <span className="chip navy" style={{ marginRight: 8 }}>질문</span>
+                  {q.question}
+                </div>
+                <div>
+                  <span className="chip gray" style={{ marginRight: 8 }}>코기</span>
+                  {renderDescription(q.answer)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

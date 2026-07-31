@@ -16,10 +16,12 @@ public class ReviewHistoryDetailResponseDTO {
     private final String originalFilename; //nullable — UPLOAD만
     private final LocalDateTime createdAt;
     private final List<ReviewIssueResponseDTO> issues;
+    private final List<ReviewQuestionResponseDTO> questions; //후속 질문 기록(2026-07-29) — 시간순
 
     private ReviewHistoryDetailResponseDTO(Long reviewId, String targetType, String modelName, String status,
                                             String originalFilename, LocalDateTime createdAt,
-                                            List<ReviewIssueResponseDTO> issues) {
+                                            List<ReviewIssueResponseDTO> issues,
+                                            List<ReviewQuestionResponseDTO> questions) {
         this.reviewId = reviewId;
         this.targetType = targetType;
         this.modelName = modelName;
@@ -27,12 +29,14 @@ public class ReviewHistoryDetailResponseDTO {
         this.originalFilename = originalFilename;
         this.createdAt = createdAt;
         this.issues = issues;
+        this.questions = questions;
     }
 
-    public static ReviewHistoryDetailResponseDTO of(Review review, List<ReviewIssueResponseDTO> issues) {
+    public static ReviewHistoryDetailResponseDTO of(Review review, List<ReviewIssueResponseDTO> issues,
+                                                     List<ReviewQuestionResponseDTO> questions) {
         return new ReviewHistoryDetailResponseDTO(review.getId(), review.getTargetType().name(),
                 review.getModelName(), review.getStatus().name(), review.getOriginalFilename(),
-                review.getCreatedAt(), issues);
+                review.getCreatedAt(), issues, questions);
     }
 
 }

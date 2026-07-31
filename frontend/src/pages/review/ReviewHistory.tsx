@@ -99,6 +99,28 @@ function DesktopReviewHistory() {
               </div>
             )}
 
+            {/* 후속 질문 기록(2026-07-29) — 예전엔 탭을 닫으면 사라졌던 질문/답변을 여기서 다시 볼 수 있다 */}
+            {detail && detail.questions?.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h4 style={{ marginBottom: 10 }}>💬 후속 질문 {detail.questions.length}건</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {detail.questions.map((q, i) => (
+                    <div key={i} className="panel" style={{ fontSize: 13.5 }}>
+                      <div style={{ marginBottom: 8 }}>
+                        <span className="chip navy" style={{ marginRight: 8 }}>질문</span>
+                        {q.question}
+                      </div>
+                      <div>
+                        <span className="chip gray" style={{ marginRight: 8 }}>코기</span>
+                        {renderDescription(q.answer)}
+                      </div>
+                      <div className="note xs" style={{ marginTop: 8 }}>{fmt(q.createdAt)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="row" style={{ marginTop: 20 }}>
               <button className="btn wh sm" onClick={() => setOpen(null)}>닫기</button>
             </div>

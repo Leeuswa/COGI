@@ -81,6 +81,19 @@ export default function MobileHistory() {
                       </div>
                     ))
                   )}
+
+                  {/* 후속 질문 기록(2026-07-29) */}
+                  {detail?.questions?.length > 0 && (
+                    <div className="mh-questions">
+                      <p className="mnote" style={{ marginTop: 12, marginBottom: 6 }}>💬 후속 질문 {detail.questions.length}건</p>
+                      {detail.questions.map((q, i) => (
+                        <div key={i} className="mh-issue">
+                          <p className="mh-file">Q. {q.question}</p>
+                          <div className="mh-desc">{renderDescription(q.answer)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </li>
