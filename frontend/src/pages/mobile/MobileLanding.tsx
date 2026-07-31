@@ -11,6 +11,9 @@
  *   1) 소개 + 코기(바로 만져보게 한다. 알에서 시작)
  *   2) 리뷰 예시 + 성장 루프 · 3) 케어=학습 + 성장 단계 · 4) 플랜 + 마지막 진입
  *
+ * 화면이 낮은 폰에서는 둘이 안 들어간다. 그때는 CSS가 .ml-page를 display:contents로 지우고
+ * .ml-unit(카드 한 장) 하나가 한 화면이 된다 — 8페이지. 스냅도 스텝 표시도 그 단위를 따른다.
+ *
  * 문구는 데스크톱 랜딩 것을 그대로 쓴다(같은 약속을 두 벌로 관리하지 않는다).
  */
 import { useEffect, useState } from "react";
@@ -21,7 +24,8 @@ import CorgiDevice from "../../components/CorgiDevice";
 import { SPR } from "../../assets/sprites";
 import "../../styles/mobile/landing.css";
 
-const PAGES = 4; // 아래 <section className="ml-page"> 개수와 같아야 한다
+// 카드 한 장 모드로 넘어가는 지점. landing.css의 같은 값과 짝이다 — 한쪽만 고치면 어긋난다
+const ONE_CARD = "(max-width: 640px) and (max-height: 820px)";
 
 const STEPS: [string, string, string][] = [
   ["01", "리뷰 · 학습", "같은 지적이 세 번 쌓이면 약점이 되고, 그 약점으로 학습카드가 만들어집니다."],
@@ -56,20 +60,35 @@ export default function MobileLanding() {
   }, []);
 
   const [step, setStep] = useState(0);
+  const [total, setTotal] = useState(0);
   useEffect(() => {
-    const pages = [...document.querySelectorAll(".ml-page")];
-    const io = new IntersectionObserver(
-      (es) => es.forEach((e) => { if (e.isIntersecting) setStep(pages.indexOf(e.target)); }),
-      { threshold: 0.6 }
-    );
-    pages.forEach((p) => io.observe(p));
-    return () => io.disconnect();
+    let io;
+    // 한 화면이 .ml-page(카드 둘)인지 .ml-unit(카드 하나)인지는 화면 높이에 따라 CSS가 정한다.
+    // 여기서 높이를 다시 판단하면 기준이 두 벌이 되므로, 계산된 display를 보고 따라간다
+    const bind = () => {
+      io?.disconnect();
+      const secs = [...document.querySelectorAll(".ml-page")];
+      const pages = getComputedStyle(secs[0]).display === "contents"
+        ? [...document.querySelectorAll(".ml-unit")]
+        : secs;
+      setTotal(pages.length);
+      io = new IntersectionObserver(
+        (es) => es.forEach((e) => { if (e.isIntersecting) setStep(pages.indexOf(e.target)); }),
+        { threshold: 0.6 }
+      );
+      pages.forEach((p) => io.observe(p));
+    };
+    bind();
+    const mq = matchMedia(ONE_CARD);
+    mq.addEventListener("change", bind);
+    return () => { io?.disconnect(); mq.removeEventListener("change", bind); };
   }, []);
 
   return (
     <main className="mapp mland">
       {/* 1) 첫 화면 */}
       <section className="ml-page">
+        <div className="ml-unit">
         <div className="mcard ml-hero">
           <span className="ml-badge">POCKET CORGI · LV.UP EVERY DAY</span>
           <h1>
@@ -84,14 +103,18 @@ export default function MobileLanding() {
           <Link className="btn co full" to="/login">로그인 or 회원가입하고 시작</Link>
           <Link className="btn wh full" to="/guest">비로그인 체험</Link>
         </div>
+        </div>
 
         {/* 코기는 첫 화면에서 바로 만져보게 한다. 알에서 시작한다 */}
-        <CorgiDevice />
-        <p className="mlead">↑ 지금 눌러도 됩니다. 퀴즈 하나면 알이 깨집니다.</p>
+        <div className="ml-unit">
+          <CorgiDevice />
+          <p className="mlead">↑ 지금 눌러도 됩니다. 퀴즈 하나면 알이 깨집니다.</p>
+        </div>
       </section>
 
       {/* 2) 리뷰 예시 + 성장 루프 */}
       <section className="ml-page">
+        <div className="ml-unit">
         <div className="mcard">
           <div className="mcard-head"><h2>🔍 머지 전에 코기가 먼저 읽습니다</h2></div>
           <div className="ml-rev">
@@ -108,7 +131,9 @@ export default function MobileLanding() {
             <li><b>결과 내보내기</b>회고에 쓰기 좋게 Markdown·PDF로.</li>
           </ul>
         </div>
+        </div>
 
+        <div className="ml-unit">
         <div className="mcard">
           <div className="mcard-head"><h2>🔁 미루던 공부를, 코기가 조릅니다</h2></div>
           <ol className="ml-steps">
@@ -117,10 +142,12 @@ export default function MobileLanding() {
             ))}
           </ol>
         </div>
+        </div>
       </section>
 
       {/* 3) 케어 = 학습 + 성장 단계 */}
       <section className="ml-page">
+        <div className="ml-unit">
         <div className="mcard">
           <div className="mcard-head"><h2>🐶 귀여움에도 근거가 있습니다</h2></div>
           <ul className="ml-cares">
@@ -129,8 +156,10 @@ export default function MobileLanding() {
             ))}
           </ul>
         </div>
+        </div>
 
         {/* 성장 단계 — 가로 스크롤은 안 쓴다. 2열로 쌓고 마지막 한 장이 줄을 채운다 */}
+        <div className="ml-unit">
         <div className="mcard">
           <div className="mcard-head"><h2>🥚 알에서 대장 코기까지</h2></div>
           <div className="ml-stages">
@@ -142,10 +171,12 @@ export default function MobileLanding() {
             ))}
           </div>
         </div>
+        </div>
       </section>
 
       {/* 4) 플랜 + 마지막 진입 */}
       <section className="ml-page">
+        <div className="ml-unit">
         <div className="mcard">
           <div className="mcard-head">
             <h2>💳 플랜</h2>
@@ -175,8 +206,10 @@ export default function MobileLanding() {
           </div>
           <p className="mnote">{PLAN_FOOTNOTE}</p>
         </div>
+        </div>
 
         {/* 마지막 진입 — 푸터가 앱 셸에서 감춰지므로 팀 표기도 여기서 받는다 */}
+        <div className="ml-unit">
         <div className="mcard ml-end">
           <img className="ml-end-corgi" src={SPR.boss} alt="" />
           <h2>오늘 미션을 끝내면,<br /><span className="hl">코기가 꼬리를 흔듭니다</span></h2>
@@ -185,15 +218,16 @@ export default function MobileLanding() {
           <Link className="ml-end-alt" to="/guest">가입 전에 먼저 체험해 볼래요</Link>
           <p className="ml-team">Team Fable · 상연 · 이수환 · 홍성찬 · 유지환</p>
         </div>
+        </div>
       </section>
 
       {/* 페이지 표시 — 지금 몇 번째인지와 아래로 더 있다는 신호.
           마지막 페이지에서는 화살표를 숨긴다 */}
-      <nav className="ml-steps-nav" aria-label={`${PAGES}쪽 중 ${step + 1}쪽`}>
-        {Array.from({ length: PAGES }, (_, i) => (
+      <nav className="ml-steps-nav" aria-label={`${total}쪽 중 ${step + 1}쪽`}>
+        {Array.from({ length: total }, (_, i) => (
           <i key={i} className={i === step ? "on" : ""} />
         ))}
-        {step < PAGES - 1 && <span className="ml-more" aria-hidden="true">▾</span>}
+        {step < total - 1 && <span className="ml-more" aria-hidden="true">▾</span>}
       </nav>
     </main>
   );

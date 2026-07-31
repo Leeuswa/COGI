@@ -14,34 +14,66 @@
   .dash { height: auto; overflow: visible; }
   .dash .page-head .sec-lead { display: block; }
 }
-@media (max-width: 768px) and (min-width: 641px) {
-  nav.gnb { height: 80px; padding: 0 16px; }
-  nav.gnb .logo img { height: 44px; }
-  nav.gnb .links { gap: 14px; font-size: 12px; overflow-x: auto; padding-bottom: 2px; }
-  section { padding: 64px 22px; }
-  .hero { padding: 38px 18px 60px; min-height: auto; }
-  .loop-grid { grid-template-columns: 1fr; }
-  .pad { grid-template-columns: repeat(2, 1fr); }
-}
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
   .rv { opacity: 1; transform: none; }
 }
 
-/* ═══════════ 태블릿 (641~1024px) ═══════════
-   데스크톱 레이아웃을 유지하되 2열을 1열로 펴고 여백을 줄인다 */
-@media (max-width: 1024px) and (min-width: 641px) {
-  .app-main { padding: 20px 18px 60px; }
-  .dash-grid { grid-template-columns: 1fr; }
-  .hud-row { grid-template-columns: repeat(2, 1fr); }
-  .dash-top { flex-direction: column; align-items: stretch; gap: 14px; }
-  .hp-box { align-self: flex-start; margin-bottom: 0; }
-  .device { width: 100%; max-width: 460px; margin: 0 auto; }
-  .cal-grid { grid-auto-rows: 40px; }
+/* ═══════════ 로그인 전 랜딩 축소 (641px 이상) ═══════════
+   랜딩은 641px부터 한 화면 = 한 섹션(scroll-snap)인데, 섹션이 overflow: hidden이라
+   안 들어가는 만큼 스크롤도 못 하고 그냥 잘린다. 높이가 낮은 태블릿·노트북에서
+   마지막 화면의 플랜 섹션이 그렇게 잘리고 있었다
+   (1024×768에서 98px · 641×900에서 125px · 1280×800에서 84px · 1366×768에서 125px).
+
+   레이아웃을 다시 짜는 대신 모바일 랜딩과 같은 방식으로 비율만 줄인다.
+   배율은 화면 높이 계산에도 나눠 줘야 스냅 지점이 안 밀린다.
+   실측한 필요 배율 — 1366×768:.79 · 1024×768:.81 · 641×900:.83 · 1280×800:.84 ·
+   700×1000:.93 · 768×1024:.95 · 700×1100:.99 · 834×1112 이상:1.
+   각 구간의 가장 낮은 높이를 기준으로 잡았다 */
+@media (min-width: 641px) {
+  .lp { --lp-z: 1; zoom: var(--lp-z); }
+
+  /* 데스크톱 — GNB 76px과 푸터 126px을 빼고 남는 높이가 예산이라 빡빡하다.
+     1366×768:.79 · 1280×800:.84 · 1920×1080:1 */
+  @media (min-width: 1025px) {
+    @media (max-height: 1000px) { .lp { --lp-z: .92; } }
+    @media (max-height:  900px) { .lp { --lp-z: .82; } }
+    @media (max-height:  800px) { .lp { --lp-z: .78; } }
+
+    /* 플랜 카드 세 장이 화면 폭에 비해 넓게 벌어져 양옆이 답답했다.
+       카드 줄만 좁혀 좌우 여백을 준다 (landing.css의 1188px보다 한 뼘 좁게).
+       태블릿은 이미 폭이 모자라니 건드리지 않는다 */
+    .lp #plan .chars { max-width: 1040px; }
+  }
+  /* 태블릿 — 뺄 것이 모바일 헤더 56px뿐이라 데스크톱보다 여유가 있다.
+     조건은 둘이다. 섹션 안 내용이 상자를 넘지 않을 것, 상자가 화면을 넘지 않을 것.
+     히어로는 내용을 가운데 정렬해서 위아래로 함께 넘치기 때문에 scrollHeight로는 안 잡힌다 —
+     자식 높이 합으로 재야 한다.
+
+     실측 — 1024×768:.76 · 641×900:.83 · 768×1024:.95 · 820×1180 이상:1.
+     구간의 가장 낮은 높이가 기준이라 그보다 한 칸 더 조인 값을 쓴다 */
+  @media (max-width: 1024px) {
+    @media (max-height: 1200px) { .lp { --lp-z: .96; } }
+    @media (max-height: 1100px) { .lp { --lp-z: .90; } }
+    @media (max-height: 1000px) { .lp { --lp-z: .83; } }
+    @media (max-height:  900px) { .lp { --lp-z: .79; } }
+    @media (max-height:  820px) { .lp { --lp-z: .76; } }
+  }
+
+  .lp > .hero, .lp > section, .lp > .lp-duo { min-height: calc((100dvh - 76px) / var(--lp-z)); }
+  /* landing.css의 `.lp > #plan`은 id라 특이도가 높은데 배율로 안 나눠져 있었다.
+     그래서 다른 섹션이 893px일 때 플랜만 752px이 돼, 마지막 화면 아래가 65px 남고
+     플랜이 화면 가운데보다 위로 붙어 보였다. 여기서 같이 나눠 준다 */
+  .lp > #plan { min-height: calc((100dvh - 76px - 76px) / var(--lp-z)); }
 }
 
-/* ═══════════ 모바일 (≤640px) — 네이티브 앱처럼 ═══════════ */
-@media (max-width: 640px) {
+/* ═══════════ 앱 껍데기 (≤1024px) — 네이티브 앱처럼 ═══════════
+   태블릿(641~1024)도 여기에 들어온다. 다만 껍데기만이다 —
+   상단 헤더·하단 탭바·바텀시트는 모바일 것을 쓰고, 화면 자체는 데스크톱 컴포넌트가 그린다.
+   폰 전용 화면(pages/mobile/*)은 useIsMobile이 ≤640에서만 고른다.
+
+   그래서 이 블록은 데스크톱 화면을 태블릿 폭으로 접는 규칙이기도 하다 */
+@media (max-width: 1024px) {
   /* 상단 GNB는 로고와 지갑만 남기고, 이동은 하단 탭바가 맡는다 */
   nav.gnb { height: 56px; padding: 0 14px; position: sticky; top: 0; z-index: 40; }
   nav.gnb .logo img { height: 32px; }
@@ -129,7 +161,7 @@
 /* ═══════════ 모바일 앱 셸 (≤640px) ═══════════
    웹페이지가 아니라 앱처럼 — 헤더와 탭바는 고정이고 가운데 본문만 스크롤한다.
    PWA로 홈 화면에 추가하면 주소창 없이 이 화면만 뜬다(manifest.webmanifest). */
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
   html, body { overscroll-behavior-y: none; }   /* 당겨서 새로고침·고무줄 튕김 제거 */
   body { -webkit-tap-highlight-color: transparent; }
 
@@ -159,7 +191,7 @@
 
 /* ── 모바일 앱 헤더 ── */
 .mhead { display: none; }
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
   /* 데스크톱 GNB는 통째로 감추고 앱 헤더로 대체 */
   nav.gnb { display: none; }
 
@@ -243,7 +275,7 @@
   .plan-card.current { transform: none; outline-offset: 2px; }
   .plan-card.current + .plan-card { margin-top: 8px; }
 }
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
   .panel-grid.c3:has(> .plan-card) { gap: 34px; margin-top: 30px; }
   .plan-card { padding: 22px 18px; }
   .plan-flag { top: -16px; font-size: 11px; padding: 4px 12px; }
@@ -251,17 +283,25 @@
 
 /* 하단 탭바·앱 헤더 표시 전환 — 반드시 파일 맨 끝에 둔다.
    미디어쿼리는 특이도를 올리지 않아서, 뒤에 나오는 .mtab{display:none}에 덮이기 때문 */
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
   .mtab { display: flex; }
   .mhead { display: flex; }
 }
 
-/* ═══════════ 모바일 앱 마감 (≤640px) ═══════════
-   요소와 색은 그대로 두고 배치·여백만 앱 문법으로 바꾼다 */
-@media (max-width: 640px) {
+/* 앱 배경·표 스크롤·시트 잠금은 태블릿에도 그대로 간다 (껍데기 쪽) */
+@media (max-width: 1024px) {
   /* 앱 배경은 흰 카드가 떠 보이게 한 톤 밝게 */
   .app-shell { background: #dfeeff; }
+  /* 넓은 표는 카드 안에서만 옆으로 넘긴다 */
+  .panel.flush, .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* 더보기 시트가 열리면 뒤 본문 스크롤을 막는다 */
+  body:has(.mtab-sheet) .app-body { overflow: hidden; }
+}
 
+/* ═══════════ 폰 마감 (≤640px) ═══════════
+   요소와 색은 그대로 두고 배치·여백만 앱 문법으로 바꾼다.
+   여기부터는 폰 전용이다 — 태블릿에 걸면 데스크톱 화면이 확대된 폰처럼 보인다 */
+@media (max-width: 640px) {
   /* 카드는 화면 가장자리에 딱 붙이지 않고 12px씩만 띄운다 */
   .app-main, .dash { padding: 12px 12px 20px; }
   .panel { border-radius: 16px; }
@@ -297,18 +337,12 @@
   .ps-dot { width: 40px; }
   .ps-body { border-radius: 12px; box-shadow: none; }
   .ps-head { gap: 6px; }
-
-  /* 표는 폰에서 가로 스크롤 */
-  .panel.flush, .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-  /* 더보기 시트가 열리면 뒤 본문 스크롤을 막는다 */
-  body:has(.mtab-sheet) .app-body { overflow: hidden; }
 }
 
-/* ═══════════ 모바일 앱 (≤640px) — 가로 스크롤 박멸 ═══════════
-   폰에서 화면이 옆으로 밀리면 앱이 아니라 축소된 웹으로 보인다.
+/* ═══════════ 가로 스크롤 박멸 (≤1024px) ═══════════
+   화면이 옆으로 밀리면 앱이 아니라 축소된 웹으로 보인다. 태블릿도 마찬가지다.
    폭을 넘길 수 있는 요소를 전부 가둔다 */
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
   html, body, .app-shell, .app-body { max-width: 100%; overflow-x: hidden; }
   .app-main, .dash { width: 100%; max-width: 100%; }
 
@@ -337,10 +371,12 @@
    로그인 후와 같은 앱 셸을 쓴다 — 헤더는 고정이고 .app-body만 스크롤한다.
    문서 전체를 스크롤시켜 보니 html·body의 overflow-x:hidden과 겹쳐
    손가락으로 쓸어올리는 터치 스크롤이 먹지 않았다 */
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
   /* 상단바 오른쪽 진입 버튼 — 높이는 앱 공통 44px을 그대로 쓴다(헤더 56px 안에 들어간다) */
   .mh-cta { flex-shrink: 0; padding: 10px 12px; font-size: 12px; box-shadow: 2px 2px 0 var(--navy); }
+}
 
+@media (max-width: 640px) {
   /* 전용 화면이 없는 페이지의 <section> 여백. 랜딩 데스크톱 값(92px)은 폰에서 과하다 */
   section { padding: 52px 16px; }
 
@@ -358,7 +394,95 @@
   .pad button .ico { font-size: 14px; margin-bottom: 2px; }
   .pad button small { font-size: 10.5px; }
 
-  /* ── 인증 카드 ── */
-  .auth-wrap { min-height: 0; padding: 22px 14px 40px; }
-  .auth-card { padding: 24px 18px; box-shadow: none; }
+}
+
+/* ── 인증 카드 — 폰에서만 조인다 ──
+   가입 카드가 970px이라 375×667(본문 611px)에서 화면 밖으로 359px 넘어갔다.
+   글자 크기와 44px 터치 영역은 그대로 두고 여백·행간만 조인다 — 970 → 775.
+   태블릿은 세로가 남아도니 이 조임을 걸지 않는다 (아래 태블릿 블록에서 가운데로 세운다) */
+@media (max-width: 640px) {
+  .auth-wrap { min-height: 0; padding: 10px 12px 14px; }
+  .auth-card { padding: 14px; box-shadow: none; }
+  .auth-card h2 { font-size: 19px; margin-bottom: 4px; }
+  .auth-card .desc { margin-bottom: 10px; line-height: 1.6; }
+  .auth-card .sns { gap: 8px; margin-bottom: 10px; }
+  .auth-card .sns-btn { padding: 10px; }
+  .auth-card .divider { margin: 10px 0; }
+  .auth-card .form { gap: 10px; }
+  .auth-card .form label { margin-bottom: 4px; }
+  .auth-card .form .check-row { line-height: 1.4; }
+  .auth-card .auth-foot { margin-top: 10px; }
+}
+
+/* ═══════════ 태블릿 (641~1024px) ═══════════
+   껍데기만 모바일, 화면은 데스크톱이다.
+
+   껍데기 — 앱 셸(고정 헤더 + 본문만 스크롤), 상단 헤더, 하단 탭바, 바텀시트.
+   데스크톱 GNB를 되살리는 것도 생각했지만, 로그인 상태의 항목이 열 개(대시보드 ·
+   드롭다운 4 · 마이페이지 · 알림 · 지갑 · 세션타이머 · 로그아웃)라 641px에서 가로로 넘친다.
+
+   화면 — useIsMobile이 ≤640에서만 참이라 여기서는 데스크톱 컴포넌트가 그려진다.
+   폰 전용 화면을 늘려 쓰지 않는다. 위 ≤1024 블록이 2열 격자를 1열로 펴 주고,
+   여기서는 태블릿에 남는 폭을 쓰도록 되돌린다 */
+@media (min-width: 641px) and (max-width: 1024px) {
+  /* 폰 여백(14px)은 태블릿에서 답답하다 */
+  .app-main, .dash { padding: 20px 22px 40px; }
+
+  /* 요약 카드 4개는 태블릿 폭이면 한 줄에 다 들어간다 (위 블록이 2열로 접은 걸 되돌림) */
+  .hud-row { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+  /* 대시보드 — 코기 기기와 오른쪽 열을 나란히. 한 줄로만 쌓으면 세로로만 길어진다 */
+  .dash-grid { grid-template-columns: 1.25fr 1fr; gap: 16px; }
+
+  /* 코기 기기는 폰에서 화면 폭을 꽉 채우게(width:100%) 해 뒀는데, 태블릿에서 그대로 늘리니
+     가로만 길어져 어색했다. 데스크톱 기본 폭으로 되돌리고 가운데 세운다 */
+  .device { width: min(440px, 94vw); margin-inline: auto; }
+
+  /* 카드·제목은 폰과 데스크톱 중간 */
+  .panel { padding: 20px 20px; border-radius: 16px; }
+  .sec-title { font-size: 24px; }
+
+  /* 상단 헤더도 폰보다 한 뼘 크게 — 셸 폭이 넓어진 만큼 */
+  .mhead { padding: 0 20px; }
+  .mhead .mh-title { font-size: 17px; }
+  /* 앱 헤더가 제목을 맡아 화면 안 제목을 감췄는데, 태블릿은 자리가 남으니 되살린다 */
+  .app-main .page-head .sec-title { display: block; }
+
+  /* ── 로그인·회원가입 ──
+     폰은 카드가 화면을 꽉 채우니 위에 붙여도 되지만, 태블릿은 세로가 남아서
+     카드가 위에 붙고 아래가 통째로 비었다. 스크롤 영역 높이만큼 잡아 가운데 세운다 */
+  .auth-wrap { min-height: 100%; place-items: center; padding: 32px 24px; }
+  .auth-card { padding: 30px 28px; }
+
+  /* ── 로그인 전 랜딩 ──
+     앱 셸(100dvh + 본문만 스크롤)로 두면 셸의 마지막 칸을 탭바가 쓰느라 푸터가 감춰진다.
+     그래서 마지막 화면(플랜) 뒤가 그냥 끊기고 아래가 비어 보였다.
+     랜딩만 데스크톱처럼 문서를 스크롤시킨다 — 푸터가 마지막 화면 뒤에 붙고,
+     스냅도 landing.css가 원래 걸어 둔 html 쪽이 그대로 산다.
+     헤더는 sticky로 남겨 앱 느낌을 유지한다 */
+  body:has(.lp) .app-shell { height: auto; min-height: 100dvh; overflow: visible; }
+  /* 앱 배경(#dfeeff)은 로그인 후 화면용이다. 랜딩에는 데스크톱과 같은 하늘색을 쓴다.
+     투명으로 두면 base.css의 .app-shell이 덮고 있던 body의 점무늬가 비쳐 나와
+     데스크톱과 다른 배경이 된다 — 색을 그대로 지정해야 한다 */
+  body:has(.lp) .app-shell { background: var(--sky); }
+  body:has(.lp) .app-body { overflow: visible; }
+  body:has(.lp) .ft { display: block; }
+  body:has(.lp) .mhead { position: sticky; top: 0; z-index: 40; }
+  /* 가로 넘침 방지로 body에 준 overflow-x: hidden이 body를 스크롤 컨테이너로 만든다.
+     그러면 섹션의 스냅 지점이 실제로 스크롤하는 html이 아니라 body에 묶여서 스냅이 죽는다.
+     clip은 잘라 내기만 하고 스크롤 컨테이너를 만들지 않는다 */
+  body:has(.lp) { overflow: clip; }
+
+  /* 한 화면 높이 기준이 다르다 — GNB(76px)가 아니라 모바일 헤더(56px)다.
+     #plan은 id 선택자라 특이도가 높아 여기서도 id로 눌러야 한다 */
+  /* 한 섹션 = 한 화면. 데스크톱과 같은 약속이다.
+     내용 높이로 두면 한 화면에 두 섹션이 걸쳐 보여서 스냅이 무의미해진다.
+     기준 높이만 다르다 — GNB(76px)가 아니라 모바일 헤더(56px)고, 마지막 화면은
+     그 뒤에 붙는 푸터(76px)까지 함께 담는다.
+     #plan은 id 선택자라 특이도가 높아 여기서도 id로 눌러야 한다 */
+  .lp > .hero, .lp > section, .lp > .lp-duo {
+    scroll-margin-top: 56px;
+    min-height: calc((100dvh - 56px) / var(--lp-z));
+  }
+  .lp > #plan { min-height: calc((100dvh - 56px - 76px) / var(--lp-z)); }
 }

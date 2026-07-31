@@ -14,11 +14,44 @@
      컨테이너로 만들어서, 페이지가 실제로 스크롤되는 .app-body 대신 여기에 스냅됐다.
      가로 넘침은 .app-body가 이미 잘라낸다 */
   .mapp.mland { padding: 0; gap: 0; overflow: visible; }
+
+  /* ── 한 화면에 카드 둘 (821px 이상) ──
+     내용을 빼거나 줄이면 폰에서만 다른 랜딩이 된다. 그림은 그대로 두고 비율만 줄인다.
+     375×667에서 페이지가 813px이라 200px 넘쳤다. 축소하면 유효 폭도 같이 넓어져
+     줄바꿈이 줄기 때문에, 비율대로 계산한 값보다 덜 줄여도 들어간다.
+
+     배율은 페이지 높이 계산에도 나눠 줘야 한다. 안 그러면 한 화면이 1/배율만큼 길어져
+     스냅 지점이 화면 아래로 밀린다.
+
+     .84 아래로 내려가면 본문이 10px을 못 넘겨 읽기가 힘들다. 거기서부터는 줄이지 않고
+     아래 "카드 한 장" 모드로 간다 */
+  .mland { --ml-z: 1; zoom: var(--ml-z); }
+  @media (max-width: 640px) and (min-height: 821px) and (max-height: 900px) { .mland { --ml-z: .95; } }
+  /* 320×568에서는 카드 한 장(플랜 541px)도 512px에 안 들어간다. 거기서만 한 단계 줄인다 */
+  @media (max-width: 640px) and (max-height: 640px) { .mland { --ml-z: .90; } }
+
+  .ml-unit { display: contents; }
   .ml-page {
-    min-height: calc(100dvh - 56px - env(safe-area-inset-top));
+    min-height: calc((100dvh - 56px - env(safe-area-inset-top)) / var(--ml-z));
     scroll-snap-align: start; scroll-snap-stop: always;
-    display: flex; flex-direction: column; justify-content: center; gap: 10px;
-    padding: 14px 12px;
+    display: flex; flex-direction: column; justify-content: center; gap: 8px;
+    padding: 8px 12px;
+  }
+
+  /* ── 한 화면에 카드 하나 (폰 + 높이 820px 이하) ──
+     구간(.ml-page)을 지우면 그 안의 카드 한 장(.ml-unit)이 그대로 한 화면이 된다.
+     페이지가 4에서 8로 늘지만, 스냅 대상과 스텝 표시는 MobileLanding이 계산된 display를
+     보고 따라오므로 여기만 고치면 된다. 경계값은 그쪽 ONE_CARD와 짝이다.
+
+     태블릿은 제외한다 — 거기선 카드 둘을 좌우로 놓아서(responsive.css) 높이가 안 모자란다 */
+  @media (max-width: 640px) and (max-height: 820px) {
+    .ml-page { display: contents; }
+    .ml-unit {
+      min-height: calc((100dvh - 56px - env(safe-area-inset-top)) / var(--ml-z));
+      scroll-snap-align: start; scroll-snap-stop: always;
+      display: flex; flex-direction: column; justify-content: center; gap: 8px;
+      padding: 8px 12px;
+    }
   }
   /* ── 페이지 표시 ──
      스크롤바가 없는 스텝 방식이라 지금 몇 쪽인지, 아래로 더 있는지를 이걸로 알린다.
@@ -50,19 +83,19 @@
     background: var(--navy); color: var(--yellow);
     padding: 5px 9px; letter-spacing: .5px; margin-bottom: 10px;
   }
-  .ml-hero h1 { font-size: 22px; line-height: 1.45; margin-bottom: 8px; }
+  .ml-hero h1 { font-size: 20px; line-height: 1.45; margin-bottom: 8px; }
   /* 데스크톱 하이라이트와 같은 노란 밴드. 폰에서는 밴드가 줄바꿈에 걸려 조각나지 않게 inline-block */
   .ml-hero h1 .hl {
     display: inline-block; background: var(--yellow); box-shadow: 0 0 0 3px var(--yellow);
   }
-  .ml-hero .mnote { margin-bottom: 13px; }
-  .ml-hero .btn + .btn { margin-top: 9px; }
+  .ml-hero .mnote { margin-bottom: 10px; }
+  .ml-hero .btn + .btn { margin-top: 8px; }
 
   /* 코기 기기 카드는 앱 카드와 같은 리듬으로 */
   .mland .device { width: 100%; box-shadow: none; border-width: 2px; border-radius: 16px; }
   /* 첫 페이지가 [소개 카드 + 기기 + 안내 한 줄]로 끝나야 한다.
      px로 못 박으면 화면 낮은 폰에서 기기가 페이지 밖으로 밀린다 */
-  .mland .lcd { height: clamp(150px, 20dvh, 210px); }
+  .mland .lcd { height: clamp(150px, 18dvh, 200px); }
   .mland .mlead { text-align: center; color: var(--coral); }
 
   /* ── 리뷰 예시 ── */
@@ -72,18 +105,18 @@
     font-family: 'GalmuriMono11', monospace; font-size: 11px; color: var(--sub);
     border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 10px;
   }
-  .ml-rev-line { font-family: 'GalmuriMono11', monospace; font-size: 11.5px; line-height: 2.1; color: var(--navy); }
+  .ml-rev-line { font-family: 'GalmuriMono11', monospace; font-size: 11.5px; line-height: 1.9; color: var(--navy); }
   .ml-rev-line .sev { font-size: 10.5px; padding: 2px 5px; margin-right: 6px; }
   .ml-rev-foot {
     margin-top: 9px; padding-top: 8px; border-top: 2px dotted var(--sky2);
     font-family: 'GalmuriMono11', monospace; font-size: 11.5px; color: var(--coral); line-height: 1.7;
   }
-  .ml-bullets { list-style: none; margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
-  .ml-bullets li { font-size: 12px; line-height: 1.75; color: var(--sub); }
+  .ml-bullets { list-style: none; margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .ml-bullets li { font-size: 12px; line-height: 1.65; color: var(--sub); }
   .ml-bullets li b { display: block; font-size: 13px; color: var(--navy); margin-bottom: 2px; }
 
   /* ── 성장 루프 ── */
-  .ml-steps { list-style: none; display: flex; flex-direction: column; gap: 11px; }
+  .ml-steps { list-style: none; display: flex; flex-direction: column; gap: 9px; }
   .ml-steps li { display: flex; gap: 11px; align-items: flex-start; }
   .ml-n {
     flex-shrink: 0; width: 30px; height: 30px; line-height: 26px; text-align: center;
@@ -97,7 +130,7 @@
   .ml-steps p, .ml-cares p { font-size: 12px; line-height: 1.75; color: var(--sub); }
 
   /* ── 케어 = 학습 ── */
-  .ml-cares { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .ml-cares { list-style: none; display: flex; flex-direction: column; gap: 10px; }
   .ml-cares li { display: flex; gap: 11px; align-items: flex-start; }
   .ml-em { flex-shrink: 0; font-size: 20px; line-height: 1.4; }
 
@@ -107,7 +140,7 @@
   .ml-stages .ml-stage:last-child { grid-column: span 2; }
   .ml-stage {
     display: flex; flex-direction: column; align-items: center; gap: 4px;
-    border: 2px solid var(--navy); border-radius: 12px; padding: 12px 8px; background: #fdfcf7;
+    border: 2px solid var(--navy); border-radius: 12px; padding: 9px 8px; background: #fdfcf7;
   }
   .ml-stage img { height: 46px; width: auto; margin-bottom: 4px; }
   .ml-stage:last-child img { height: 58px; }
@@ -140,27 +173,11 @@
   .ml-plan.mid .ml-chip { border-color: var(--coral); color: var(--coral); }
   .ml-plan p { font-size: 11.5px; line-height: 1.65; color: #33406b; }
 
-  /* ── 화면이 낮은 폰 ──
-     카드 두 장이 한 페이지에 안 들어가 페이지 안에서 또 스크롤이 생긴다.
-     내용은 그대로 두고 여백·행간만 한 단계 조여 회수한다 (≈50px) */
-  @media (max-height: 900px) {
-    .ml-page { padding: 8px 12px; gap: 8px; }
-    .mland .mcard { padding: 12px 13px; }
-    .mland .mcard-head { margin-bottom: 9px; }
-    .ml-hero h1 { font-size: 20px; }
-    .ml-rev-line { line-height: 1.9; }
-    .ml-bullets { gap: 7px; margin-top: 10px; }
-    .ml-bullets li { line-height: 1.65; }
-    .ml-steps { gap: 9px; }
-    .ml-cares { gap: 10px; }
-    .ml-stage { padding: 9px 8px; }
-    .ml-plan { padding: 10px 12px; }
-    .ml-plans { gap: 8px; }
-    .mland .lcd { height: clamp(150px, 18dvh, 200px); }
-    .ml-hero .mnote { margin-bottom: 10px; }
-    .ml-hero .btn + .btn { margin-top: 8px; }
-    .ml-team { margin-top: 10px; }
-  }
+  /* 카드 여백은 랜딩만 한 단계 좁다. 한 페이지에 카드가 둘 들어가야 한다.
+     원래 max-height: 900px에만 걸려 있었는데, 그 경계에서 내용이 도로 커지는 바람에
+     위 축소 배율이 900 근처에서만 거꾸로 필요해졌다. 폰이면 항상 건다 */
+  .mland .mcard { padding: 12px 13px; }
+  .mland .mcard-head { margin-bottom: 9px; }
 
   /* ── 마지막 진입 ──
      배경·테두리는 다른 카드와 똑같이 둔다. 남색으로 뒤집었더니 이 카드만 떠 보였다 */
@@ -180,7 +197,7 @@
     border-bottom: 2px solid var(--coral); padding-bottom: 1px;
   }
   .ml-team {
-    margin: 11px 0 0; padding-top: 9px; border-top: 2px dotted var(--sky2);
+    margin: 10px 0 0; padding-top: 9px; border-top: 2px dotted var(--sky2);
     font-size: 11px; line-height: 1.8; color: var(--sub);
   }
 }
