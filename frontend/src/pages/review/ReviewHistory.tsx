@@ -110,7 +110,7 @@ function DesktopReviewHistory() {
                         <span className="chip navy" style={{ marginRight: 8 }}>질문</span>
                         {q.question}
                       </div>
-                      <div>
+                      <div className="issue-desc">
                         <span className="chip gray" style={{ marginRight: 8 }}>코기</span>
                         {renderDescription(q.answer)}
                       </div>
