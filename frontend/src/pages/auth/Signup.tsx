@@ -205,7 +205,7 @@ export default function Signup() {
         {step === 1 ? (
           <>
             <h2>코기 입양 신청서</h2>
-            <p className="desc">가입하면 알 하나가 배정됩니다. 관심기술은 다음 화면(온보딩)에서 골라요.</p>
+            <p className="desc">가입하면 알 하나가 지급됩니다.</p>
 
             {/* 소셜 가입 — 이름·이메일 입력 없이 약관 동의만으로 끝나는 빠른 길 */}
             <div className="sns">
