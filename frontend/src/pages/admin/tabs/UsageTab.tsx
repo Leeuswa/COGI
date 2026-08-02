@@ -4,6 +4,9 @@
  * 데이터 조회는 부모(Admin)가 하고 여긴 그리기만 — 탭 전환 때 재조회를 안 하기 위해서.
  */
 import { useState } from 'react';
+import Pager, { pageSlice } from '../../../components/Pager';
+
+const PAGE_SIZE = 15; // 로그는 기간이 길수록 계속 쌓인다 — 표는 페이지로 끊어 본다
 
 // 벤더 분류 + 고정 색상. 모델명 접두사로 판별.
 // real=true 는 벤더 Admin API로 실사용량을 받아오는 벤더 — 그래프/누적바도 그 값을 쓴다.
@@ -24,16 +27,46 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
 
   // 그래프에서 벤더 선을 켜고/끌 수 있게 (기본 전부 표시)
   const [hidden, setHidden] = useState({});
+  const [page, setPage] = useState(1); // 로그 표 페이지. 기간이 바뀌어 목록이 줄면 Pager가 마지막 페이지로 접어준다
+
   const toggle = (key) => setHidden((h) => ({ ...h, [key]: !h[key] }));
   const visibleVendors = VENDORS.filter((v) => !hidden[v.key]);
 
-  // 기간 끝(range.to, 기본 오늘) 기준 최근 5일 × 벤더별 토큰 집계 — 기록 없는 날도 0으로 채워 x축을 채운다.
-  const SHOW_DAYS = 5, DAY_MS = 86400000;
+  // 기간 끝(range.to, 기본 오늘) 기준 최근 5칸 × 벤더별 토큰 집계 — 기록 없는 칸도 0으로 채워 x축을 채운다.
+  // 한 칸의 폭은 일별=1일 / 주간별=7일 / 월별=역월.
+  const SHOW = 5, DAY_MS = 86400000;
+  const [gran, setGran] = useState('day');
+  const spanDays = gran === 'week' ? 7 : 1;
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const monthIdx = (s) => Number(s.slice(0, 4)) * 12 + Number(s.slice(5, 7));
   const endMs = Date.parse(range.to); // UTC 자정 기준
-  const days = [];
-  for (let k = SHOW_DAYS - 1; k >= 0; k--) days.push(new Date(endMs - k * DAY_MS).toISOString().slice(0, 10));
+  const endDate = new Date(endMs);
+
+  // 버킷 5개(과거 → 최근). key = 버킷 시작일, label = x축 표기.
+  const buckets = [];
+  for (let k = SHOW - 1; k >= 0; k--) {
+    if (gran === 'month') {
+      const key = iso(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() - k, 1));
+      buckets.push({ key, label: key.slice(0, 7) }); // 2026-04
+    } else {
+      // 주간은 끝나는 날(마지막 칸 = range.to)을 라벨로 — 마지막 칸이 오늘로 읽히게
+      const key = iso(endMs - ((k + 1) * spanDays - 1) * DAY_MS);
+      buckets.push({ key, label: iso(endMs - k * spanDays * DAY_MS).slice(5) });
+    }
+  }
+  // 날짜 → 버킷 key. 범위 밖(더 과거 / range.to 이후)이면 null.
+  const bucketKeyOf = (day) => {
+    if (!day) return null;
+    const i = gran === 'month'
+      ? SHOW - 1 - (monthIdx(range.to) - monthIdx(day))
+      : SHOW - 1 - Math.floor((endMs - Date.parse(day)) / DAY_MS / spanDays);
+    return i >= 0 && i < SHOW ? buckets[i].key : null;
+  };
+
+  // 조회기간(위 날짜 입력)은 그래프 단위와 무관하게 그대로 둔다 — 기본 최근 1달.
+  // 그래서 주간/월별 칸 중 조회기간 밖은 0으로 보인다. 더 보려면 시작일을 직접 당기면 된다.
   const byDay = {};
-  for (const key of days) byDay[key] = {};
+  for (const b of buckets) byDay[b.key] = {};
   // 하이브리드: 벤더 Admin API는 '오늘' 사용량을 최대 하루 늦게 준다. 그래서 조회 끝이 실제 오늘일 때만,
   // 오늘 하루는 벤더값 대신 우리 자체집계(ai_usage_logs)로 실시간 표시하고 어제 이하는 벤더 실측을 쓴다.
   // (오늘치 비용은 우리 계산 = 추정, 다음 날 벤더 버킷이 나오면 실측으로 대체됨)
@@ -43,7 +76,7 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
   // 자체집계: GEMINI/GROQ는 전 기간, CLAUDE/OPENAI(real)는 '오늘'만(실시간).
   for (const u of usage) {
     const day = (u.createdAt || '').slice(0, 10);
-    const bucket = byDay[day]; // 최근 5일에 속하지 않으면 undefined
+    const bucket = byDay[bucketKeyOf(day)]; // 최근 5칸에 속하지 않으면 undefined
     if (!bucket) continue;
     const v = vendorOf(u.modelName);
     if (!v) continue;
@@ -52,17 +85,16 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
   }
   // CLAUDE/OPENAI — 벤더 Admin API 실사용량. '오늘'(liveDay)은 위 자체집계가 채우므로 건너뛴다.
   for (const p of providerUsage) {
-    const bucket = byDay[p.date];
+    const bucket = byDay[bucketKeyOf(p.date)];
     if (!bucket || !REAL_KEYS.has(p.vendor) || p.date === liveDay) continue;
     bucket[p.vendor] = (bucket[p.vendor] || 0) + (p.inputTokens || 0) + (p.outputTokens || 0);
   }
   // y스케일: 보이는 벤더들의 일자별 값 중 최댓값
-  const maxTokens = Math.max(1, ...days.flatMap((d) => visibleVendors.map((v) => byDay[d][v.key] || 0)));
-  // 날짜별 밴드 좌표계 — 밴드 안에 보이는 벤더 수만큼 막대를 나란히 그린다.
+  const maxTokens = Math.max(1, ...buckets.flatMap((b) => visibleVendors.map((v) => byDay[b.key][v.key] || 0)));
+  // 버킷별 밴드 좌표계 — 밴드 안에 보이는 벤더 수만큼 막대를 나란히 그린다.
   const W = 720, H = 210, PAD = 48;
-  const n = days.length;
-  const band = (W - PAD * 2) / Math.max(1, n);   // 하루가 차지하는 폭
-  const cxOf = (i) => PAD + band * (i + 0.5);     // 날짜 밴드 중심
+  const band = (W - PAD * 2) / SHOW;              // 한 칸이 차지하는 폭
+  const cxOf = (i) => PAD + band * (i + 0.5);     // 밴드 중심
   const yOf = (v) => H - 34 - ((H - 74) * v) / maxTokens;
   const fmt = (t) => (t >= 1000 ? `${(t / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(t)); // 1840 → 1.8k
 
@@ -98,11 +130,19 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
       {/* 일자별 사용량 그래프 — 날짜×모델로 묶어 모델별 선 그래프로 시각화 */}
       <div className="panel">
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-          <b>일자별 토큰 사용량 (벤더별)</b>
-          <span className="note sm">최근 5일 · 범례를 눌러 켜고/끌 수 있어요 · CLAUDE·OPENAI는 어제까지 벤더 실측, 오늘은 실시간 추정(우리 로그) · GEMINI·GROQ는 우리 로그(ai_usage_logs)</span>
+          <b>기간별 토큰 사용량 (벤더별)</b>
+          <div className="row" style={{ gap: 6 }}>
+            {[['day', '일별'], ['week', '주간별'], ['month', '월별']].map(([g, label]) => (
+              <button key={g} type="button" className={`btn ${gran === g ? 'co' : 'wh'} sm`}
+                aria-pressed={gran === g} onClick={() => setGran(g)}>{label}</button>
+            ))}
+          </div>
         </div>
+        <p className="note sm" style={{ marginTop: 0, marginBottom: 10 }}>
+          최근 5{gran === 'day' ? '일' : gran === 'week' ? '주' : '개월'} · 범례를 눌러 켜고/끌 수 있어요 · CLAUDE·OPENAI는 어제까지 벤더 실측, 오늘은 실시간 추정(우리 로그) · GEMINI·GROQ는 우리 로그(ai_usage_logs)
+        </p>
         {/* CLAUDE/OPENAI는 벤더 Admin API(providerUsage)로 따로 들어오므로, 자체집계가 비어도 그린다 */}
-        {(usage.length === 0 && providerUsage.length === 0) || days.length === 0 ? (
+        {usage.length === 0 && providerUsage.length === 0 ? (
           <p className="note sm">이 기간에 사용 기록이 없어요.</p>
         ) : (
           <>
@@ -123,26 +163,26 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
                 );
               })}
             </div>
-            <svg className="gchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="일자별 벤더별 토큰 사용량">
+            <svg className="gchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="기간별 벤더별 토큰 사용량">
               {/* 그리드 */}
               {[0.25, 0.5, 0.75, 1].map((t) => (
                 <line key={t} x1={PAD} x2={W - PAD} y1={yOf(maxTokens * t)} y2={yOf(maxTokens * t)} className="grid" />
               ))}
-              {/* 날짜별 밴드 안에 보이는 벤더 막대를 나란히 */}
-              {days.map((d, i) => {
+              {/* 버킷별 밴드 안에 보이는 벤더 막대를 나란히 */}
+              {buckets.map((b, i) => {
                 const groupW = band * 0.7;                       // 밴드의 70%만 막대에 사용
                 const bw = groupW / Math.max(1, visibleVendors.length);
                 const startX = cxOf(i) - groupW / 2;
                 const base = yOf(0);
                 return visibleVendors.map((v, j) => {
-                  const t = byDay[d][v.key] || 0;
+                  const t = byDay[b.key][v.key] || 0;
                   const x = startX + bw * j;
                   const y = yOf(t);
                   const w = Math.max(1, bw - 2);
                   return (
                     <g key={v.key}>
                       <rect x={x} y={y} width={w} height={Math.max(0, base - y)} rx="2" fill={v.color}>
-                        <title>{`${d} · ${v.key}\n토큰 ${t.toLocaleString()}`}</title>
+                        <title>{`${b.key}${gran === 'day' ? '' : ' 부터'} · ${v.key}\n토큰 ${t.toLocaleString()}`}</title>
                       </rect>
                       {t > 0 && (
                         <text x={x + w / 2} y={y - 4} textAnchor="middle" fontSize="9" fontWeight="700" fill={v.color}>{fmt(t)}</text>
@@ -151,9 +191,9 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
                   );
                 });
               })}
-              {/* x축 날짜 라벨 + 축 */}
-              {days.map((d, i) => (
-                <text key={d} x={cxOf(i)} y={H - 10} textAnchor="middle" className="xlab2">{d.slice(5)}</text>
+              {/* x축 라벨 + 축 */}
+              {buckets.map((b, i) => (
+                <text key={b.key} x={cxOf(i)} y={H - 10} textAnchor="middle" className="xlab2">{b.label}</text>
               ))}
               <line x1={PAD} x2={W - PAD} y1={yOf(0)} y2={yOf(0)} className="axis" />
             </svg>
@@ -196,7 +236,7 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
         <table className="tbl">
           <thead><tr><th>일시</th><th>유저</th><th>모델</th><th>유형</th><th>IN</th><th>OUT</th><th>비용(USD)</th></tr></thead>
           <tbody>
-            {usage.map((u) => (
+            {pageSlice(usage, page, PAGE_SIZE).map((u) => (
               <tr key={u.id}>
                 <td className="mono xs">{u.createdAt.slice(0, 16).replace('T', ' ')}</td>
               <td className="mono">{u.userId == null ? '비로그인' : (u.nickname || `#${u.userId}`)}</td>
@@ -209,6 +249,7 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
             ))}
           </tbody>
         </table>
+        <Pager page={page} total={usage.length} size={PAGE_SIZE} onChange={setPage} />
       </div>
     </>
   );
