@@ -55,6 +55,21 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         findUser(userId).changeRole(role);
     }
 
+    // 회원 영구 삭제 — 되돌릴 수 없으므로 "정지 → 삭제" 2단계를 강제한다(오조작 방지).
+    // 본인 삭제도 막는다(관리자 락아웃 방지).
+    @Override
+    @Transactional
+    public void deleteMember(Long userId, Long adminId) {
+        if (adminId.equals(userId)) {
+            throw new BusinessException(ErrorCode.CANNOT_STATUS_OWN_ROLE);
+        }
+        User user = findUser(userId);
+        if (user.getStatus() != UserStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.MEMBER_NOT_SUSPENDED);
+        }
+        userRepository.delete(user);
+    }
+
     // planId null(=미구독)이거나 삭제된 플랜이면 FREE로 표기
     private String planName(Long planId, Map<Long, String> planNames) {
         if (planId == null) return "FREE";

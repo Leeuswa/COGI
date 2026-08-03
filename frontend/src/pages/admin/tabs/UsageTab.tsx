@@ -3,7 +3,7 @@
  * 기간 필터 + 비용 합계/상한 경고(FR-81) + 리뷰 응답시간(API-054, FR-77) + 로그 테이블.
  * 데이터 조회는 부모(Admin)가 하고 여긴 그리기만 — 탭 전환 때 재조회를 안 하기 위해서.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Pager, { pageSlice } from '../../../components/Pager';
 
 const PAGE_SIZE = 15; // 로그는 기간이 길수록 계속 쌓인다 — 표는 페이지로 끊어 본다
@@ -20,8 +20,9 @@ const VENDORS = [
 const REAL_KEYS = new Set(VENDORS.filter((v) => v.real).map((v) => v.key));
 const vendorOf = (m) => VENDORS.find((v) => v.match((m || '').toLowerCase()))?.key || null;
 const BUDGET_USD = 10; // 벤더별 상한 $10 — 이 금액의 토큰 환산치가 바의 100%
+const WARN_PCT = 90;   // 예산 90% 넘으면 경고 — 누적바가 붉어지고 상단 배너 + 토스트로 알린다
 
-export default function UsageTab({ usage, range, setRange, latency, providerUsage = [] }) {
+export default function UsageTab({ usage, range, setRange, latency, providerUsage = [], notify }) {
   // 명세(credit_usage 비고): 관리자 전체 비용상한은 두지 않는다 — 합계는 참고용 표기만
   const totalCost = usage.reduce((a, u) => a + Number(u.cost || 0), 0);
 
@@ -114,8 +115,29 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
     vendorCost[p.vendor] = (vendorCost[p.vendor] || 0) + Number(p.cost || 0);
   }
 
+  // 예산 소진 경고 — 누적바와 같은 계산을 쓰되 90% 넘은 벤더만 따로 모은다
+  const pctOf = (key) => ((vendorCost[key] || 0) / BUDGET_USD) * 100;
+  const overBudget = VENDORS.filter((v) => pctOf(v.key) >= WARN_PCT);
+
+  // 관리자 콘솔을 열자마자 눈에 띄게 — 배너는 계속 떠 있고 토스트는 대상이 바뀔 때만 한 번.
+  // (조회 기간을 바꾸면 누적도 바뀌므로 벤더 목록이 실제로 달라질 때만 다시 띄운다)
+  const overKeys = overBudget.map((v) => v.key).join(',');
+  useEffect(() => {
+    if (!overKeys || !notify) return;
+    notify(`⚠ ${overKeys.split(',').join('·')} 누적 사용량이 예산의 ${WARN_PCT}%를 넘었어요.`);
+  }, [overKeys, notify]);
+
   return (
     <>
+      {overBudget.length > 0 && (
+        <div className="reagree-banner" style={{ border: '3px solid var(--navy)', marginBottom: 18 }}>
+          <b>⚠ AI 예산 경고</b>
+          <span>
+            {overBudget.map((v) => `${v.key} ${Math.round(pctOf(v.key))}%`).join(' · ')}
+            {' — '}벤더별 ${BUDGET_USD} 예산의 {WARN_PCT}%를 넘었어요. 한도 초과 전에 키·플랜을 확인해주세요.
+          </span>
+        </div>
+      )}
       <div className="filter-bar">
         <input type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
         <span className="note sm">~</span>
@@ -211,9 +233,9 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
           {VENDORS.map((v) => {
             const tok = vendorTok[v.key] || 0;
             const cost = vendorCost[v.key] || 0;
-            const rawPct = (cost / BUDGET_USD) * 100;
+            const rawPct = pctOf(v.key);
             const pct = Math.round(rawPct);
-            const warn = rawPct >= 90;
+            const warn = rawPct >= WARN_PCT;
             return (
               <div key={v.key} style={{ marginBottom: 14 }}>
                 <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
