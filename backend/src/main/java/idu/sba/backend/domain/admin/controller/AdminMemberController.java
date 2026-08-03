@@ -42,4 +42,12 @@ public class AdminMemberController {
         adminMemberService.changeRole(userId, adminId , request.role());
         return ApiResponse.ok("권한이 변경되었습니다.");
     }
+
+    // 회원 영구 삭제 — 정지된 계정만 가능(서비스에서 검증, 아니면 409)
+    @DeleteMapping("/{userId}")
+    public ApiResponse<Void> deleteMember(@AuthenticationPrincipal Long adminId,
+                                          @PathVariable Long userId) {
+        adminMemberService.deleteMember(userId, adminId);
+        return ApiResponse.ok("회원이 삭제되었습니다.");
+    }
 }
