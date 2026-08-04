@@ -1187,5 +1187,5 @@ nav.gnb .links .gnb-drop > a.on {
 .issue-drill { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
 .idrow { border: 3px solid var(--navy); background: #fdfcf7; padding: 11px 13px; }
 .idrow-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.idrow-top .mono { color: var(--sub); }
+.idrow-top .mono { color: var(--sub); min-width: 0; word-break: break-all; overflow-wrap: anywhere; }
 .idrow-desc { font-size: 13px; line-height: 1.75; color: var(--sub); margin-top: 7px; }
