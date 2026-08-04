@@ -55,6 +55,18 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         findUser(userId).changeRole(role);
     }
 
+    @Override
+    @Transactional
+    public void deleteMember(Long userId) {
+        // 탈퇴(WITHDRAWN) 회원만 완전 삭제 — 활성/정지 회원은 상태변경으로만 처리한다.
+        // user_id는 다른 테이블에 FK 제약 없는 단순 Long 컬럼이라 하드삭제해도 참조가 깨지지 않는다.
+        User user = findUser(userId);
+        if (user.getStatus() != UserStatus.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.ONLY_WITHDRAWN_DELETABLE);
+        }
+        userRepository.delete(user);
+    }
+
     // planId null(=미구독)이거나 삭제된 플랜이면 FREE로 표기
     private String planName(Long planId, Map<Long, String> planNames) {
         if (planId == null) return "FREE";

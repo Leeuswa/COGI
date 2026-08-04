@@ -111,6 +111,8 @@ public enum ErrorCode {
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 권한은 변경할 수 없습니다."),
     //관리자 본인 상태수정
     CANNOT_STATUS_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 상태는 수정할 수 없습니다."),
+    //관리자 회원 삭제 — 탈퇴 회원만 완전 삭제 허용
+    ONLY_WITHDRAWN_DELETABLE(HttpStatus.CONFLICT, "탈퇴한 회원만 삭제할 수 있습니다."),
 
     //회원탈퇴
     ACCOUNT_WITHDRAWN(HttpStatus.FORBIDDEN, "탈퇴한 계정입니다."),

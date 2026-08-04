@@ -14,4 +14,7 @@ public interface AdminMemberService {
     void changeStatus(Long userId, Long adminId , UserStatus status);
 
     void changeRole(Long userId, Long adminId, Role role);
+
+    // 탈퇴 회원 완전 삭제(WITHDRAWN 상태만 허용)
+    void deleteMember(Long userId);
 }

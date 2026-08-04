@@ -652,6 +652,10 @@ export const adminChangeStatus = (userId, status) =>
 export const adminChangeRole = (userId, role) =>
   USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/admin/members/${userId}/role`, { role });
 
+// 탈퇴 회원 완전 삭제 — DELETE /api/admin/members/{id} (WITHDRAWN만 허용, 그 외 409)
+export const adminDeleteMember = (userId) =>
+  USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/admin/members/${userId}`);
+
 // API-019 POST /api/admin/notices/email — 전체 공지 발송(비동기 시작). 결과는 이력 목록에서 확인
 // urgent=true(긴급공지)면 이메일+알림, 아니면 인앱 알림만
 export const adminSendNotice = (subject, content, urgent = false) =>

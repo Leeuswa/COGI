@@ -85,6 +85,18 @@ export default function Admin() {
     }
   };
 
+  // 탈퇴 회원 완전 삭제 — 되돌릴 수 없어 확인창을 둔다. 서버도 WITHDRAWN만 허용(그 외 409)
+  const deleteMember = async (m) => {
+    if (!window.confirm('이 탈퇴 회원을 목록에서 완전히 삭제할까요? 되돌릴 수 없어요.')) return;
+    try {
+      await api.adminDeleteMember(m.id);
+      setMembers((ms) => ms.filter((x) => x.id !== m.id));
+      notify('회원을 삭제했어요.');
+    } catch (e) {
+      notify(e?.message || '회원 삭제에 실패했어요.');
+    }
+  };
+
   const sendNotice = async (urgent = false) => {
     if (!notice.subject.trim() || !notice.content.trim() || busy) return;
     setBusy(true);
@@ -153,7 +165,7 @@ export default function Admin() {
       <Tabs items={[['usage', 'AI 사용량'], ['members', '회원 관리'], ['notice', '전체 공지'], ['guides', '리뷰 지침'], ['terms', '약관 관리'], ['faq', 'FAQ 관리']]} value={tab} onChange={setTab} />
 
       {tab === 'usage' && <UsageTab usage={usage} range={range} setRange={setRange} latency={latency} providerUsage={providerUsage} />}
-      {tab === 'members' && <MembersTab members={members} onStatus={changeStatus} onRole={changeRole} me={user.email} />}
+      {tab === 'members' && <MembersTab members={members} onStatus={changeStatus} onRole={changeRole} onDelete={deleteMember} me={user.email} />}
       {tab === 'notice' && <NoticeTab notice={notice} setNotice={setNotice} onSend={sendNotice} busy={busy} notices={notices} onRefresh={() => api.adminNotices().then(setNotices)} onDelete={deleteNotice} />}
       {tab === 'guides' && guides && <GuidesTab guides={guides} setGuides={setGuides} onSave={saveGuide} />}
       {tab === 'terms' && <TermsTab terms={terms} setTerms={setTerms} onSave={saveTerm} />}

@@ -42,4 +42,11 @@ public class AdminMemberController {
         adminMemberService.changeRole(userId, adminId , request.role());
         return ApiResponse.ok("권한이 변경되었습니다.");
     }
+
+    // 탈퇴 회원 완전 삭제(WITHDRAWN만 허용, 그 외 409)
+    @DeleteMapping("/{userId}")
+    public ApiResponse<Void> deleteMember(@PathVariable Long userId) {
+        adminMemberService.deleteMember(userId);
+        return ApiResponse.ok("회원이 삭제되었습니다.");
+    }
 }

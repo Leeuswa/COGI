@@ -202,6 +202,14 @@ public class User {
         this.githubAccessToken = githubAccessToken;
     }
 
+    // 일반회원,깃허브 사용자 계정에 카카오 연동(이메일 일치 병합) — 기존 닉네임은 보존, 없을 때만 채운다
+    public void linkKakao(String kakaoId, String nickname){
+        this.kakaoId = kakaoId;
+        if (this.nickname == null || this.nickname.isBlank()) {
+            this.nickname = nickname;
+        }
+    }
+
 
     //로그인하고 마이페이지에서 비밀번호 변경
     public void changePassword(String encodedPassword){
