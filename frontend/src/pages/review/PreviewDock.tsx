@@ -215,6 +215,10 @@ const ENGINE = `<script id="__cogi_engine">
   /* 키보드 */
   document.addEventListener('keydown', (e) => {
     if (!sel) return;
+    // 미리보기 안에도 입력칸이 있을 수 있다. 거기서 백스페이스를 누르면 글자를 지워야 하는데
+    // 아래 분기가 요소를 지워버렸다. 입력 중이면 편집 단축키를 아예 안 탄다
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     const step = e.shiftKey ? 10 : 1;
     const mv = { ArrowUp: [0, -step], ArrowDown: [0, step], ArrowLeft: [-step, 0], ArrowRight: [step, 0] }[e.key];
     if (mv) {
@@ -403,12 +407,20 @@ const deco = (underline: boolean, strike: boolean) =>
 
 const NO_LINES = new Set<number>(); // 빈 변경 라인 집합 재사용(렌더마다 새로 만들지 않게)
 
+// 지금 글자를 입력하는 중인지. 편집 단축키(Del·방향키·Ctrl+Z)가 입력을 가로채면 안 된다
+const isEditingField = (el?: Element | null) => {
+  const t = (el ?? document.activeElement) as HTMLElement | null;
+  if (!t) return false;
+  return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
+};
+
 // 가져온 파일 하나의 상태 — 성공하면 content/size/encoding, 실패하면 error만 채워진다
 type AssetEntry = { content: string; size: number; encoding: string; status: "ok" | "error"; error?: string };
 
 export default function PreviewDock({ code, onCode, repoId }: { code: any; onCode: any; repoId?: any }) {
   const [picked, setPicked] = useState(null);
   const [text, setText] = useState("");
+  const typingRef = useRef(false); // 내용 입력칸에 포커스가 있는 동안 true — 되돌아온 pick이 값을 못 덮게
   const [dim, setDim] = useState(null); // 선택 요소 W×H
   const [rotVal, setRotVal] = useState(0); // 회전(마우스 핸들 ↔ 슬라이더 양방향)
 
@@ -640,8 +652,13 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
       const d = e.data || {};
       if (d.cogi === "pick") {
         setPicked(d);
-        setText(d.text ?? "");
-        frameRef.current?.focus();
+        // 입력창에서 타이핑 중이면 값을 덮지 않는다. apply 뒤 iframe이 pick을 다시 보내는데,
+        // 그때 되돌아온 값으로 덮으면 커서가 맨 뒤로 튄다
+        if (!typingRef.current) setText(d.text ?? "");
+        // 방향키·Del로 요소를 옮기려면 iframe에 포커스가 있어야 한다.
+        // 다만 오른쪽 속성창에 타이핑 중일 때 빼앗으면 한 글자 치고 포커스가 날아가고,
+        // 다음 백스페이스가 iframe 핸들러로 가서 요소가 지워졌다. 입력 중이면 그대로 둔다
+        if (!isEditingField()) frameRef.current?.focus();
       }
       if (d.cogi === "dim") setDim({ w: d.w, h: d.h });
       if (d.cogi === "clear") {
@@ -665,7 +682,11 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
   /* 부모 쪽 단축키: Ctrl+Z / Ctrl+Shift+Z (iframe 밖에서도 동작) */
   useEffect(() => {
     const onKey = (e) => {
+      // 입력창에 타이핑 중이면 편집 단축키를 하나도 안 탄다.
+      // Ctrl+Z가 이 가드보다 앞에 있어서 글자 되돌리기가 코드 되돌리기로 가로채였다
+      const editing = isEditingField(e.target as Element);
       if (
+        !editing &&
         (e.ctrlKey || e.metaKey) &&
         (e.key.toLowerCase() === "z" || e.code === "KeyZ")
       ) {
@@ -675,16 +696,7 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
       }
       if (full && e.key === "Escape") setFull(false);
       // 선택된 요소가 있으면 편집 키를 iframe 으로 전달 — 포커스가 부모에 있어도 방향키/Del/Ctrl+D 동작
-      if (!picked) return;
-      const t = e.target as HTMLElement;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.isContentEditable)
-      )
-        return; // 입력 중엔 건드리지 않는다
+      if (!picked || editing) return;
       const step = e.shiftKey ? 10 : 1;
       const mv = {
         ArrowUp: [0, -step],
@@ -1072,6 +1084,8 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                     <input
                       type="text"
                       value={text}
+                      onFocus={() => { typingRef.current = true; }}
+                      onBlur={() => { typingRef.current = false; }}
                       onChange={(e) => {
                         setText(e.target.value);
                         apply("text", e.target.value);
