@@ -20,7 +20,7 @@ import "../../styles/mobile/studio.css";
 const isFrontend = (f) =>
   /\.(html?|css|s[ac]ss|less|jsx?|tsx?|vue|svelte)$/i.test(f.path) || f.kind === "frontend";
 // 미리보기는 iframe에 문서를 통째로 넣는 방식이라 뿌리가 될 수 있는 건 HTML뿐이다
-const isPreviewable = (f) => /\.html?$/i.test(f.path);
+const isPreviewable = (f) => /\.html?$/i.test(f.path || f.name || ""); // PR 파일은 path, 올린 파일은 name
 // 붙여넣은 글이 HTML 문서인지. 예전엔 /<[a-z][^>]*>/ 하나로 봐서 자바 제네릭(List<String>)까지
 // 걸렸고, 프론트가 한 줄도 없는 PR에도 "미리보기를 여세요"가 떴다
 const looksHtml = (t) =>
@@ -265,6 +265,10 @@ ${line}` : line));
     if (!spendCredit(modelWeight(model))) return;
     push({ who: "me", text: `📁 ${f.name}` });
     setBusy(true);
+    // 올린 게 HTML이면 미리보기 대상으로 잡아둔다. 폰은 도크를 자동으로 펴지 않는다 — 채팅이 가려진다
+    if (isPreviewable(f)) {
+      try { setPreviewCode(await f.text()); } catch { /* 못 읽으면 리뷰만 진행 */ }
+    }
     try {
       const res = await api.uploadReview(f, model);
       setReviewId(res.reviewId ?? 1);
