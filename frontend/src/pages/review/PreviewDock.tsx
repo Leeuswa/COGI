@@ -81,12 +81,16 @@ const ENGINE = `<script id="__cogi_engine">
     if (!sel) return;
     parent.postMessage({ cogi: 'dim', w: sel.offsetWidth, h: sel.offsetHeight }, '*');
   };
-  const pick = (el) => {
+  const pick = (el, noFocus) => {
     sel = el;
     const cs = getComputedStyle(sel);
-    parent.postMessage({ cogi: 'pick',
+    parent.postMessage({ cogi: 'pick', noFocus: !!noFocus,
       label: sel.tagName.toLowerCase() + (sel.id ? '#' + sel.id : ''),
       text: sel.children.length === 0 ? sel.textContent.trim() : null,
+      // 자식이 있는 요소는 내용 칸으로 덮으면 <em>·<br>이 날아간다. 그래서 칸은 잠그고
+      // 대신 화면에서 두 번 눌러 고치라고 안내한다. 글자가 있는지는 부모도 알아야 한다
+      hasKids: sel.children.length > 0,
+      hasText: !!sel.textContent.trim(),
       style: {
         color: toHex(cs.color), background: toHex(cs.backgroundColor),
         fontSize: parseInt(cs.fontSize), fontWeight: cs.fontWeight, fontFamily: cs.fontFamily,
@@ -134,12 +138,50 @@ const ENGINE = `<script id="__cogi_engine">
     clone.querySelectorAll('script').forEach((sc) => {
       if (sc.id === '__cogi_engine' || sc.textContent.includes('__cogi_ov')) sc.remove();
     });
+    // 인라인 편집 표시가 결과 코드에 남으면 안 된다
+    clone.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
+    // 호버·편집 테두리는 편집 UI다. 지우지 않으면 style="outline: ... dashed 2px"가 코드에 박힌다
+    clone.querySelectorAll('[style*="outline"]').forEach((el) => { el.style.outline = ''; });
     clone.querySelectorAll('[style]').forEach(tidy);
     const pretty = (s) => s.trim().replace(/></g, '>\\n<'); // 태그마다 개행
     parent.postMessage({ cogi: 'code',
       body: pretty(clone.querySelector('body').innerHTML),
       full: pretty(clone.outerHTML) }, '*');
   };
+
+  /* ── 인라인 글자 편집: 두 번 누르면 그 자리에 커서가 들어간다 (피그마·포토샵의 텍스트 툴 감각) ──
+     자식이 섞인 요소도 이 방식이면 <em>·<br>을 안 부수고 고칠 수 있다 */
+  let editing = null;
+  const startEdit = (el) => {
+    if (editing === el) return;
+    stopEdit();
+    editing = el;
+    el.setAttribute('contenteditable', 'plaintext-only'); // 붙여넣기로 남의 태그가 끼는 걸 막는다
+    if (el.contentEditable !== 'plaintext-only') el.setAttribute('contenteditable', 'true'); // 미지원 브라우저 폴백
+    el.style.outline = '2px solid #ff6b57';
+    el.focus();
+    layout();
+  };
+  const stopEdit = () => {
+    if (!editing) return;
+    const el = editing; editing = null;
+    el.removeAttribute('contenteditable');
+    el.style.outline = '';
+    tidy(el);
+    layout(); emit(); // 고친 글자를 코드로 흘려보낸다
+  };
+
+  document.addEventListener('dblclick', (e) => {
+    const t = e.target;
+    if (t === document.body || t === document.documentElement || t.closest('#__cogi_ov')) return;
+    if (!t.textContent.trim()) return; // 이미지·빈 상자는 편집할 글자가 없다
+    e.preventDefault();
+    pick(t, true); // noFocus — 부모가 iframe으로 포커스를 되돌리면 커서가 빠진다
+    startEdit(t);
+    // 두 번 누른 자리에 커서를 놓는다. 안 하면 맨 앞으로 간다
+    const r = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+    if (r) { const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); }
+  }, true);
 
   /* 링크·폼 이동 차단 — srcDoc 문서의 기준 주소는 부모(우리 앱)라서
      원본의 상대 링크(../index.html)가 우리 주소로 풀린다. 미리보기는 화면 확인용이라 따라갈 곳이 없다.
@@ -153,6 +195,7 @@ const ENGINE = `<script id="__cogi_engine">
   let hoverEl = null;
   document.addEventListener('mouseover', (e) => {
     const t = e.target;
+    if (editing) return; // 편집 중엔 점선이 깜빡여서 방해만 된다
     if (t === sel || t.closest('#__cogi_ov') || t === document.body || t === document.documentElement) return;
     if (hoverEl) hoverEl.style.outline = '';
     hoverEl = t; t.style.outline = '2px dashed #7ba7e0';
@@ -163,6 +206,12 @@ const ENGINE = `<script id="__cogi_engine">
   let drag = null;
   document.addEventListener('mousedown', (e) => {
     window.focus(); // preventDefault 때문에 자동 포커스가 막히므로 직접 포커스 → 키보드 입력이 iframe 으로
+
+    if (editing) {
+      // 편집 중인 상자 안을 누르면 캐럿만 옮긴다. preventDefault를 걸면 커서가 안 움직인다
+      if (e.target === editing || editing.contains(e.target)) return;
+      stopEdit(); // 바깥을 누르면 편집을 닫고 평소 선택으로 돌아간다
+    }
 
     const hd = e.target.closest('[data-h]');
     if (hd && sel) { // 핸들 잡음
@@ -214,6 +263,7 @@ const ENGINE = `<script id="__cogi_engine">
 
   /* 키보드 */
   document.addEventListener('keydown', (e) => {
+    if (editing && e.key === 'Escape') { e.preventDefault(); stopEdit(); return; } // 편집 끝내기
     if (!sel) return;
     // 미리보기 안에도 입력칸이 있을 수 있다. 거기서 백스페이스를 누르면 글자를 지워야 하는데
     // 아래 분기가 요소를 지워버렸다. 입력 중이면 편집 단축키를 아예 안 탄다
@@ -658,7 +708,8 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
         // 방향키·Del로 요소를 옮기려면 iframe에 포커스가 있어야 한다.
         // 다만 오른쪽 속성창에 타이핑 중일 때 빼앗으면 한 글자 치고 포커스가 날아가고,
         // 다음 백스페이스가 iframe 핸들러로 가서 요소가 지워졌다. 입력 중이면 그대로 둔다
-        if (!isEditingField()) frameRef.current?.focus();
+        // noFocus = 화면에서 두 번 눌러 인라인 편집으로 들어온 선택. 여기서 포커스를 되돌리면 커서가 빠진다
+        if (!d.noFocus && !isEditingField()) frameRef.current?.focus();
       }
       if (d.cogi === "dim") setDim({ w: d.w, h: d.h });
       if (d.cogi === "clear") {
@@ -854,6 +905,9 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
           </i>
           <i>
             <b>Ctrl+D</b> 복제
+          </i>
+          <i>
+            <b>두 번 클릭</b> 글자 편집
           </i>
         </span>
         <select
@@ -1079,7 +1133,7 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                 openId={openSect}
                 setOpenId={setOpenSect}
               >
-                {picked.text !== null && (
+                {picked.text !== null ? (
                   <Prop label="내용">
                     <input
                       type="text"
@@ -1092,7 +1146,12 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                       }}
                     />
                   </Prop>
-                )}
+                ) : picked.hasText ? (
+                  /* 안에 <em>·<br> 같은 자식이 섞인 요소. 내용 칸으로 덮으면 그게 다 날아가서 잠근다 */
+                  <p className="dock-edit-hint">
+                    글자가 여러 조각으로 나뉘어 있어요 — <b>화면에서 두 번 누르면</b> 그 자리에서 고칠 수 있어요.
+                  </p>
+                ) : null}
                 <Prop label="글꼴">
                   <select
                     defaultValue="inherit"
@@ -1645,6 +1704,9 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                 </li>
                 <li>
                   <b>Del</b> 삭제 · <b>Ctrl+D</b> 복제
+                </li>
+                <li>
+                  <b>두 번 클릭</b> — 그 자리에 커서가 들어가 글자를 바로 고친다 (Esc로 끝)
                 </li>
               </ol>
               <p className="note xs">
