@@ -13,6 +13,8 @@ public interface UserRepository extends JpaRepository<User,Long> {
 
     //가입시 이메일 체크
     boolean existsByEmail(String  email);
+    //소셜 로그인 이메일 병합용 — 같은 이메일의 기존 계정 조회(정책 A)
+    Optional<User> findByEmail(String email);
     // 로그인/비번재설정 조회용
     Optional<User> findByProviderAndEmail(Provider provider, String email);
     //github 아이디 여부 확인

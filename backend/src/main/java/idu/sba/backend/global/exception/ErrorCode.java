@@ -112,7 +112,7 @@ public enum ErrorCode {
     //관리자 본인 상태수정
     CANNOT_STATUS_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 상태는 수정할 수 없습니다."),
     //관리자 회원 삭제 — 정지 상태를 거쳐야만 삭제 가능(오조작 방지)
-    MEMBER_NOT_SUSPENDED(HttpStatus.CONFLICT, "정지된 계정만 삭제할 수 있습니다."),
+    MEMBER_NOT_DELETABLE(HttpStatus.CONFLICT, "정지되거나 탈퇴한 계정만 삭제할 수 있습니다."),
 
     //회원탈퇴
     ACCOUNT_WITHDRAWN(HttpStatus.FORBIDDEN, "탈퇴한 계정입니다."),

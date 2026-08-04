@@ -1,7 +1,7 @@
 /*
  * [관리자 탭] 회원 관리 (ADM-002, API-016~018, FR-20~21)
  * 상태(ACTIVE/SUSPENDED)·권한(USER/ADMIN) 토글 — 저장 즉시 반영이 요구사항이라 확인창 없이 바로 바꾼다.
- * 삭제만 되돌릴 수 없어서 정지된 계정에서만 열리고, 확인창은 컨테이너(Admin.tsx)에서 받는다.
+ * 삭제만 되돌릴 수 없어서 정지·탈퇴 계정에서만 열리고, 확인창은 컨테이너(Admin.tsx)에서 받는다.
  */
 import { useState } from 'react';
 import Pager, { pageSlice } from '../../../components/Pager';
@@ -27,10 +27,10 @@ export default function MembersTab({ members, onStatus, onRole, onDelete, me }) 
         <tbody>
           {pageSlice(sorted, page, PAGE_SIZE).map((m) => {
             const isMe = !!m.email && m.email === me; // 본인 행 — 정지/권한회수/삭제 불가(서버도 403으로 막음)
-            const gone = m.status === 'WITHDRAWN';     // 탈퇴 회원 — 익명화 이메일 대신 표기, 액션 전부 차단
+            const gone = m.status === 'WITHDRAWN';     // 탈퇴 회원 — 익명화 이메일 대신 표기, 상태/권한 액션은 차단
             // 소셜 가입은 이메일 제공 동의를 안 하면 email이 null이라 닉네임을 대신 보여준다
             const label = gone ? '탈퇴한 회원' : (m.email || m.nickname || `#${m.id}`);
-            const canDelete = !isMe && m.status === 'SUSPENDED'; // 삭제 가능할 때만 빨간 버튼으로 눈에 띄게
+            const canDelete = !isMe && (m.status === 'SUSPENDED' || m.status === 'WITHDRAWN'); // 정지·탈퇴 계정만 삭제(빨간 버튼)
             return (
             <tr key={m.id}>
               <td>
@@ -47,9 +47,9 @@ export default function MembersTab({ members, onStatus, onRole, onDelete, me }) 
               <td style={{ display: 'flex', gap: 6 }}>
                 <button className="btn wh sm" disabled={isMe || gone} onClick={() => onStatus(m)}>{m.status === 'ACTIVE' ? '정지' : '해제'}</button>
                 <button className="btn wh sm" disabled={isMe || gone} onClick={() => onRole(m)}>{m.role === 'ADMIN' ? '권한 회수' : '관리자로'}</button>
-                {/* 정지된 계정만 삭제 — 서버도 409로 막지만 버튼부터 잠가 오조작을 줄인다 */}
+                {/* 정지·탈퇴 계정만 삭제 — 서버도 409로 막지만 버튼부터 잠가 오조작을 줄인다 */}
                 <button className={`btn ${canDelete ? 'danger' : 'wh'} sm`} disabled={!canDelete}
-                  title={m.status !== 'SUSPENDED' ? '정지된 계정만 삭제할 수 있어요' : undefined}
+                  title={m.status === 'ACTIVE' ? '정지·탈퇴한 계정만 삭제할 수 있어요' : undefined}
                   onClick={() => onDelete(m)}>삭제</button>
               </td>
             </tr>

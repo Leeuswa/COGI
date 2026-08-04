@@ -652,7 +652,7 @@ export const adminChangeStatus = (userId, status) =>
 export const adminChangeRole = (userId, role) =>
   USE_MOCK ? mock({ ok: true }) : http('PATCH', `/api/admin/members/${userId}/role`, { role });
 
-// DELETE /api/admin/members/{userId} — 영구 삭제. 서버가 정지(SUSPENDED) 상태가 아니면 409로 막는다
+// 탈퇴 회원 완전 삭제 — DELETE /api/admin/members/{id} (WITHDRAWN만 허용, 그 외 409)
 export const adminDeleteMember = (userId) =>
   USE_MOCK ? mock({ ok: true }) : http('DELETE', `/api/admin/members/${userId}`);
 

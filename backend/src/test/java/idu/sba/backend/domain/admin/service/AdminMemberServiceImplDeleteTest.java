@@ -18,7 +18,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
-// 삭제는 되돌릴 수 없어서 "정지된 계정만"이 유일한 안전장치 — 그 규칙만 검증한다.
+// 삭제는 되돌릴 수 없어서 "정지·탈퇴 계정만"이 안전장치 — 그 규칙만 검증한다.
 @ExtendWith(MockitoExtension.class)
 class AdminMemberServiceImplDeleteTest {
 
@@ -47,22 +47,24 @@ class AdminMemberServiceImplDeleteTest {
     }
 
     @Test
+    void 탈퇴된_계정도_삭제된다() {
+        User t = target(UserStatus.WITHDRAWN);
+        when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(t));
+
+        service.deleteMember(TARGET_ID, ADMIN_ID);
+
+        verify(userRepository).delete(t);
+    }
+
+    @Test
     void 활성_계정은_삭제되지_않는다() {
         when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(target(UserStatus.ACTIVE)));
 
         assertThatThrownBy(() -> service.deleteMember(TARGET_ID, ADMIN_ID))
                 .isInstanceOf(BusinessException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MEMBER_NOT_SUSPENDED);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MEMBER_NOT_DELETABLE);
 
         verify(userRepository, never()).delete(any());
-    }
-
-    @Test
-    void 탈퇴_계정도_삭제_버튼으로는_지울_수_없다() { // 30일 배치로만 정리된다
-        when(userRepository.findById(TARGET_ID)).thenReturn(Optional.of(target(UserStatus.WITHDRAWN)));
-
-        assertThatThrownBy(() -> service.deleteMember(TARGET_ID, ADMIN_ID))
-                .isInstanceOf(BusinessException.class);
     }
 
     @Test

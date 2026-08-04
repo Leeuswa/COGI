@@ -52,12 +52,20 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 user.updateGithubAccessToken(accessToken);
                 userRepository.save(user);
             } else {
-                //같은 이메일 있는지 확인
-                if (email != null && userRepository.existsByEmail(email)) {
-                    throw new OAuth2AuthenticationException(new OAuth2Error("email_exists"), "이미 이 이메일로 가입된 계정이 있습니다.");
+                // 정책 A: 같은 이메일의 기존 계정이 있으면 새 계정을 만들지 않고 그 계정에 GitHub를 연동(병합).
+                // GitHub 이메일은 프로필/primary 모두 verified만 노출되므로 병합 키로 신뢰한다.
+                User existingByEmail = (email != null) ? userRepository.findByEmail(email).orElse(null) : null;
+                if (existingByEmail != null) {
+                    if (existingByEmail.getGithubId() != null) {
+                        // 이미 다른 GitHub이 연결된 계정 — 덮어쓰지 않고 막는다(계정 혼선 방지)
+                        throw new OAuth2AuthenticationException(new OAuth2Error("email_exists"), "이미 이 이메일로 가입된 계정이 있습니다.");
+                    }
+                    existingByEmail.linkGithub(githubId, username, accessToken);
+                    user = userRepository.save(existingByEmail);
+                } else {
+                    user = userRepository.save(User.createByGithub(githubId, username, email, accessToken));
                 }
-                user = userRepository.save(User.createByGithub(githubId, username, email, accessToken));
-                //레포 초대 자동 매칭: 이 GitHub 계정/이메일로 대기 중인 초대가 있으면 자동 수락
+                //레포 초대 자동 매칭: 신규·병합 모두 이 GitHub username/이메일로 대기 중인 초대가 있으면 자동 수락
                 repoMemberService.autoMatchPendingInvitations(user);
             }
         } else { // kakao
@@ -66,16 +74,27 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             Map<String, Object> account = (Map<String, Object>) attributes.get("kakao_account");
             String email = (account != null) ? (String) account.get("email") : null;
 
+            // 카카오 이메일은 미인증일 수 있다 — 병합 키로 쓰기 전 반드시 검증여부 확인(미인증 병합 = 계정탈취 경로)
+            boolean emailVerified = account != null && Boolean.TRUE.equals(account.get("is_email_verified"));
+
             //닉네임 가져오기
             Map<String, Object> profile = (account != null) ? (Map<String, Object>) account.get("profile") : null;
             String nickname = (profile != null) ? (String) profile.get("nickname") : null;
             user = userRepository.findByKakaoId(kakaoId).orElse(null);
             if (user == null) {
-                //같은 이메일 있는지 확인
-                if (email != null && userRepository.existsByEmail(email)) {
-                    throw new OAuth2AuthenticationException(new OAuth2Error("email_exists"), "이미 이 이메일로 가입된 계정이 있습니다.");
+                // 정책 A: 같은 이메일의 기존 계정에 카카오 연동(병합). 단 검증된 이메일 + 카카오 미연결일 때만.
+                User existingByEmail = (email != null) ? userRepository.findByEmail(email).orElse(null) : null;
+                if (existingByEmail != null) {
+                    if (emailVerified && existingByEmail.getKakaoId() == null) {
+                        existingByEmail.linkKakao(kakaoId, nickname);
+                        user = userRepository.save(existingByEmail);
+                    } else {
+                        // 미인증 이메일이거나 이미 카카오가 연결된 계정 — 병합 불가·중복 이메일 방지
+                        throw new OAuth2AuthenticationException(new OAuth2Error("email_exists"), "이미 이 이메일로 가입된 계정이 있습니다.");
+                    }
+                } else {
+                    user = userRepository.save(User.createByKakao(kakaoId, nickname, email));
                 }
-                user = userRepository.save(User.createByKakao(kakaoId, nickname, email));
             }
         }
 

@@ -55,8 +55,8 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         findUser(userId).changeRole(role);
     }
 
-    // 회원 영구 삭제 — 되돌릴 수 없으므로 "정지 → 삭제" 2단계를 강제한다(오조작 방지).
-    // 본인 삭제도 막는다(관리자 락아웃 방지).
+    // 회원 영구 삭제 — 되돌릴 수 없으므로 정지(SUSPENDED)·탈퇴(WITHDRAWN) 회원만 지운다(활성 계정 오조작 방지).
+    // 본인 삭제도 막는다(관리자 락아웃 방지). 탈퇴 회원은 30일 배치로도 정리되지만 관리자가 즉시 삭제도 가능.
     @Override
     @Transactional
     public void deleteMember(Long userId, Long adminId) {
@@ -64,8 +64,9 @@ public class AdminMemberServiceImpl implements AdminMemberService {
             throw new BusinessException(ErrorCode.CANNOT_STATUS_OWN_ROLE);
         }
         User user = findUser(userId);
-        if (user.getStatus() != UserStatus.SUSPENDED) {
-            throw new BusinessException(ErrorCode.MEMBER_NOT_SUSPENDED);
+        UserStatus status = user.getStatus();
+        if (status != UserStatus.SUSPENDED && status != UserStatus.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.MEMBER_NOT_DELETABLE);
         }
         userRepository.delete(user);
     }
