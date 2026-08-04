@@ -1187,5 +1187,6 @@ nav.gnb .links .gnb-drop > a.on {
 .issue-drill { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
 .idrow { border: 3px solid var(--navy); background: #fdfcf7; padding: 11px 13px; }
 .idrow-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.idrow-top .mono { color: var(--sub); min-width: 0; word-break: break-all; overflow-wrap: anywhere; }
+/* 파일 경로는 칩/해결 줄 다음, 자기 줄에 전체폭으로 (ml-auto로 우측에 붙던 것 → 줄바꿈) */
+.idrow-top .mono { color: var(--sub); flex-basis: 100%; margin-left: 0; margin-top: 4px; word-break: break-all; overflow-wrap: anywhere; }
 .idrow-desc { font-size: 13px; line-height: 1.75; color: var(--sub); margin-top: 7px; }
