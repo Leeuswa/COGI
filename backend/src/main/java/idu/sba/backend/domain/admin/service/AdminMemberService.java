@@ -15,6 +15,6 @@ public interface AdminMemberService {
 
     void changeRole(Long userId, Long adminId, Role role);
 
-    // 탈퇴 회원 완전 삭제(WITHDRAWN 상태만 허용)
-    void deleteMember(Long userId);
+    // 회원 영구 삭제 — 정지(SUSPENDED) 상태인 계정만 허용
+    void deleteMember(Long userId, Long adminId);
 }

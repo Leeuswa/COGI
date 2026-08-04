@@ -43,10 +43,11 @@ public class AdminMemberController {
         return ApiResponse.ok("권한이 변경되었습니다.");
     }
 
-    // 탈퇴 회원 완전 삭제(WITHDRAWN만 허용, 그 외 409)
+    // 회원 영구 삭제 — 정지된 계정만 가능(서비스에서 검증, 아니면 409)
     @DeleteMapping("/{userId}")
-    public ApiResponse<Void> deleteMember(@PathVariable Long userId) {
-        adminMemberService.deleteMember(userId);
+    public ApiResponse<Void> deleteMember(@AuthenticationPrincipal Long adminId,
+                                          @PathVariable Long userId) {
+        adminMemberService.deleteMember(userId, adminId);
         return ApiResponse.ok("회원이 삭제되었습니다.");
     }
 }
