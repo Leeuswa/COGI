@@ -174,7 +174,7 @@ export function Footer() {
   return (
     <footer className="ft">
       <div>Team Fable · 상연 · 이수환 · 홍성찬 · 유지환</div>
-      <div>KDT 부트캠프 8회차 해커톤 · COGI · Code Guide · <Link to="/app/faq" className="ft-link">FAQ</Link></div>
+      <div>COGI · Code Guide · <Link to="/app/faq" className="ft-link">FAQ</Link></div>
     </footer>
   );
 }

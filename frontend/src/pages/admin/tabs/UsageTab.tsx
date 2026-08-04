@@ -68,27 +68,43 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
   // 그래서 주간/월별 칸 중 조회기간 밖은 0으로 보인다. 더 보려면 시작일을 직접 당기면 된다.
   const byDay = {};
   for (const b of buckets) byDay[b.key] = {};
-  // 하이브리드: 벤더 Admin API는 '오늘' 사용량을 최대 하루 늦게 준다. 그래서 조회 끝이 실제 오늘일 때만,
-  // 오늘 하루는 벤더값 대신 우리 자체집계(ai_usage_logs)로 실시간 표시하고 어제 이하는 벤더 실측을 쓴다.
-  // (오늘치 비용은 우리 계산 = 추정, 다음 날 벤더 버킷이 나오면 실측으로 대체됨)
+
+  // 하이브리드(+폴백): GEMINI/GROQ는 자체집계. CLAUDE/OPENAI(real)는 오늘=자체집계(실시간),
+  // 과거=벤더 실측 — 단 벤더에 그 날 데이터가 없으면(워크스페이스 전환 갭·지연 등) 자체집계로 폴백해 항상 보이게.
   const _t = new Date();
   const realToday = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, '0')}-${String(_t.getDate()).padStart(2, '0')}`;
-  const liveDay = range.to === realToday ? realToday : null;  // null이면 과거 조회 → 전부 벤더 실측
-  // 자체집계: GEMINI/GROQ는 전 기간, CLAUDE/OPENAI(real)는 '오늘'만(실시간).
+  const liveDay = range.to === realToday ? realToday : null;  // null이면 과거 조회 → 전부 벤더 실측(+폴백)
+
+  // 날짜별 벤더 토큰/비용을 자체집계(selfDay)·벤더 실측(provDay)으로 따로 모은다.
+  const selfDay = {}, provDay = {};
+  const tokOf = (o) => (o.inputTokens || 0) + (o.outputTokens || 0);
   for (const u of usage) {
-    const day = (u.createdAt || '').slice(0, 10);
-    const bucket = byDay[bucketKeyOf(day)]; // 최근 5칸에 속하지 않으면 undefined
-    if (!bucket) continue;
-    const v = vendorOf(u.modelName);
-    if (!v) continue;
-    if (REAL_KEYS.has(v) && day !== liveDay) continue; // real 벤더의 과거일은 아래 벤더 실측이 채움
-    bucket[v] = (bucket[v] || 0) + (u.inputTokens || 0) + (u.outputTokens || 0);
+    const day = (u.createdAt || '').slice(0, 10); if (!day) continue;
+    const v = vendorOf(u.modelName); if (!v) continue;
+    const s = (selfDay[day] ??= {}); (s[v] ??= { tok: 0, cost: 0 });
+    s[v].tok += tokOf(u); s[v].cost += Number(u.cost || 0);
   }
-  // CLAUDE/OPENAI — 벤더 Admin API 실사용량. '오늘'(liveDay)은 위 자체집계가 채우므로 건너뛴다.
   for (const p of providerUsage) {
-    const bucket = byDay[bucketKeyOf(p.date)];
-    if (!bucket || !REAL_KEYS.has(p.vendor) || p.date === liveDay) continue;
-    bucket[p.vendor] = (bucket[p.vendor] || 0) + (p.inputTokens || 0) + (p.outputTokens || 0);
+    if (!REAL_KEYS.has(p.vendor)) continue;
+    const s = (provDay[p.date] ??= {}); (s[p.vendor] ??= { tok: 0, cost: 0 });
+    s[p.vendor].tok += tokOf(p); s[p.vendor].cost += Number(p.cost || 0);
+  }
+  // 날짜·벤더별 최종값 결정: GEMINI/GROQ·오늘 real = 자체집계 / 과거 real = 벤더 우선, 없으면 자체집계 폴백.
+  const resolve = (day, vd) => {
+    const self = selfDay[day]?.[vd.key];
+    if (!vd.real || day === liveDay) return self;
+    const prov = provDay[day]?.[vd.key];
+    return (prov && prov.tok > 0) ? prov : self;
+  };
+
+  // 결정값을 버킷에 합산 (일/주/월 단위 모두 날짜 단위로 먼저 결정 후 합산 — 단위별로 안 깨진다)
+  const allDays = new Set([...Object.keys(selfDay), ...Object.keys(provDay)]);
+  for (const day of allDays) {
+    const bucket = byDay[bucketKeyOf(day)]; if (!bucket) continue;
+    for (const vd of VENDORS) {
+      const r = resolve(day, vd);
+      if (r?.tok) bucket[vd.key] = (bucket[vd.key] || 0) + r.tok;
+    }
   }
   // y스케일: 보이는 벤더들의 일자별 값 중 최댓값
   const maxTokens = Math.max(1, ...buckets.flatMap((b) => visibleVendors.map((v) => byDay[b.key][v.key] || 0)));
@@ -102,17 +118,13 @@ export default function UsageTab({ usage, range, setRange, latency, providerUsag
   // 벤더별 누적 토큰/비용(기간 전체) — 진행바는 $10 예산 대비 사용률
   // 그래프와 같은 소스·같은 하이브리드 규칙 — GEMINI/GROQ는 자체집계, CLAUDE/OPENAI는 오늘=자체집계·과거=벤더.
   const vendorTok = {}, vendorCost = {};
-  for (const u of usage) {
-    const v = vendorOf(u.modelName);
-    if (!v) continue;
-    if (REAL_KEYS.has(v) && (u.createdAt || '').slice(0, 10) !== liveDay) continue;
-    vendorTok[v] = (vendorTok[v] || 0) + (u.inputTokens || 0) + (u.outputTokens || 0);
-    vendorCost[v] = (vendorCost[v] || 0) + Number(u.cost || 0);
-  }
-  for (const p of providerUsage) {
-    if (!REAL_KEYS.has(p.vendor) || p.date === liveDay) continue;
-    vendorTok[p.vendor] = (vendorTok[p.vendor] || 0) + (p.inputTokens || 0) + (p.outputTokens || 0);
-    vendorCost[p.vendor] = (vendorCost[p.vendor] || 0) + Number(p.cost || 0);
+  for (const day of allDays) {
+    for (const vd of VENDORS) {
+      const r = resolve(day, vd);
+      if (!r) continue;
+      vendorTok[vd.key] = (vendorTok[vd.key] || 0) + r.tok;
+      vendorCost[vd.key] = (vendorCost[vd.key] || 0) + r.cost;
+    }
   }
 
   // 예산 소진 경고 — 누적바와 같은 계산을 쓰되 90% 넘은 벤더만 따로 모은다
