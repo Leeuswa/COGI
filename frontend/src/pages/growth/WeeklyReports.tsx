@@ -145,7 +145,7 @@ function DesktopWeeklyReports() {
         const shown = drillRepo === 'ALL' ? drill.issues : drill.issues.filter((i) => i.repoName === drillRepo);
         return (
         <div className="modal-mask" onClick={() => setDrill(null)}>
-          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <div className="modal wide" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>{drill.status === 'RESOLVED' ? '해결된 이슈' : '발생 이슈'} · 지난주</h3>
 
             {repos.length > 1 && (
