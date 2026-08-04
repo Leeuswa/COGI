@@ -4,6 +4,7 @@ import idu.sba.backend.domain.growth.dto.WeeklyReportIssueDTO;
 import idu.sba.backend.domain.growth.dto.WeeklyReportPrDTO;
 import idu.sba.backend.domain.growth.dto.WeeklyReportResponseDTO;
 import idu.sba.backend.domain.growth.service.WeeklyReportService;
+import idu.sba.backend.domain.growth.service.WeeklyReportSender;
 import idu.sba.backend.global.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,6 +18,15 @@ import java.util.List;
 public class WeeklyReportController {
 
     private final WeeklyReportService weeklyReportService;
+    private final WeeklyReportSender weeklyReportSender;
+
+    // 지난주 리포트를 지금 즉시 생성(+메일) — 월요일 배치를 안 기다리고 확인용.
+    // 멱등: 지난주 리포트가 이미 있으면 스킵, 지난주 이슈 0건이어도 스킵(정상).
+    @PostMapping("/generate")
+    public ApiResponse<Void> generateNow(@AuthenticationPrincipal Long userId) {
+        weeklyReportSender.sendFor(userId);
+        return ApiResponse.ok("지난주 리포트 생성 시도 완료 (이미 있거나 지난주 이슈 0건이면 생성 안 됨)");
+    }
 
     // 내 주간 리포트 목록 (최신 주부터)
     @GetMapping
