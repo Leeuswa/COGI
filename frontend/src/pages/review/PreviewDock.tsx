@@ -34,6 +34,40 @@ const ENGINE = `<script id="__cogi_engine">
     sel.style.transform = f.rot ? 'rotate(' + f.rot + 'deg)' : '';
   };
 
+  /* ── 레이어 목록: body 아래 구조를 부모로 올린다. path는 자식 인덱스 사슬 ── */
+  const pathOf = (el) => {
+    const parts = [];
+    let node = el;
+    while (node && node !== document.body && node.parentNode) {
+      parts.unshift(Array.prototype.indexOf.call(node.parentNode.children, node));
+      node = node.parentNode;
+    }
+    return parts.join('.');
+  };
+  const byPath = (path) => {
+    let node = document.body;
+    if (!path) return node;
+    path.split('.').forEach((i) => { node = node && node.children[+i]; });
+    return node;
+  };
+  let extra = [];   // Shift로 더 고른 요소들. sel이 기준(primary)이고 정렬·삭제는 sel+extra를 함께 본다
+  let clip = null;  // Ctrl+C로 담아둔 outerHTML
+  const all = () => (sel ? [sel].concat(extra) : []);
+
+  // 스타일을 같은 값으로 다시 쓰면 MutationObserver가 또 돌아 layout이 무한히 재귀한다.
+  // 의도한 문자열을 JS 프로퍼티에 기억해 두고 달라질 때만 실제로 쓴다
+  const setCss = (el, css) => { if (el.__css !== css) { el.__css = css; el.style.cssText = css; } };
+
+  const nudgeBy = (el, dx, dy) => {
+    if (!dx && !dy) return;
+    el.style.position = el.style.position || 'relative';
+    el.style.left = ((parseInt(el.style.left) || 0) + Math.round(dx)) + 'px';
+    el.style.top = ((parseInt(el.style.top) || 0) + Math.round(dy)) + 'px';
+  };
+
+  const isUi = (el) => !el || el.id === '__cogi_ov' || el.id === '__cogi_multi' || el.id === '__cogi_guide'
+    || !!(el.closest && el.closest('#__cogi_ov, #__cogi_multi, #__cogi_guide'));
+
   /* ── 선택 오버레이: 8방향 리사이즈 핸들 + 상단 회전 핸들 (피그마식) ── */
   const ov = document.createElement('div');
   ov.id = '__cogi_ov';
@@ -52,7 +86,52 @@ const ENGINE = `<script id="__cogi_engine">
   const badge = document.createElement('div'); // W×H 배지 (피그마식, 선택 박스 아래 중앙)
   badge.style.cssText = 'position:absolute;left:50%;bottom:-26px;transform:translateX(-50%);background:#1b2a4a;color:#fff;font:700 10px/1 monospace;padding:3px 7px;border:2px solid #1b2a4a;white-space:nowrap';
   ov.appendChild(badge);
-  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(ov));
+  /* 추가 선택된 요소 표시 — 기준 요소는 실선, 나머지는 점선으로 구분한다 */
+  const multiOv = document.createElement('div');
+  multiOv.id = '__cogi_multi';
+  multiOv.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:99998;display:none';
+
+  /* 스냅 가이드선 — 세로 2개, 가로 2개면 실제로 쓰는 경우는 다 덮는다 */
+  const guideBox = document.createElement('div');
+  guideBox.id = '__cogi_guide';
+  guideBox.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:100000;display:none';
+  const guideLines = [0, 1, 2, 3].map(() => {
+    const g = document.createElement('div');
+    g.style.cssText = 'position:absolute;display:none';
+    guideBox.appendChild(g);
+    return g;
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.appendChild(ov);
+    document.body.appendChild(multiOv);
+    document.body.appendChild(guideBox);
+  });
+
+  // 추가 선택 박스를 그린다. 개수가 바뀔 때만 자식을 만들고, 위치는 setCss로 갱신
+  const layoutMulti = () => {
+    if (!extra.length) { setCss(multiOv, 'position:absolute;left:0;top:0;pointer-events:none;z-index:99998;display:none'); return; }
+    setCss(multiOv, 'position:absolute;left:0;top:0;pointer-events:none;z-index:99998;display:block');
+    while (multiOv.children.length < extra.length) multiOv.appendChild(document.createElement('div'));
+    while (multiOv.children.length > extra.length) multiOv.lastChild.remove();
+    extra.forEach((el, i) => {
+      const r = el.getBoundingClientRect();
+      setCss(multiOv.children[i], 'position:absolute;outline:2px dashed #ff6b57;left:'
+        + (r.left + scrollX) + 'px;top:' + (r.top + scrollY) + 'px;width:' + r.width + 'px;height:' + r.height + 'px');
+    });
+  };
+
+  const showGuides = (list) => {
+    if (!list.length) { setCss(guideBox, 'position:absolute;left:0;top:0;pointer-events:none;z-index:100000;display:none'); return; }
+    setCss(guideBox, 'position:absolute;left:0;top:0;pointer-events:none;z-index:100000;display:block');
+    guideLines.forEach((g, i) => {
+      const v = list[i];
+      if (!v) { setCss(g, 'position:absolute;display:none'); return; }
+      setCss(g, v.dir === 'v'
+        ? 'position:absolute;display:block;background:#ff2fb9;width:1px;left:' + (v.at + scrollX) + 'px;top:' + scrollY + 'px;height:' + innerHeight + 'px'
+        : 'position:absolute;display:block;background:#ff2fb9;height:1px;top:' + (v.at + scrollY) + 'px;left:' + scrollX + 'px;width:' + innerWidth + 'px');
+    });
+  };
 
   const layout = () => { // 오버레이를 선택 요소 위치에 맞춘다 (회전 각도 포함)
     if (!sel) { ov.style.display = 'none'; return; }
@@ -73,6 +152,7 @@ const ENGINE = `<script id="__cogi_engine">
       d.style.left = 'calc(' + (p[0] * 100) + '% - 5px)';
       d.style.top = 'calc(' + (p[1] * 100) + '% - 5px)';
     });
+    layoutMulti();
   };
   new MutationObserver(layout).observe(document.documentElement, { attributes: true, childList: true, subtree: true });
   addEventListener('scroll', layout, true);
@@ -91,6 +171,7 @@ const ENGINE = `<script id="__cogi_engine">
       // 대신 화면에서 두 번 눌러 고치라고 안내한다. 글자가 있는지는 부모도 알아야 한다
       hasKids: sel.children.length > 0,
       hasText: !!sel.textContent.trim(),
+      path: pathOf(sel), // 레이어 목록에서 지금 고른 줄에 표시하려면 필요하다
       style: {
         color: toHex(cs.color), background: toHex(cs.backgroundColor),
         fontSize: parseInt(cs.fontSize), fontWeight: cs.fontWeight, fontFamily: cs.fontFamily,
@@ -106,6 +187,84 @@ const ENGINE = `<script id="__cogi_engine">
       } }, '*');
     layout(); dims();
   };
+  /* ── 정렬·분배: 고른 것들의 바깥 경계를 기준으로 삼는다 (피그마와 같은 규칙) ── */
+  const alignAll = (how) => {
+    const els = all().filter((el) => el && el.isConnected);
+    if (els.length < 2) return;
+    const box = els.map((el) => ({ el, r: el.getBoundingClientRect() }));
+    const minL = Math.min.apply(null, box.map((x) => x.r.left));
+    const maxR = Math.max.apply(null, box.map((x) => x.r.right));
+    const minT = Math.min.apply(null, box.map((x) => x.r.top));
+    const maxB = Math.max.apply(null, box.map((x) => x.r.bottom));
+    if (how === 'distH' || how === 'distV') {
+      const horiz = how === 'distH';
+      if (box.length < 3) return; // 둘뿐이면 나눌 간격이 없다
+      const sorted = box.slice().sort((a, b) => (horiz ? a.r.left - b.r.left : a.r.top - b.r.top));
+      const s0 = horiz ? sorted[0].r.left : sorted[0].r.top;
+      const s1 = horiz ? sorted[sorted.length - 1].r.left : sorted[sorted.length - 1].r.top;
+      const gap = (s1 - s0) / (sorted.length - 1);
+      sorted.forEach((x, i) => {
+        const want = s0 + gap * i;
+        const now = horiz ? x.r.left : x.r.top;
+        nudgeBy(x.el, horiz ? want - now : 0, horiz ? 0 : want - now);
+      });
+    } else {
+      const cx = (minL + maxR) / 2, cy = (minT + maxB) / 2;
+      box.forEach(({ el, r }) => {
+        let dx = 0, dy = 0;
+        if (how === 'left') dx = minL - r.left;
+        else if (how === 'right') dx = maxR - r.right;
+        else if (how === 'cx') dx = cx - (r.left + r.width / 2);
+        else if (how === 'top') dy = minT - r.top;
+        else if (how === 'bottom') dy = maxB - r.bottom;
+        else if (how === 'cy') dy = cy - (r.top + r.height / 2);
+        nudgeBy(el, dx, dy);
+      });
+    }
+    layout(); emit();
+  };
+
+  /* ── 스냅: 드래그 시작 때 다른 요소들의 변 좌표를 한 번만 모아둔다 (매 프레임 재수집하면 버벅인다) ── */
+  const SNAP = 6;
+  const collectEdges = (moving) => {
+    const vs = [], hs = [];
+    document.body.querySelectorAll('*').forEach((el) => {
+      if (isUi(el) || moving.indexOf(el) >= 0 || moving.some((m) => m.contains(el))) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return;
+      vs.push(r.left, r.left + r.width / 2, r.right);
+      hs.push(r.top, r.top + r.height / 2, r.bottom);
+    });
+    return { vs, hs };
+  };
+  // 움직인 요소의 변 셋(앞·중앙·뒤)을 후보와 견줘 가장 가까운 것 하나로 붙인다
+  const snapAxis = (mine, cands) => {
+    let best = null;
+    mine.forEach((m) => cands.forEach((c) => {
+      const d = c - m;
+      if (Math.abs(d) <= SNAP && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, at: c };
+    }));
+    return best;
+  };
+
+  const postTree = () => {
+    const nodes = [];
+    const walk = (parent, depth) => {
+      Array.prototype.forEach.call(parent.children, (c) => {
+        if (isUi(c) || c.tagName === 'SCRIPT' || c.tagName === 'STYLE' || c.tagName === 'LINK') return;
+        nodes.push({
+          path: pathOf(c),
+          tag: c.tagName.toLowerCase() + (c.id ? '#' + c.id : ''),
+          depth,
+          label: (c.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 22),
+        });
+        if (depth < 4) walk(c, depth + 1); // 더 깊이 들어가면 목록이 읽을 수 없게 길어진다
+      });
+    };
+    walk(document.body, 0);
+    parent.postMessage({ cogi: 'tree', nodes }, '*');
+  };
+
   // 인라인 style 을 최소 형태로 정리 — 브라우저가 자동으로 채운 longhand(예: border-width/style/color/image)
   // 와 기본값을 걷어내, 한 번 편집해도 코드가 길어지지 않게 한다 (#4)
   const DEFAULTS = {
@@ -133,7 +292,8 @@ const ENGINE = `<script id="__cogi_engine">
     // body만 떼면 head의 <style>·<link>가 통째로 사라져 편집 한 번에 화면이 민무늬가 된다.
     // 문서 전체를 복사해 두고, 통짜로 쓸지 body만 쓸지는 원본 모양을 아는 부모가 고른다
     const clone = document.documentElement.cloneNode(true);
-    const o = clone.querySelector('#__cogi_ov'); if (o) o.remove(); // 편집 UI 는 코드에 안 남긴다
+    // 편집 UI 는 코드에 안 남긴다 — 선택 테두리·추가선택 박스·스냅 가이드 셋 다
+    clone.querySelectorAll('#__cogi_ov, #__cogi_multi, #__cogi_guide').forEach((o) => o.remove());
     // 편집 엔진 스크립트도 코드에 안 남긴다 — 과거에 섞여 들어간 사본까지 전부 청소
     clone.querySelectorAll('script').forEach((sc) => {
       if (sc.id === '__cogi_engine' || sc.textContent.includes('__cogi_ov')) sc.remove();
@@ -147,7 +307,9 @@ const ENGINE = `<script id="__cogi_engine">
     parent.postMessage({ cogi: 'code',
       body: pretty(clone.querySelector('body').innerHTML),
       full: pretty(clone.outerHTML) }, '*');
+    postTree(); // 구조가 바뀌었으니 레이어 목록도 새로 올린다
   };
+  const postMulti = () => parent.postMessage({ cogi: 'multi', count: all().length }, '*');
 
   /* ── 인라인 글자 편집: 두 번 누르면 그 자리에 커서가 들어간다 (피그마·포토샵의 텍스트 툴 감각) ──
      자식이 섞인 요소도 이 방식이면 <em>·<br>을 안 부수고 고칠 수 있다 */
@@ -229,20 +391,48 @@ const ENGINE = `<script id="__cogi_engine">
       return;
     }
     const t = e.target;
-    if (t === document.body || t === document.documentElement || t.closest('#__cogi_ov')) return;
+    if (t === document.body || t === document.documentElement || isUi(t)) return;
     e.preventDefault();
     if (hoverEl) { hoverEl.style.outline = ''; hoverEl = null; }
-    if (t !== sel) pick(t);
+
+    // Shift 클릭 = 추가 선택/해제. 여기서 드래그를 시작하면 고르는 순간 요소가 밀린다
+    if (e.shiftKey && sel && t !== sel) {
+      const i = extra.indexOf(t);
+      if (i >= 0) extra.splice(i, 1); else extra.push(t);
+      layout(); postMulti();
+      return;
+    }
+    if (t !== sel && extra.indexOf(t) < 0) { extra = []; pick(t); postMulti(); }
+
     const st = sel.style;
     st.position = st.position || 'relative';
-    drag = { mode: 'move', x: e.clientX, y: e.clientY, left: parseInt(st.left) || 0, top: parseInt(st.top) || 0 };
+    // 고른 것 전부를 같은 만큼 옮긴다. 각자의 시작 좌표를 기억해 둔다
+    const movers = all();
+    movers.forEach((el) => { el.style.position = el.style.position || 'relative'; });
+    drag = { mode: 'move', x: e.clientX, y: e.clientY,
+             left: parseInt(st.left) || 0, top: parseInt(st.top) || 0,
+             group: movers.map((el) => ({ el, left: parseInt(el.style.left) || 0, top: parseInt(el.style.top) || 0 })),
+             edges: collectEdges(movers) };
   }, true);
 
   document.addEventListener('mousemove', (e) => {
     if (!drag || !sel) return;
     if (drag.mode === 'move') {
-      sel.style.left = drag.left + (e.clientX - drag.x) + 'px';
-      sel.style.top = drag.top + (e.clientY - drag.y) + 'px';
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.group.forEach((g) => {
+        g.el.style.left = g.left + dx + 'px';
+        g.el.style.top = g.top + dy + 'px';
+      });
+      // 붙이기: 기준 요소의 변만 견준다. Alt를 누르면 스냅을 끈다 (피그마와 같은 관례)
+      const lines = [];
+      if (!e.altKey && drag.edges) {
+        const r = sel.getBoundingClientRect();
+        const sv = snapAxis([r.left, r.left + r.width / 2, r.right], drag.edges.vs);
+        const sh = snapAxis([r.top, r.top + r.height / 2, r.bottom], drag.edges.hs);
+        if (sv) { drag.group.forEach((g) => { g.el.style.left = (parseInt(g.el.style.left) || 0) + Math.round(sv.d) + 'px'; }); lines.push({ dir: 'v', at: sv.at }); }
+        if (sh) { drag.group.forEach((g) => { g.el.style.top = (parseInt(g.el.style.top) || 0) + Math.round(sh.d) + 'px'; }); lines.push({ dir: 'h', at: sh.at }); }
+      }
+      showGuides(lines);
     } else if (drag.mode === 'resize') {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y, h = drag.h;
       if (h.includes('e')) sel.style.width = Math.max(10, drag.w + dx) + 'px';
@@ -259,7 +449,7 @@ const ENGINE = `<script id="__cogi_engine">
     }
     layout();
   });
-  document.addEventListener('mouseup', () => { if (drag) { drag = null; emit(); } });
+  document.addEventListener('mouseup', () => { if (drag) { drag = null; showGuides([]); emit(); } });
 
   /* 키보드 */
   document.addEventListener('keydown', (e) => {
@@ -278,11 +468,27 @@ const ENGINE = `<script id="__cogi_engine">
       sel.style.top = ((parseInt(sel.style.top) || 0) + mv[1]) + 'px';
       layout(); emit();
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      e.preventDefault(); const dead = sel; sel = null; layout(); dead.remove();
-      parent.postMessage({ cogi: 'clear' }, '*'); emit();
+      e.preventDefault();
+      const dead = all(); sel = null; extra = []; layout();
+      dead.forEach((el) => el.remove());
+      parent.postMessage({ cogi: 'clear' }, '*'); postMulti(); emit();
     } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'd' || e.code === 'KeyD')) {
       e.preventDefault(); const copy = sel.cloneNode(true);
-      sel.after(copy); pick(copy); emit();
+      sel.after(copy); extra = []; pick(copy); postMulti(); emit();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'c' || e.code === 'KeyC')) {
+      // 고른 것들을 나란히 담는다. 붙여넣을 때 한 덩어리로 들어간다
+      e.preventDefault(); clip = all().map((el) => el.outerHTML).join('');
+      parent.postMessage({ cogi: 'copied', count: all().length }, '*');
+    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'v' || e.code === 'KeyV')) {
+      e.preventDefault();
+      if (!clip) return;
+      const tmp = document.createElement('div'); tmp.innerHTML = clip;
+      const nodes = Array.prototype.slice.call(tmp.children);
+      if (!nodes.length) return;
+      let anchor = sel;
+      nodes.forEach((node) => { anchor.after(node); anchor = node; nudgeBy(node, 12, 12); }); // 원본과 겹치면 안 보인다
+      extra = nodes.slice(1);
+      pick(nodes[0]); postMulti(); emit();
     }
   });
 
@@ -306,6 +512,13 @@ const ENGINE = `<script id="__cogi_engine">
       const node = wrap.firstChild;
       (sel ? sel.after(node) : document.body.appendChild(node));
       pick(node); emit(); return;
+    }
+    if (d.cogi === 'align') { alignAll(d.how); return; }
+    if (d.cogi === 'tree?') { postTree(); return; }
+    if (d.cogi === 'selectPath') {
+      const node = byPath(d.path);
+      if (node && node !== document.body) { extra = []; pick(node); postMulti(); }
+      return;
     }
     if (!sel || d.cogi !== 'apply') return;
     const { prop, value } = d;
@@ -471,6 +684,9 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
   const [picked, setPicked] = useState(null);
   const [text, setText] = useState("");
   const typingRef = useRef(false); // 내용 입력칸에 포커스가 있는 동안 true — 되돌아온 pick이 값을 못 덮게
+  const [selCount, setSelCount] = useState(0); // Shift로 함께 고른 개수 — 정렬 버튼을 켤지 정한다
+  const [tree, setTree] = useState([]); // 레이어 목록 (body 아래 구조)
+  const [copied, setCopied] = useState(0); // Ctrl+C로 담은 개수. 잠깐 띄우고 지운다
   const [dim, setDim] = useState(null); // 선택 요소 W×H
   const [rotVal, setRotVal] = useState(0); // 회전(마우스 핸들 ↔ 슬라이더 양방향)
 
@@ -712,9 +928,13 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
         if (!d.noFocus && !isEditingField()) frameRef.current?.focus();
       }
       if (d.cogi === "dim") setDim({ w: d.w, h: d.h });
+      if (d.cogi === "multi") setSelCount(d.count);
+      if (d.cogi === "tree") setTree(d.nodes ?? []);
+      if (d.cogi === "copied") setCopied(d.count); // 몇 개 담았는지 잠깐 알려준다
       if (d.cogi === "clear") {
         setPicked(null);
         setDim(null);
+        setSelCount(0);
       }
       if (d.cogi === "rot") setRotVal(d.deg); // 마우스 회전 → 슬라이더 동기화
       if (d.cogi === "code") {
@@ -797,6 +1017,23 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
     );
   const addEl = (kind) =>
     frameRef.current?.contentWindow?.postMessage({ cogi: "add", kind }, "*");
+  const alignEl = (how) =>
+    frameRef.current?.contentWindow?.postMessage({ cogi: "align", how }, "*");
+  const selectPath = (path) =>
+    frameRef.current?.contentWindow?.postMessage({ cogi: "selectPath", path }, "*");
+
+  // 담았다는 표시는 잠깐만 — 계속 남으면 지금 담은 건지 헷갈린다
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(0), 1600);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  // 문서가 바뀌면(되돌리기·자산 인라인 등) 레이어 목록도 다시 받는다
+  useEffect(() => {
+    const t = setTimeout(() => frameRef.current?.contentWindow?.postMessage({ cogi: "tree?" }, "*"), 200);
+    return () => clearTimeout(t);
+  }, [doc]);
 
   const srcDoc = useMemo(() => doc + ENGINE, [doc]);
   const st = picked?.style;
@@ -1125,7 +1362,49 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                     {dim.w}×{dim.h}
                   </span>
                 )}
+                {/* Shift로 더 골랐으면 몇 개인지 보여준다. 안 보이면 왜 정렬이 되는지 모른다 */}
+                {selCount > 1 && <span className="chip hi">{selCount}개 선택</span>}
+                {copied > 0 && <span className="chip low">{copied}개 복사됨</span>}
               </div>
+
+              {/* ── 정렬·분배: 두 개 이상 골라야 의미가 있다 ── */}
+              <Sect
+                id="align"
+                title="정렬 · 분배"
+                openId={openSect}
+                setOpenId={setOpenSect}
+              >
+                {selCount < 2 ? (
+                  <p className="dock-edit-hint">
+                    <b>Shift</b>를 누른 채 다른 요소를 클릭하면 함께 골라져요. 두 개 이상부터 정렬할 수 있어요.
+                  </p>
+                ) : (
+                  <>
+                    <Prop label="가로">
+                      <div className="btn3">
+                        <button title="왼쪽 맞춤" onClick={() => alignEl("left")}>⇤</button>
+                        <button title="가로 가운데" onClick={() => alignEl("cx")}>⇹</button>
+                        <button title="오른쪽 맞춤" onClick={() => alignEl("right")}>⇥</button>
+                      </div>
+                    </Prop>
+                    <Prop label="세로">
+                      <div className="btn3">
+                        <button title="위 맞춤" onClick={() => alignEl("top")}>⤒</button>
+                        <button title="세로 가운데" onClick={() => alignEl("cy")}>⇳</button>
+                        <button title="아래 맞춤" onClick={() => alignEl("bottom")}>⤓</button>
+                      </div>
+                    </Prop>
+                    <Prop label="간격 균등">
+                      <div className="btn3">
+                        <button title="가로로 고르게 (3개 이상)" disabled={selCount < 3}
+                          onClick={() => alignEl("distH")}>↔</button>
+                        <button title="세로로 고르게 (3개 이상)" disabled={selCount < 3}
+                          onClick={() => alignEl("distV")}>↕</button>
+                      </div>
+                    </Prop>
+                  </>
+                )}
+              </Sect>
 
               <Sect
                 id="text"
@@ -1710,11 +1989,49 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
                 </li>
               </ol>
               <p className="note xs">
-                <b>Ctrl+Z</b> 실행취소 · 편집하면 왼쪽 코드가 실시간으로
+                <b>Shift+클릭</b> 여러 개 · <b>Ctrl+C/V</b> 복사·붙여넣기 ·{" "}
+                <b>Ctrl+Z</b> 실행취소. 편집하면 왼쪽 코드가 실시간으로
                 바뀝니다.
               </p>
             </div>
           )}
+
+          {/* ── 레이어 목록: 화면에서 못 집는 요소(겹쳐 있거나 크기 0)를 여기서 고른다.
+                 선택 여부와 무관하게 항상 보여야 쓸모가 있다 ── */}
+          <div className="dock-layers">
+            <b>레이어</b>
+            {tree.length === 0 ? (
+              <p className="note xs">아직 읽은 구조가 없어요.</p>
+            ) : (
+              <ul>
+                {tree.map((nd) => (
+                  <li key={nd.path} style={{ paddingLeft: 4 + nd.depth * 11 }}>
+                    <button
+                      className={picked?.path === nd.path ? "on" : ""}
+                      title={nd.tag}
+                      onClick={() => selectPath(nd.path)}
+                    >
+                      <i>{nd.tag}</i>
+                      {nd.label && <span>{nd.label}</span>}
+                    </button>
+                    {/* 순서 바꾸기는 이미 있는 layer 명령을 그대로 쓴다 */}
+                    <em
+                      title="한 칸 위로"
+                      onClick={() => { selectPath(nd.path); setTimeout(() => apply("layer", "down"), 0); }}
+                    >
+                      ▲
+                    </em>
+                    <em
+                      title="한 칸 아래로"
+                      onClick={() => { selectPath(nd.path); setTimeout(() => apply("layer", "up"), 0); }}
+                    >
+                      ▼
+                    </em>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </aside>
       </div>
 
