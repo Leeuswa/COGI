@@ -378,7 +378,7 @@ export function TermsDialog({ term, onClose }) {
     <div className="modal-mask" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <h3>{term.title} <span className="chip navy">v{term.version}</span></h3>
-        <p style={{ fontSize: 13.5, lineHeight: 2, margin: '14px 0 22px' }}>{term.content}</p>
+        <p style={{ fontSize: 13.5, lineHeight: 2, margin: '14px 0 22px', whiteSpace: 'pre-wrap' }}>{term.content}</p>
         <button className="btn wh sm" onClick={onClose}>닫기</button>
       </div>
     </div>
