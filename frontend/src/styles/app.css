@@ -1190,3 +1190,38 @@ nav.gnb .links .gnb-drop > a.on {
 /* 파일 경로는 칩/해결 줄 다음, 자기 줄에 전체폭으로 (ml-auto로 우측에 붙던 것 → 줄바꿈) */
 .idrow-top .mono { color: var(--sub); flex-basis: 100%; margin-left: 0; margin-top: 4px; word-break: break-all; overflow-wrap: anywhere; }
 .idrow-desc { font-size: 13px; line-height: 1.75; color: var(--sub); margin-top: 7px; }
+
+/* 자식이 섞인 요소는 내용 칸을 잠그고 대신 두 번 클릭을 안내한다 */
+.dock-edit-hint {
+  font-size: 11.5px; line-height: 1.75; color: var(--sub); word-break: keep-all;
+  padding: 8px 10px; background: #fff8dd; border: 2px solid var(--navy);
+}
+.dock-edit-hint b { color: var(--navy); }
+
+/* ── 미리보기 레이어 목록: 화면에서 못 집는 요소를 구조에서 고른다 ── */
+.dock-layers { border-top: 3px solid var(--navy); margin-top: 14px; padding-top: 10px; }
+.dock-layers > b { display: block; font-size: 12px; margin-bottom: 7px; }
+.dock-layers ul { list-style: none; max-height: 220px; overflow-y: auto; }
+/* 항목 하나 = 선택 버튼 + 순서 화살표 둘. 가로로 넘치면 이름을 줄인다 */
+.dock-layers li { display: flex; align-items: center; gap: 3px; }
+.dock-layers li > button {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 11.5px; text-align: left; cursor: pointer;
+  padding: 4px 6px; background: none; border: none; color: var(--navy);
+}
+.dock-layers li > button:hover { background: #fffbe8; }
+.dock-layers li > button.on { background: var(--sky); font-weight: 700; }
+/* 태그 이름은 고정폭으로 — 목록이 들쭉날쭉하면 구조가 안 읽힌다 */
+.dock-layers li > button i {
+  flex-shrink: 0; font-style: normal; font-family: 'GalmuriMono11', monospace;
+  font-size: 10.5px; color: var(--coral);
+}
+.dock-layers li > button span {
+  flex: 1; min-width: 0; color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dock-layers li > em {
+  flex-shrink: 0; font-style: normal; font-size: 9px; cursor: pointer;
+  padding: 2px 3px; color: var(--sub);
+}
+.dock-layers li > em:hover { color: var(--coral); }
