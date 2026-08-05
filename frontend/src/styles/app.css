@@ -786,10 +786,11 @@ mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
 
 
 /* ═══════════ 대시보드 ═══════════
-   100% 배율 한 화면이 목표지만 높이를 강제로 자르지는 않는다.
-   내용 자체를 작게 잡아 자연스럽게 들어오게 하고, 넘치면 잘리지 말고 스크롤되게 둔다. */
-/* 세로가 큰 모니터(2560x1440 등)에서 아래 InfoSections가 미리 보이지 않게 한 화면을 채운다 */
-.dash { padding: 20px 22px 40px; min-height: 100vh; min-height: 100dvh; }
+   어떤 해상도에서도 한 화면. box(.dash)는 nav~footer 사이 가용 높이로 useFitScale이 잡고,
+   그 안의 .dash-fit을 통째로 transform:scale 해서 넘칠 때만 줄인다(큰 화면은 1.0 그대로).
+   box를 flex center로 둬 축소된 내용이 세로 가운데 오게 한다. overflow:hidden으로 1px 삐침을 막는다. */
+.dash { padding: 28px 22px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.dash-fit { width: 100%; transform-origin: center center; }
 .dash .panel { padding: 15px 17px; }
 .dash .panel h3 { font-size: 15px; margin-bottom: 0; }
 

@@ -323,6 +323,11 @@ footer.ft {
   background: var(--navy); color: #aebfe0;
   text-align: center; padding: 20px 24px 56px; font-size: 12.5px; line-height: 2;
 }
+/* 탭바 없는 데스크톱(≥1025px)에선 푸터를 전체적으로 ~75%로 줄인다.
+   아래 56px은 모바일 하단 탭바 가림 방지용이라 태블릿·모바일에선 그대로 둔다. */
+@media (min-width: 1025px) {
+  footer.ft { padding: 15px 24px; font-size: 9.5px; line-height: 1.75; }
+}
 
 /* ═══════════ 로그인 전 랜딩 — 화면 배분 (641px 이상) ═══════════
    콘텐츠 양으로 화면을 나눈다. 전부 묶으면 섹션당 412px밖에 안 남아 글씨를 줄여야 하고

@@ -15,6 +15,7 @@ import TrendChart from "../components/TrendChart";
 import { PageHead } from "../components/ui";
 import { catKo } from "../data/constants";
 import useIsMobile from "../hooks/useIsMobile";
+import useFitScale from "../hooks/useFitScale";
 import MobileDashboard from "./mobile/MobileDashboard";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -29,6 +30,8 @@ export default function Dashboard() {
 function DesktopDashboard() {
   const { user } = useAuth();
   const { S, creditLimit, syncServer, checkIn } = useGame();
+  // 화면 높이에 맞춰 대시보드 전체를 축소(어떤 해상도든 한 화면, 스크롤 없음)
+  const { boxRef, contentRef } = useFitScale();
 
   const [weakness, setWeakness] = useState([]);
   const [trend, setTrend] = useState(null);
@@ -97,7 +100,8 @@ function DesktopDashboard() {
 
   return (
     <>
-      <main className="app-main dash">
+      <main className="app-main dash" ref={boxRef}>
+        <div className="dash-fit" ref={contentRef}>
         <div className="dash-top">
           <PageHead
             badge="DASHBOARD"
@@ -227,6 +231,7 @@ function DesktopDashboard() {
               )}
             </div>
           </div>
+        </div>
         </div>
 
         {/* 달력에서 계획이 있는 날을 누르면 — 지난 날짜도 그대로 열린다(알림은 사라져도 계획은 남는다) */}
