@@ -85,10 +85,10 @@ function DesktopTeamPage() {
 
   // 팀원이 스스로 나가기 — 팀장이면 백엔드가 OWNER_CANNOT_LEAVE로 막아줌(먼저 위임하라고 안내)
   const leave = async (repoId) => {
-    if (!window.confirm('정말 이 팀에서 나갈까요?')) return;
+    if (!window.confirm('이 팀에서 나갈까요?')) return;
     try {
       await api.leaveRepo(repoId);
-      notify('팀에서 나갔어요');
+      notify('팀에서 나왔어요');
       setRepos((prev) => prev.filter((r) => r.repoId !== repoId));
     } catch (e) { notify(e.message || '나가기에 실패했어요'); }
   };

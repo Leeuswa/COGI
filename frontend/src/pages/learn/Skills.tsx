@@ -319,7 +319,7 @@ function SkillCard({ skill: s, weakness, onStar, onCopy }) {
       {s.prompt && (
         <div className="skill-rec-prompt">
           <pre>{s.prompt}</pre>
-          <button className="btn wh sm" onClick={() => onCopy(s.prompt)}>복사</button>
+          <button className="btn wh sm" onClick={() => onCopy(s.prompt)}>프롬프트 복사</button>
         </div>
       )}
 
@@ -354,7 +354,7 @@ function RecItems({ items, onStar, onCopy }) {
       </div>
       <div className="skill-rec-prompt">
         <pre>{it.prompt}</pre>
-        <button className="btn wh sm" onClick={() => onCopy(it.prompt)}>복사</button>
+        <button className="btn wh sm" onClick={() => onCopy(it.prompt)}>프롬프트 복사</button>
       </div>
     </div>
   ));
