@@ -30,7 +30,7 @@ export default function Otp() {
       signIn(user);
       nav(user.onboardingCompleted ? (st.from || '/app') : '/onboarding');
     } catch {
-      setErr('코드가 맞지 않아요. 인증 앱의 최신 코드를 확인하세요. (목 모드 힌트: 000000)');
+      setErr('코드가 맞지 않아요. 인증 앱의 최신 코드를 확인하세요.');
     } finally { setBusy(false); }
   };
 

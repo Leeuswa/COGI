@@ -55,7 +55,7 @@ export default function Login() {
     } catch (ex) {
       setErr(ex.status === 423
         ? '5회 이상 실패로 계정이 잠겼어요. 비밀번호 찾기로 잠금을 풀 수 있습니다.'
-        : '아이디 또는 비밀번호가 맞지 않아요.\n(테스트 계정: team · member · user · admin / 비밀번호 1234)');
+        : '아이디 또는 비밀번호가 맞지 않아요.\n(테스트 계정: user@a.a · admin@a.a / 비밀번호 1234)');
     } finally {
       setBusy(false);
     }
@@ -87,7 +87,7 @@ export default function Login() {
         <form className="form" onSubmit={submit}>
           <div>
             <label>아이디 (또는 이메일)</label>
-            <input type="text" value={email} placeholder="테스트: team · member · user · admin" onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
+            <input type="text" value={email} placeholder="테스트: user@a.a · admin@a.a / 비밀번호: 1234" onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
           </div>
           <div>
             <label>비밀번호</label>
