@@ -1,0 +1,123 @@
+package idu.sba.backend.domain.payment.service;
+
+import idu.sba.backend.domain.payment.dto.CreditUsageResponseDTO;
+import idu.sba.backend.domain.payment.entity.CreditUsage;
+import idu.sba.backend.domain.payment.entity.Plan;
+import idu.sba.backend.domain.payment.repository.CreditUsageRepository;
+import idu.sba.backend.domain.payment.repository.PlanRepository;
+import idu.sba.backend.global.exception.BusinessException;
+import idu.sba.backend.global.exception.ErrorCode;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class CreditUsageServiceImpl implements CreditUsageService {
+
+    // 임시 가중치 — 구독 요금제가 아니라 "실제로 호출된 모델이 처음 허용되는 요금제" 기준으로 매긴다
+    // (prompt_plan_pro/max.txt의 "실제 호출된 모델 등급 기준" 보정 원칙과 동일한 논리).
+    private static final int FREE_MODEL_WEIGHT = 1;
+    private static final int PRO_MODEL_WEIGHT = 2;
+    private static final int MAX_MODEL_WEIGHT = 3;
+
+    // 자정 초기화 기준 시간대. 서버가 UTC라도 한국 자정에 맞추려고 명시(GuestReviewService와 동일한 이유)
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+    private final CreditUsageRepository creditUsageRepository;
+    private final SubscriptionService subscriptionService;
+    private final PlanRepository planRepository;
+
+    @Override
+    @Transactional
+    public void checkAndConsume(Long userId, String modelName) {
+        consumeFixed(userId, resolveModelWeight(modelName));
+    }
+
+    @Override
+    @Transactional
+    public void refund(Long userId, String modelName) {
+        refundFixed(userId, resolveModelWeight(modelName));
+    }
+
+    @Override
+    @Transactional
+    public void checkAndConsumeFixed(Long userId, int weight) {
+        consumeFixed(userId, weight);
+    }
+
+    @Override
+    @Transactional
+    public void refundFixed(Long userId, int weight) {
+        LocalDate today = LocalDate.now(KST);
+        creditUsageRepository.findByUserIdAndUsageDate(userId, today)
+                .ifPresent(usage -> usage.refund(weight));
+    }
+
+    private void consumeFixed(Long userId, int weight) {
+        LocalDate today = LocalDate.now(KST);
+        // PESSIMISTIC_WRITE로 조회 — 같은 사용자의 동시 요청(더블클릭, 멀티탭, 웹훅 두 건 동시 도착)이
+        // "잔여 확인 → 차감"을 락 없이 각자 통과해 한도를 넘겨 차감하는 lost-update를 막는다
+        CreditUsage usage = creditUsageRepository.findByUserIdAndUsageDateForUpdate(userId, today)
+                .orElseGet(() -> createTodayUsage(userId, today));
+
+        if (!usage.hasRemaining(weight)) {
+            throw new BusinessException(ErrorCode.CREDIT_LIMIT_EXCEEDED);
+        }
+        usage.consume(weight);
+    }
+
+    private CreditUsage createTodayUsage(Long userId, LocalDate today) {
+        Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+        CreditUsage created = new CreditUsage();
+        created.start(userId, today, plan.getDailyCreditLimit());
+        try {
+            return creditUsageRepository.save(created);
+        } catch (DataIntegrityViolationException e) {
+            // 오늘의 첫 요청이 동시에 둘 이상 들어와 각자 새 행을 만들려다 유니크 제약(user_id, usage_date)에
+            // 걸린 경우 — 먼저 커밋된 쪽 행을 락 조회로 다시 가져와 그 위에서 계속 진행
+            return creditUsageRepository.findByUserIdAndUsageDateForUpdate(userId, today)
+                    .orElseThrow(() -> e);
+        }
+    }
+
+    @Override
+    public CreditUsageResponseDTO getStatus(Long userId) {
+        LocalDate today = LocalDate.now(KST);
+        return creditUsageRepository.findByUserIdAndUsageDate(userId, today)
+                .map(usage -> CreditUsageResponseDTO.of(usage.getUsedCredits(), usage.getDailyLimit()))
+                .orElseGet(() -> {
+                    Plan plan = subscriptionService.getCurrentPlanEntity(userId);
+                    return CreditUsageResponseDTO.of(0, plan.getDailyCreditLimit());
+                });
+    }
+
+    // FREE 목록에 있으면 1, 아니면 PRO 목록(FREE 포함 누적)에 있으면 2, 아니면 MAX 목록에 있으면 3
+    private int resolveModelWeight(String modelName) {
+        if (planAllowsModel("FREE", modelName)) {
+            return FREE_MODEL_WEIGHT;
+        }
+        if (planAllowsModel("PRO", modelName)) {
+            return PRO_MODEL_WEIGHT;
+        }
+        if (planAllowsModel("MAX", modelName)) {
+            return MAX_MODEL_WEIGHT;
+        }
+        throw new BusinessException(ErrorCode.MODEL_NOT_ALLOWED_FOR_PLAN);
+    }
+
+    private boolean planAllowsModel(String planName, String modelName) {
+        return planRepository.findByName(planName)
+                .map(Plan::getAllowedModels)
+                .map(allowedModels -> Arrays.stream(allowedModels.split(",")).map(String::trim).toList())
+                .orElse(List.of())
+                .contains(modelName);
+    }
+
+}

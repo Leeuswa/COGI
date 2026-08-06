@@ -1,0 +1,85 @@
+/* 모바일 주간 리포트 — 한 줄 요약 + 팝업을 카드 아코디언으로 */
+@media (max-width: 640px) {
+  .mrp { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  /* 직계 자식만 — 펼친 상세 안의 추천 목록(li)까지 카드 테두리를 뒤집어쓰면 안 된다 */
+  .mrp > li {
+    background: var(--white); border: 2px solid var(--navy);
+    border-radius: 14px; overflow: hidden;
+  }
+  .mrp > li.on { border-color: var(--coral); }
+
+  /* 접힌 줄 */
+  .mrp-row {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    padding: 13px 14px; background: none; border: none; cursor: pointer;
+    font: inherit; text-align: left; color: var(--navy);
+  }
+  .mrp-row:active { background: #f6f9ff; }
+  .mrp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  /* Silkscreen은 '~'가 위로 붕 떠서 기간이 깨져 보인다. 본문 mono로 쓴다 */
+  .mrp-main b { font-family: 'GalmuriMono11', monospace; font-size: 13px; color: var(--navy); }
+  .mrp-main i { font-style: normal; font-size: 11.5px; color: var(--sub); }
+  .mrp-cat {
+    flex-shrink: 0; font-size: 11px; color: var(--white); background: var(--navy);
+    padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .mrp-caret { flex-shrink: 0; font-size: 10px; color: #b6c0d8; }
+
+  /* 펼친 상세 */
+  .mrp-detail { padding: 0 14px 14px; border-top: 2px solid #eef2fa; }
+  .mrp-summary { font-size: 13px; line-height: 1.9; color: var(--navy); padding: 12px 0; }
+  .mrp-h { font-size: 13px; font-weight: 700; color: var(--navy); margin: 16px 0 9px; }
+
+  /* 수치 2칸 — 최다 카테고리는 접힌 줄에 이미 있어 뺐다 */
+  .mrp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mrp-stats > div {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    background: #f6f9ff; border-radius: 12px; padding: 11px 8px;
+  }
+  .mrp-stats i { font-style: normal; font-size: 11px; color: var(--sub); }
+  .mrp-stats b { font-family: 'GalmuriMono11', monospace; font-size: 23px; line-height: 1.25; color: var(--navy); }
+  .mrp-stats b.ok { color: var(--mint); }
+  .mrp-stats em { font-style: normal; font-size: 10.5px; color: var(--sub); text-align: center; }
+  .mrp-stats em.ok { color: var(--mint); }
+  .mrp-stats em.no { color: var(--coral); }
+
+  /* 카테고리 분포 — 이름·막대·수를 한 줄에 */
+  .mrp-cats { display: flex; flex-direction: column; gap: 8px; }
+  .mrp-catrow { display: flex; align-items: center; gap: 9px; }
+  .mrp-catrow > span { flex-shrink: 0; width: 68px; font-size: 11.5px; color: var(--navy); }
+  .mrp-catrow > i { flex: 1; min-width: 0; height: 10px; background: #eef2fa; border-radius: 999px; overflow: hidden; }
+  .mrp-catrow > i em { display: block; height: 100%; background: var(--coral); }
+  .mrp-catrow > b { flex-shrink: 0; font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--navy); }
+
+  .mrp-detail .mnote b { color: var(--navy); }
+  .mrp-detail .mnote b.hot { color: var(--coral); }
+
+  .mrp-actions { list-style: none; counter-reset: a; display: flex; flex-direction: column; gap: 8px; }
+  .mrp-actions li {
+    counter-increment: a; position: relative; padding-left: 24px;
+    font-size: 12.5px; line-height: 1.85; color: var(--navy);
+  }
+  .mrp-actions li::before {
+    content: counter(a); position: absolute; left: 0; top: 2px;
+    width: 17px; height: 17px; display: flex; align-items: center; justify-content: center;
+    font-family: 'Silkscreen', monospace; font-size: 10px;
+    background: var(--yellow); border: 2px solid var(--navy); border-radius: 50%;
+  }
+
+  .mrp-mail {
+    margin-top: 16px; font-size: 12px; line-height: 1.8; color: var(--navy);
+    background: #ffd23f; border: 2px solid var(--navy); border-radius: 10px; padding: 10px 12px;
+  }
+}
+
+/* 이슈 드릴다운 (발생/해결 탭 시 펼침) */
+.mrp-stat { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; background: none; border: none; padding: 0; font: inherit; text-align: left; cursor: pointer; flex: 1; }
+.mrp-drill { margin-top: 12px; border-top: 2px dashed #d9e4f5; padding-top: 12px; }
+.mrp-drill-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mrp-drill-x { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--sub); }
+.mrp-drill-repo { width: 100%; padding: 8px 10px; border: 2px solid var(--navy); background: #fff; font: inherit; font-size: 13px; margin-bottom: 10px; }
+.mrp-idrow { border: 2px solid var(--navy); background: #fdfcf7; padding: 9px 11px; margin-bottom: 8px; }
+.mrp-idtop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mrp-idloc { font-size: 11.5px; color: var(--sub); }
+.mrp-idfile { font-family: 'GalmuriMono11', monospace; font-size: 11.5px; color: var(--sub); margin-top: 5px; word-break: break-all; overflow-wrap: anywhere; }
+.mrp-iddesc { font-size: 12.5px; line-height: 1.7; color: var(--sub); margin-top: 6px; }

@@ -1,0 +1,37 @@
+/* 모바일 학습카드 목록 — 2열 격자를 한 줄 리스트로 */
+@media (max-width: 640px) {
+  /* 필터가 5개라 글자를 조금 줄인다 */
+  /* .mapp를 붙여 특이도를 올린다 — 공통 .mseg(4칸)가 파일 순서에 따라 이기면 5번째가 줄바꿈된다 */
+  .mapp .mc-seg { grid-template-columns: repeat(5, 1fr); }
+  .mc-seg button { font-size: 11.5px; padding: 10px 0; }
+
+  .mcards { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .mcards li a {
+    display: block; background: var(--white); border: 2px solid var(--navy);
+    border-radius: 14px; padding: 13px 14px; color: var(--navy);
+  }
+  .mcards li a:active { background: #f6f9ff; }
+
+  .mc-top { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+
+  /* 신호등 등급 — 색 알약으로 */
+  .mc-light {
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+    color: var(--white); background: var(--sub);
+  }
+  .mc-light.red { background: var(--coral); }
+  .mc-light.yellow { background: var(--yellow); color: var(--navy); }
+  .mc-light.green { background: var(--mint); }
+
+  .mc-bm { font-size: 14px; color: var(--coral); }
+  .mc-done { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: #eef2fa; color: var(--sub); }
+  .mc-go { margin-left: auto; font-size: 20px; color: #b6c0d8; line-height: 1; }
+
+  .mc-title { display: block; font-size: 15px; line-height: 1.45; }
+  .mc-meta { display: flex; gap: 6px; margin-top: 5px; font-size: 12px; color: var(--sub); flex-wrap: wrap; }
+  .mc-meta .dot { color: #c3cbdd; }
+
+  /* 승급 진행 막대 — 목록에서도 얼마나 왔는지 보이게 */
+  .mc-bar { height: 6px; background: #eef2fa; border-radius: 999px; margin-top: 10px; overflow: hidden; }
+  .mc-bar i { display: block; height: 100%; background: var(--mint); }
+}

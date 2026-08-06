@@ -1,0 +1,79 @@
+/* 모바일 AI 스킬 추천 — AI 선택을 2×2로, 카드는 세로로 */
+@media (max-width: 640px) {
+  /* 큰 갈래 3칸. .mapp를 붙여 공통 .mseg(4칸)보다 특이도를 올린다 */
+  .mapp .msk-seg { grid-template-columns: repeat(3, 1fr); }
+
+  .msk-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .msk-tabs button {
+    padding: 12px 0; font: inherit; font-size: 13px; color: var(--navy);
+    background: var(--white); border: 2px solid var(--navy); border-radius: 12px; cursor: pointer;
+  }
+  .msk-tabs button.on { background: var(--yellow); font-weight: 700; }
+
+  .msk { display: flex; flex-direction: column; gap: 9px; }
+  .msk-head { display: flex; align-items: flex-start; gap: 10px; }
+  .msk-head b { flex: 1; min-width: 0; font-size: 15px; line-height: 1.4; }
+  .msk-star {
+    flex-shrink: 0; background: none; border: none; cursor: pointer;
+    font-size: 26px; line-height: 1; color: #b6c0d8; padding: 0 2px;
+  }
+  .msk-star.on { color: var(--coral); }
+
+  .msk-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .msk-cat, .msk-mine {
+    font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+    background: var(--navy); color: var(--white);
+  }
+  .msk-mine { background: var(--coral); }
+
+  .msk-desc { font-size: 13px; line-height: 1.8; color: var(--navy); }
+
+  /* 실제 쓰는 법 — 본문과 구분되게 왼쪽 선 */
+  .msk-how { border-left: 5px solid var(--mint); background: #f6f4ec; padding: 10px 12px; border-radius: 0 8px 8px 0; }
+  .msk-how b { font-size: 11.5px; color: var(--navy); }
+  .msk-how p { font-size: 12.5px; line-height: 1.8; color: var(--sub); margin-top: 4px; }
+
+  .msk-doc { font-size: 12.5px; color: var(--coral); border-bottom: 2px solid var(--coral); align-self: flex-start; }
+
+  /* 약점 화면에서 카테고리를 달고 넘어왔을 때 상단 안내줄 */
+  .msk-filter {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 14px; margin-bottom: 12px;
+    background: var(--white); border: 2px solid var(--navy); border-radius: 12px;
+  }
+  .msk-filter p { font-size: 13px; font-weight: 700; color: var(--navy); word-break: keep-all; }
+
+  /* 이 화면에서 제일 강한 행동 — 맨 위 한 줄 전체 */
+  .msk-byweak { margin-bottom: 12px; }
+
+  /* 약점 기준 추천 결과 — AI 네 곳이 한 카드 안에 쌓인다 */
+  .msk-rec { display: flex; flex-direction: column; gap: 8px; }
+  /* 배지와 별을 한 줄에 — 별은 오른쪽 끝 */
+  .msk-rec-item > .msk-head { align-self: stretch; justify-content: space-between; align-items: center; }
+  .msk-rec-item {
+    display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+    padding: 13px 14px; margin-top: 10px;
+    background: #fdfcf7; border: 2px solid var(--navy); border-radius: 12px;
+  }
+  .msk-rec-title { font-size: 14px; line-height: 1.5; color: var(--navy); word-break: keep-all; }
+  .msk-rec-item .msk-how { align-self: stretch; }
+  /* 붙여넣을 내용이라 줄바꿈은 살리되 폭을 넘기면 접는다. 옆으로 밀리면 오른쪽이 잘린 줄도 모른다 */
+  .msk-rec-prompt {
+    align-self: stretch; padding: 11px 12px; border-radius: 10px;
+    font-family: 'GalmuriMono11', monospace; font-size: 11.5px; line-height: 1.85;
+    background: var(--navy); color: var(--sky);
+    white-space: pre-wrap; overflow-wrap: anywhere; /* 여긴 명령어·경로라 어디서 끊어도 된다 */
+  }
+
+  /* AI에게 직접 추천받기 — 자유 입력 박스 (LRN-005 보강) */
+  .msk-ask { display: flex; flex-direction: column; gap: 10px; }
+  .msk-ask textarea {
+    width: 100%; padding: 11px 12px; resize: vertical;
+    font: inherit; font-size: 13px; line-height: 1.8; color: var(--navy);
+    border: 2px solid var(--navy); border-radius: 10px;
+  }
+  .msk-ask-result {
+    padding: 12px 14px; border-left: 5px solid var(--mint); background: #f6f4ec;
+    border-radius: 0 8px 8px 0; font-size: 12.5px; line-height: 1.9; color: var(--navy); white-space: pre-wrap;
+  }
+}

@@ -1,0 +1,18 @@
+/* 모바일 약점 통계 — 한 줄에 다 넣지 않고 위아래로 나눈다 */
+@media (max-width: 640px) {
+  .mw-card { display: flex; flex-direction: column; gap: 12px; }
+  .mw-top { display: flex; align-items: center; gap: 12px; }
+
+  /* 반복 횟수가 이 화면의 핵심 숫자다 */
+  .mw-count { flex-shrink: 0; width: 52px; display: flex; align-items: baseline; justify-content: center; gap: 1px; }
+  .mw-count b { font-family: 'Silkscreen', monospace; font-size: 30px; line-height: 1; color: var(--coral); }
+  .mw-count i { font-style: normal; font-size: 12px; color: var(--sub); }
+
+  .mw-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .mw-body b { font-size: 16px; color: var(--navy); }
+  .mw-body i { font-style: normal; font-size: 12px; color: var(--sub); }
+
+  .mw-second { margin-top: 8px; }
+  .mw-foot { text-align: center; padding: 4px 2px; }
+  .mw-foot a { color: var(--coral); border-bottom: 2px solid var(--coral); }
+}

@@ -1,0 +1,85 @@
+package idu.sba.backend.domain.learning.service;
+
+import idu.sba.backend.domain.learning.dto.AiSkillResponseDTO;
+import idu.sba.backend.domain.learning.dto.CardHistoryResponseDTO;
+import idu.sba.backend.domain.learning.dto.CourseRecommendationResponseDTO;
+import idu.sba.backend.domain.learning.dto.LearningCardCreateRequestDTO;
+import idu.sba.backend.domain.learning.dto.LearningCardResponseDTO;
+import idu.sba.backend.domain.learning.dto.PlanDateResponseDTO;
+import idu.sba.backend.domain.learning.dto.QuizResponseDTO;
+import idu.sba.backend.domain.learning.dto.QuizSubmissionResponseDTO;
+import idu.sba.backend.domain.learning.dto.QuizSubmitResultDTO;
+import idu.sba.backend.domain.learning.dto.SkillByWeaknessResponseDTO;
+import idu.sba.backend.domain.learning.dto.SkillRecommendRequestDTO;
+import idu.sba.backend.domain.learning.dto.SkillByWeaknessResponseDTO;
+import idu.sba.backend.domain.learning.dto.WeaknessStatResponseDTO;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public interface LearningService {
+
+    // 약점 패턴 통계 조회 — 데이터 없으면 빈 목록(콜드스타트)
+    List<WeaknessStatResponseDTO> getWeaknessStats(Long userId);
+
+    // 약점별 강의 추천 — 약점 통계를 인프런/Udemy 검색 딥링크로 변환
+    List<CourseRecommendationResponseDTO> getCourseRecommendations(Long userId);
+
+    // 학습카드 생성 (API-043) — AI 호출 + 크레딧 소모
+    LearningCardResponseDTO createCard(Long userId, LearningCardCreateRequestDTO request);
+
+    // 보관함 목록
+    List<LearningCardResponseDTO> getCards(Long userId);
+
+    // 학습카드 상세 (API-044)
+    LearningCardResponseDTO getCard(Long userId, Long cardId);
+
+    // 북마크 토글 (API-044-1)
+    void toggleBookmark(Long userId, Long cardId, boolean bookmarked);
+
+    // 완료 체크 토글 (API-044-2)
+    void toggleComplete(Long userId, Long cardId, boolean completed);
+
+    // 퀴즈 생성 (API-045) — AI 호출 + 크레딧 소모. modelName은 사용자가 고른 모델(없으면 카드 모델)
+    QuizResponseDTO createQuiz(Long userId, Long cardId, String questionType, String modelName);
+
+    // 학습 계획 생성 (AI 호출 + 크레딧 소모). days는 3·5·7·14 중 하나이고 그 기간만큼만 짠다.
+    // 다시 만들면 이전 계획을 덮어쓴다
+    LearningCardResponseDTO createStudyPlan(Long userId, Long cardId, int days);
+
+    // 짜 둔 계획을 달력에 등록 — 오늘을 기준일로 잡는다. 이때부터 달력·알림에 뜬다
+    LearningCardResponseDTO registerStudyPlan(Long userId, Long cardId);
+
+    // 등록된 계획의 단계를 날짜로 펼쳐서 준다(구간 필터). 대시보드 달력이 쓴다
+    List<PlanDateResponseDTO> getPlanDates(Long userId, LocalDate from, LocalDate to);
+
+    // 오늘 할 단계가 있으면 알림을 만든다(같은 단계는 하루 한 번). 만들었든 아니든 오늘 단계를 돌려준다
+    List<PlanDateResponseDTO> ensureTodayPlanNotifications(Long userId);
+
+    // AI별 추천 스킬 목록 (LRN-005) — 큐레이션 데이터라 AI 호출도 크레딧도 없다
+    List<AiSkillResponseDTO> getAiSkills(Long userId, String provider);
+
+    // 내가 즐겨찾기한 스킬 전체 — provider 안 가리고 전부. AI 호출도 크레딧도 없다
+    List<AiSkillResponseDTO> getFavoriteSkills(Long userId);
+
+    // 스킬 즐겨찾기 토글 — 켜져 있으면 끄고, 꺼져 있으면 켠다
+    void toggleSkillFavorite(Long userId, Long skillId);
+
+    // AI 스킬 추천 (API-049) — 약점/요구사항을 넣으면 AI 호출 + 크레딧 소모로 추천 텍스트를 만든다
+    SkillByWeaknessResponseDTO recommendSkill(Long userId, SkillRecommendRequestDTO request);
+
+    // 약점 기반 AI별 스킬 추천 (신규) — 입력 없이 내 약점 통계로 도구별 추천 4건을 만든다. 고정 크레딧 2
+    SkillByWeaknessResponseDTO recommendSkillByWeakness(Long userId);
+
+    // 마지막 약점 기반 추천 다시 꺼내기 — 화면을 나갔다 와도 남게. 크레딧도 AI 호출도 없다. 없으면 null
+    SkillByWeaknessResponseDTO getLatestSkillRecommendation(Long userId, String kind);
+
+    // 퀴즈 제출·채점 (API-046) — 정답이면 신호등 승급
+    QuizSubmitResultDTO submitQuiz(Long userId, Long cardId, Long quizId, String answer);
+
+    // 승급 히스토리 (API-047) — quiz_submissions에서 유도
+    List<CardHistoryResponseDTO> getHistory(Long userId, Long cardId);
+
+    // 지난 문제 보기 — 내가 푼 문제 + 내 답 + 정답 + 해설 (최근순)
+    List<QuizSubmissionResponseDTO> getSubmissions(Long userId, Long cardId);
+}

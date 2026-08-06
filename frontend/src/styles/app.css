@@ -1,0 +1,1228 @@
+/* 로그인 후 앱 내부 화면 공통 — 앱쉘/패널/폼/테이블/탭/칩/유틸/배너 */
+/* ============================================================
+   여기부터 앱 내부 화면용 추가분 (원본 HTML엔 없던 것)
+   ============================================================ */
+
+/* 앱 쉘: 로그인 후 공통 레이아웃. 상단 GNB + 본문 */
+.app-main { max-width: 1080px; margin: 0 auto; padding: 26px 22px 70px; }
+.page-head { margin-bottom: 22px; }
+/* lead 문구의 \n 은 "여기서 끊어 읽으라"는 뜻이라 그대로 살린다.
+   랜딩에서 물려받은 max-width:32em이 그보다 먼저 끊어버려서 문장 한가운데가 접혔다.
+   끊는 자리는 문구가 정하니 폭 제한은 푼다 */
+.page-head .sec-lead { margin-bottom: 0; white-space: pre-line; max-width: none; }
+
+/* 픽셀 패널 (범용 흰 박스) */
+.panel {
+  background: var(--white); border: 3px solid var(--navy);
+  box-shadow: 6px 6px 0 var(--navy); padding: 24px;
+}
+.panel + .panel, .panel-grid + .panel, .filter-bar + .panel { margin-top: 22px; }
+.panel-grid { margin-bottom: 22px; }
+.panel h3 { font-size: 16px; margin-bottom: 16px; }
+.panel h3:not(:first-child) { margin-top: 26px; }
+.panel-grid { display: grid; gap: 22px; }
+.panel-grid.c2 { grid-template-columns: 1fr 1fr; }
+.panel-grid.c3 { grid-template-columns: repeat(3, 1fr); }
+
+/* 폼 */
+.form { display: flex; flex-direction: column; gap: 18px; }
+.form > .btn { margin-top: 6px; align-self: flex-start; }
+.auth-card .form > .btn { align-self: stretch; }
+.form label { font-size: 13.5px; color: var(--sub); display: block; margin-bottom: 8px; }
+.form label.check-row { display: flex; margin-bottom: 0; color: var(--navy); font-size: 13px; }
+.form input[type="text"], .form input[type="email"], .form input[type="password"],
+.form input[type="number"], .form select, .form textarea {
+  width: 100%; padding: 12px 13px; font-size: 14px;
+  border: 3px solid var(--navy); background: #fff; color: var(--navy);
+}
+.form textarea { min-height: 130px; font-family: 'GalmuriMono11', monospace; line-height: 1.7; resize: vertical; }
+.form input:focus, .form select:focus, .form textarea:focus { outline: 3px solid var(--yellow); outline-offset: 0; }
+/* 소셜(카카오/GitHub) 제공 정보처럼 못 건드리는 필드 — 종이 눌린 느낌으로 죽여둔다 */
+.form input:disabled { background: #f3eee3; color: var(--sub); border-style: dashed; cursor: not-allowed; }
+.form .err { color: var(--coral); font-size: 12px; font-family: 'GalmuriMono11', monospace; }
+.form .ok { color: var(--mint); font-size: 12px; font-family: 'GalmuriMono11', monospace; }
+.check-row { display: flex; align-items: center; gap: 13px; cursor: pointer; font-size: 13px; line-height: 1.6; }
+.check-row input { width: 17px; height: 17px; flex-shrink: 0; accent-color: var(--coral); }
+
+/* 인증 카드 (로그인/가입) */
+.auth-wrap { min-height: calc(100dvh - 120px); display: grid; place-items: center; padding: 48px 20px; }
+.auth-card {
+  width: min(430px, 100%); background: var(--white);
+  border: 3px solid var(--navy); box-shadow: 8px 8px 0 var(--navy); padding: 34px 30px;
+}
+.auth-card h2 { font-size: 22px; margin-bottom: 8px; }
+.auth-card .desc { font-size: 12.5px; color: var(--sub); line-height: 1.8; margin-bottom: 24px; }
+.auth-card .sns { display: flex; flex-direction: column; gap: 11px; margin-bottom: 20px; }
+.sns-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 12px; font-size: 13.5px;
+  border: 3px solid var(--navy); box-shadow: 4px 4px 0 var(--navy);
+}
+.sns-btn { transition: transform .08s, box-shadow .08s; }
+.sns-btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--navy); }
+.sns-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--navy); }
+.sns-btn.github { background: var(--navy); color: var(--white); }
+.sns-btn.kakao { background: #fee500; color: #191600; }
+.sns-btn.email { background: var(--white); }
+.divider {
+  display: flex; align-items: center; gap: 12px; margin: 20px 0;
+  color: var(--sub); font-size: 12px; font-family: 'Silkscreen', monospace;
+}
+.divider::before, .divider::after { content: ""; flex: 1; border-top: 2px dotted var(--sub); }
+.auth-foot { margin-top: 20px; text-align: center; font-size: 12.5px; color: var(--sub); }
+.auth-foot a { color: var(--coral); border-bottom: 2px solid var(--coral); }
+
+/* 테이블 (PR 목록, 관리자 등) */
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th {
+  font-size: 13.5px; font-weight: 700; letter-spacing: 0;
+  text-align: left; color: var(--white); background: var(--navy); padding: 11px 13px;
+}
+.tbl td { padding: 12px 13px; border-bottom: 2px solid var(--sky2); vertical-align: middle; font-size: 14px; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #fffbe8; }
+.tbl .mono { font-family: 'GalmuriMono11', monospace; }
+
+/* ── 팀 ── */
+/* 제목·안내와 [+ 새 팀 만들기]를 한 줄에. 버튼이 아래 줄을 차지하면 목록이 그만큼 밀린다 */
+/* 버튼은 안내 문구 마지막 줄 오른쪽 끝에 — 위로 붙이면 제목과 나란해져 딴 줄처럼 보인다 */
+.tm-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 18px; }
+.tm-top .page-head { flex: 1; min-width: 0; margin-bottom: 0; }
+.tm-top .btn { flex-shrink: 0; }
+/* 액션 열이 왼쪽에 붙어 행마다 버튼 위치가 달라 보였다. 오른쪽으로 모은다 */
+.tm-acts { gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+.tm-me { margin-left: 7px; }
+
+/* 상태/카테고리 칩 */
+.chip {
+  display: inline-block; font-weight: 700; font-size: 12.5px;
+  padding: 4px 10px; letter-spacing: 0; line-height: 1.5; color: var(--white); background: var(--sub);
+  border: 2px solid var(--navy); white-space: nowrap; /* 좁은 테이블 셀에서 "검토 완료"처럼 공백 있는 라벨이 줄바꿈되던 문제 */
+}
+.chip.hi { background: var(--coral); }
+.chip.mid { background: #c9862e; }
+.chip.low { background: var(--mint); }
+.chip.navy { background: var(--navy); }
+.chip.gray { background: #8b96b5; }
+.chip.sm { font-size: 11px; padding: 2px 7px; }
+
+/* 약관 탭 동의/재동의 버튼 — 표 셀 안에서 콤팩트하게 (기본 .btn.sm 은 셀에 비해 큼) */
+.term-btn.btn.sm { padding: 5px 11px; min-width: 0; font-size: 11.5px; box-shadow: 2px 2px 0 var(--navy); }
+.term-btn.btn.sm:hover:not(:disabled) { box-shadow: 3px 3px 0 var(--navy); transform: translate(-1px, -1px); }
+.term-btn.btn.sm:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--navy); }
+
+/* FAQ 아코디언 (마이페이지 FAQ 탭) — 각 항목을 카드로 띄워 여백 확보 */
+.faq-list { display: flex; flex-direction: column; gap: 14px; }
+.faq-item { border: 3px solid var(--navy); background: #fdfcf7; box-shadow: 4px 4px 0 var(--navy); }
+.faq-item.open { box-shadow: 6px 6px 0 var(--navy); }
+.faq-q { display: flex; align-items: center; gap: 12px; width: 100%; padding: 20px 22px;
+  background: none; border: none; cursor: pointer; text-align: left; font: inherit; }
+.faq-q:hover { background: #fbf6ea; }
+.faq-item.open .faq-q { background: #fbf6ea; border-bottom: 2px solid var(--navy); }
+.faq-q-text { flex: 1; font-size: 15px; font-weight: 700; color: var(--navy); }
+.faq-caret { font-size: 24px; font-weight: 700; color: var(--coral); line-height: 1; }
+.faq-a { padding: 18px 22px; font-size: 14px; line-height: 2; color: var(--sub); white-space: pre-wrap; }
+
+/* 푸터 FAQ 링크 */
+.ft-link { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.ft-link:hover { color: var(--coral); }
+
+/* 신호등 등급 (학습카드) — 이슈 심각도 색과 헷갈리지 않게 아이콘+라벨을 항상 같이 씀 */
+.light { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+.light i { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--navy); display: inline-block; }
+.light.red i { background: var(--coral); }
+.light.yellow i { background: var(--yellow); }
+.light.green i { background: var(--mint); }
+
+/* 필터 바 */
+.filter-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+.filter-bar select, .filter-bar input {
+  padding: 9px 11px; font-size: 12.5px; border: 3px solid var(--navy); background: var(--white);
+}
+
+/* 픽셀 막대그래프 (성장 추이) — 차트 라이브러리 대신 도트 감성으로 직접 그림 */
+.pix-chart { display: flex; align-items: flex-end; gap: 14px; height: 220px; padding: 12px 6px 0; }
+.pix-chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end; }
+.pix-chart .bar-stack { display: flex; flex-direction: column-reverse; gap: 3px; }
+.pix-chart .cell { width: 26px; height: 12px; background: var(--coral); border: 2px solid var(--navy); }
+.pix-chart .cell.ok { background: var(--mint); }
+.pix-chart .xlab { font-family: 'GalmuriMono11', monospace; font-size: 12px; color: var(--sub); }
+.pix-chart .pix-cnt { font-family: 'Silkscreen', monospace; font-size: 13px; color: var(--coral); }
+
+/* streak 달력 점 */
+.streak-dots { display: flex; gap: 7px; flex-wrap: wrap; }
+.streak-dots i { width: 15px; height: 15px; border: 2px solid var(--navy); background: #fff; display: inline-block; }
+.streak-dots i.hit { background: var(--mint); }
+
+/* 크레딧 게이지 */
+.credit-bar { height: 15px; border: 3px solid var(--navy); background: #fff; }
+.credit-bar i { display: block; height: 100%; background: var(--yellow); transition: width .3s steps(8); }
+.credit-bar.warn i { background: var(--coral); }
+
+/* 토스트 (우하단 알림) */
+.toast {
+  position: fixed; right: 22px; bottom: 22px; z-index: 200;
+  background: var(--navy); color: var(--white);
+  border: 3px solid var(--navy); box-shadow: 5px 5px 0 rgba(27, 42, 74, .35);
+  padding: 13px 18px; font-size: 13px; max-width: 320px; line-height: 1.7;
+}
+.toast b { color: var(--yellow); }
+
+/* 코드 프리뷰 블록 */
+.codebox {
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; line-height: 1.9;
+  background: var(--navy); color: var(--sky); padding: 16px 18px; overflow-x: auto;
+  border: 3px solid var(--navy); white-space: pre;
+}
+.codebox .hl-line { background: rgba(255, 107, 87, .28); display: block; }
+
+/* 탭 (관리자/마이페이지) */
+.tabs { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+.tabs button {
+  line-height: 1.4;
+  padding: 9px 16px; font-size: 12.5px; background: var(--white);
+  border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy);
+}
+.tabs button:hover { background: var(--sky); }
+.tabs button.on { background: var(--yellow); transform: translate(3px, 3px); box-shadow: 0 0 0 var(--navy); }
+.tabs button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--navy); }
+
+/* 보조 텍스트 3단 스케일 (13/12/11) — 페이지 인라인 스타일 대체 */
+.note { font-size: 13px; color: var(--sub); }
+.note.sm { font-size: 12px; }
+.note.xs { font-size: 12px; }
+.ml-auto { margin-left: auto; }
+.mt18 { margin-top: 18px; }
+.tc { text-align: center; }
+.xs { font-size: 12px; }
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.link-line { color: var(--coral); border-bottom: 2px solid var(--coral); }
+.panel.flush { padding: 0; overflow: auto; }
+
+/* 약관 재동의 배너 (FR-91) — 앱 상단 고정 경고 바 */
+.reagree-banner {
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  padding: 10px 16px; font-size: 13px;
+  background: var(--yellow); border-bottom: 3px solid var(--navy);
+}
+
+/* 빈 상태 (콜드 스타트) */
+.empty {
+  text-align: center; padding: 54px 20px; color: var(--sub); line-height: 2;
+  border: 3px dashed var(--sub); background: rgba(253, 252, 247, .6);
+}
+.empty img { height: 66px; margin-bottom: 14px; }
+
+/* 관심기술 선택 칩 */
+.pick-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.pick {
+  padding: 9px 15px; font-size: 13px; background: #fff;
+  border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy);
+}
+.pick:hover { background: var(--sky); }
+.pick.on { background: var(--mint); color: var(--white); }
+.pick.on:hover { background: var(--mint); }
+/* 제출 후: 내가 고른 오답 표시 (정답은 .pick.on 초록으로 표시됨) */
+.pick.miss { background: var(--coral); color: var(--white); }
+.pick.miss:hover { background: var(--coral); }
+
+/* 퀴즈 해설 박스 — 정답이어도 항상 보여주는 학습 포인트 */
+.explain-box {
+  margin-top: 10px; padding: 11px 13px; font-size: 13px; line-height: 1.85;
+  background: #fff8dd; border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy);
+}
+
+/* 정답 칩 (오답은 .chip.hi 코랄) */
+.chip.ok-chip { background: var(--mint); }
+
+/* 지난 문제 한 건 */
+.q-log { border: 3px solid var(--navy); background: #fff; padding: 13px 15px; margin-top: 12px; box-shadow: 3px 3px 0 var(--navy); }
+.q-log .q { font-size: 13.5px; line-height: 1.8; margin-bottom: 8px; }
+.q-log .a { font-size: 12.5px; font-family: 'GalmuriMono11', monospace; line-height: 1.7; }
+.q-log .a.expl { margin-top: 6px; color: var(--sub); }
+
+/* 캘린더 학습 일정 한 줄 */
+.sched-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 3px solid var(--navy); background: #fff; padding: 10px 13px; margin-top: 10px; }
+.sched-row .d { font-family: 'Silkscreen', monospace; font-size: 12px; background: var(--yellow); border: 2px solid var(--navy); padding: 2px 7px; }
+
+/* ───── 대화형 리뷰 (채팅) ───── */
+.chat-panel { display: flex; flex-direction: column; height: 720px; }
+/* 전체보기 — 모양(테두리·말풍선·입력창)은 그대로 두고 화면만 넓힌다 */
+.chat-head { display: flex; justify-content: flex-end; padding: 7px 10px; border-bottom: 3px solid var(--navy); background: #fffbe8; }
+.chat-full-btn {
+  font: inherit; font-size: 12px; font-weight: 700; padding: 5px 11px; cursor: pointer;
+  background: #fff; color: var(--navy); border: 2px solid var(--navy);
+}
+.chat-full-btn:hover { background: var(--yellow); }
+.chat-panel.full {
+  position: fixed; inset: 0; z-index: 80; height: auto; margin: 0;
+  border-radius: 0; box-shadow: none;
+}
+
+/* 후속 답변은 마크다운이라 코드펜스·제목·굵게가 섞여 온다 */
+.chat-bubble .q-text { white-space: pre-line; margin: 0; }
+.chat-bubble .q-text + .codebox, .chat-bubble .codebox + .q-text { margin-top: 10px; }
+.chat-bubble .codebox { font-size: 12px; padding: 11px 13px; max-height: 320px; overflow: auto; }
+.chat-bubble .md-h { display: block; margin: 12px 0 4px; font-size: 14px; color: var(--navy); }
+.chat-bubble .q-text:first-child .md-h:first-child { margin-top: 0; }
+.chat-thread { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+/* 이름 주의: 랜딩페이지 다마고치 말풍선(.bubble, landing.css)과 클래스명이 겹치면 opacity:0이 그대로
+   상속돼서 안 보이게 된다 — 그래서 채팅 말풍선은 반드시 .chat-bubble로 구분해서 쓴다 */
+.chat-bubble { max-width: 78%; padding: 12px 16px; border: 3px solid var(--navy); font-size: 13.5px; line-height: 1.85; }
+.chat-bubble.me { align-self: flex-end; background: var(--yellow); box-shadow: 4px 4px 0 var(--navy); }
+.chat-bubble.cogi { align-self: flex-start; background: #fff; box-shadow: -4px 4px 0 var(--navy); }
+.chat-bubble pre { font-family: 'GalmuriMono11', monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 180px; overflow-y: auto; }
+.chat-bubble.typing i { animation: blink 1.2s infinite; }
+.chat-bubble.typing i:nth-child(2) { animation-delay: .2s; }
+.chat-bubble.typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+.chat-input { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-top: 3px solid var(--navy); background: #fffbe8; }
+.chat-input textarea { width: 100%; resize: none; padding: 12px 14px; border: 3px solid var(--navy); font-size: 13px; line-height: 1.7; font-family: 'GalmuriMono11', monospace; }
+.chat-tools { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.chat-tools select { padding: 10px 10px; border: 3px solid var(--navy); background: #fff; font-size: 12.5px; }
+
+/* ───── 라이브 미리보기 ───── */
+.live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: stretch; }
+.live-code { width: 100%; height: 480px; border: none; resize: none; padding: 18px; font-family: 'GalmuriMono11', monospace; font-size: 12.5px; line-height: 1.8; background: var(--navy); color: #d8e6ff; }
+.live-code:focus { outline: 3px solid var(--yellow); outline-offset: -3px; }
+.live-right { display: flex; flex-direction: column; }
+.live-frame { flex: 1; width: 100%; min-height: 420px; border: none; background: #fff; }
+.live-ctl { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 3px solid var(--navy); background: #fffbe8; flex-wrap: wrap; }
+.live-ctl .btn.sm { min-width: 0; padding: 7px 12px; }
+
+/* ───── 연속 학습 사슬 (최근 14일) ───── */
+.streak-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.streak-head .flame { font-size: 24px; }
+.streak-head .num { font-family: 'Silkscreen', monospace; font-size: 34px; color: var(--coral); line-height: 1; }
+.streak-head .unit { font-weight: 700; font-size: 15px; margin-right: 8px; }
+.chain { display: flex; align-items: center; flex-wrap: wrap; row-gap: 18px; }
+.chain .day {
+  position: relative; width: 34px; height: 34px; flex-shrink: 0;
+  border: 3px solid #b9c6de; background: #f6f2e8;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .08s;
+}
+.chain .day:hover { transform: translateY(-3px); }
+.chain .day b { font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--sub); }
+.chain .day.hit { border-color: var(--navy); background: var(--mint); box-shadow: 3px 3px 0 var(--navy); }
+.chain .day.hit b { display: none; }
+.chain .day.hit em { font-style: normal; font-size: 16px; }
+.chain .day.today { outline: 3px solid var(--yellow); animation: today-pulse 1.6s infinite; }
+.chain .link { width: 14px; height: 6px; background: #cdd8ea; flex-shrink: 0; border-top: 2px solid rgba(27,42,74,.15); }
+.chain .link.lit { background: linear-gradient(90deg, var(--coral), #ff9d57); box-shadow: 0 2px 0 rgba(27,42,74,.35); }
+.chain .day.hit em { filter: drop-shadow(0 2px 0 rgba(27,42,74,.3)); }
+.chain .day.hit:last-of-type em, .chain .day.today.hit em { font-size: 19px; } /* 오늘 불꽃은 더 크게 */
+@keyframes today-pulse { 0%, 100% { outline-color: var(--yellow); } 50% { outline-color: transparent; } }
+
+/* ───── 성장 차트 리디자인 ───── */
+.pix-chart { border-bottom: 3px solid var(--navy); position: relative; }
+.pix-chart .col { position: relative; }
+.pix-chart .col:hover { background: #fffbe8; }
+.pix-chart .cell { width: 38px; height: 13px; }
+.pix-chart .cnt { font-family: 'Silkscreen', monospace; font-size: 12px; }
+.pix-chart .cnt.down { color: var(--mint); }
+.chart-legend { display: flex; gap: 18px; margin-top: 12px; font-size: 12px; color: var(--sub); align-items: center; }
+.chart-legend i { width: 12px; height: 12px; border: 2px solid var(--navy); display: inline-block; margin-right: 6px; vertical-align: -2px; }
+.trend-badge { font-family: 'Silkscreen', monospace; font-size: 12px; padding: 5px 10px; border: 3px solid var(--navy); background: var(--mint); color: var(--white); box-shadow: 3px 3px 0 var(--navy); }
+.stat-num { font-size: 26px; font-family: 'Silkscreen', monospace; }
+.stat-num .unit { font-family: inherit; font-size: 13px; font-weight: 700; margin-left: 3px; }
+.stat-card { display: flex; flex-direction: column; gap: 6px; align-items: center; justify-content: center; padding: 20px 12px; min-height: 118px; }
+
+/* ───── 주간 리포트 리스트 + 팝업 ───── */
+.report-row { display: flex; gap: 14px; align-items: center; width: 100%; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.report-row:hover { background: #fffbe8; }
+.report-row .note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
+.modal-mask { position: fixed; inset: 0; z-index: 90; background: rgba(27, 42, 74, .55); display: flex; align-items: center; justify-content: center; padding: 22px; }
+.modal { background: var(--white); border: 3px solid var(--navy); box-shadow: 10px 10px 0 var(--navy); max-width: 640px; width: 100%; max-height: 82vh; overflow-y: auto; padding: 28px; }
+.modal h3 { font-size: 17px; margin-bottom: 14px; }
+.modal.wide { max-width: 900px; }
+
+@media (max-width: 860px) {
+  .live-grid { grid-template-columns: 1fr; }
+  .chat-bubble { max-width: 92%; }
+}
+
+/* ───── 학습카드 보강 ───── */
+.codebox.bad { border-left: 6px solid var(--coral); }
+.codebox.good { border-left: 6px solid var(--mint); }
+.keypoints { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.keypoints li { font-size: 13.5px; line-height: 1.9; padding-left: 26px; position: relative; }
+.keypoints li::before { content: '▸'; position: absolute; left: 6px; color: var(--coral); }
+
+/* InterestPicker 탭의 선택 수 뱃지 */
+.pick-cnt { margin-left: 7px; font-size: 12px; background: var(--coral); color: var(--white); padding: 1px 6px; border: 2px solid var(--navy); }
+
+/* ───── 성장 SVG 차트 ───── */
+.gchart { width: 100%; height: auto; display: block; }
+.gchart .grid { stroke: #d9e4f5; stroke-width: 2; stroke-dasharray: 2 6; }
+.gchart .axis { stroke: var(--navy); stroke-width: 3; }
+.gchart .tick { font-family: 'Silkscreen', monospace; font-size: 12px; fill: var(--sub); }
+.gchart .seg { stroke: var(--navy); stroke-width: 3; }
+.gchart .seg.ok { fill: var(--mint); }
+.gchart .seg.no { fill: var(--coral); }
+.gchart .wk-bar:hover .seg { filter: brightness(1.08); }
+.gchart .val { font-family: 'Silkscreen', monospace; font-size: 13px; fill: var(--navy); }
+/* viewBox(720)가 실제 칸 너비로 줄면서 같이 작아진다. 좁은 칸에서 10px쯤으로 그려져 안 읽혔다 */
+.gchart .xlab2 { font-family: 'Silkscreen', monospace; font-size: 16px; fill: var(--navy); }
+.gchart .trendline { fill: none; stroke: var(--navy); stroke-width: 2.5; stroke-dasharray: 6 5; opacity: .55; }
+
+/* 리포트 카테고리 미니 바 */
+.hbar { flex: 1; height: 14px; border: 2px solid var(--navy); background: #f1ece0; }
+.hbar i { display: block; height: 100%; background: var(--coral); box-shadow: inset -3px -3px 0 rgba(0,0,0,.15); }
+
+/* ───── 리뷰 스튜디오: 도크 + 모델 잠금 ───── */
+.dock-toggle {
+  width: 100%; display: flex; gap: 14px; align-items: center;
+  padding: 13px 18px; font: inherit; font-weight: 700; font-size: 14px;
+  background: var(--yellow); border: none; border-bottom: 3px solid var(--navy); cursor: pointer;
+}
+.dock-stage { display: grid; grid-template-columns: 1fr 300px; border-bottom: 3px solid var(--navy); }
+.dock-canvas { overflow: auto; height: 380px; background: #eae4d4; padding: 16px; } /* 종이 톤 작업 배경 */
+.dock-scale { transform-origin: top left; }
+.dock-frame { width: 100%; height: 348px; background: #fff; display: block;
+  border: 3px solid var(--navy); box-shadow: 6px 6px 0 var(--navy); } /* 픽셀 프레임 — 캔버스 위에 떠 있는 느낌 */
+.dock-props { border-left: 3px solid var(--navy); background: #fffbe8; padding: 12px; overflow-y: auto; max-height: 380px; }
+.prop-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; font-size: 12px; color: var(--sub); }
+.prop-row input[type="text"], .prop-row input[type="number"], .prop-row select {
+  width: 118px; padding: 6px 8px; border: 2px solid var(--navy); font-size: 12px; background: #fff;
+}
+.prop-row input:focus, .prop-row select:focus { outline: none; box-shadow: 0 0 0 3px var(--yellow); }
+.prop-row input[type="color"] { width: 46px; height: 30px; border: 2px solid var(--navy); padding: 1px; background: #fff; cursor: pointer; }
+.nudge { display: flex; gap: 5px; }
+.nudge button { width: 28px; height: 28px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 12px; }
+.nudge button:active { background: var(--yellow); }
+.dock-code { width: 100%; height: 220px; border: none; resize: vertical; padding: 14px 18px; font-family: 'GalmuriMono11', monospace; font-size: 13px; line-height: 1.75; background: var(--navy); color: #d8e6ff; white-space: pre-wrap; word-break: break-all; }
+.dock-code:focus { outline: 3px solid var(--yellow); outline-offset: -3px; }
+
+.model-wrap { display: inline-flex; flex-direction: column; gap: 4px; }
+.model-wrap select:disabled { background: #e8e3d7; color: var(--sub); border-style: dashed; cursor: not-allowed; }
+.model-hint { font-size: 12px; color: var(--coral); }
+
+@media (max-width: 860px) { .dock-stage { grid-template-columns: 1fr; } .dock-props { border-left: none; border-top: 3px solid var(--navy); } }
+
+/* 문장 단위 줄바꿈: lead·노트에 \n 을 그대로 살린다 */
+.page-head .lead, .note { white-space: pre-line; }
+
+/* 약관 링크 (파란 밑줄, 클릭 시 팝업) */
+.term-link { color: #1a5fd0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; background: none; border: none; font: inherit; padding: 0; }
+.term-link:hover { color: var(--coral); }
+
+/* 도크 헤더 + 전체화면 */
+.dock-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f1ece0; border-bottom: 3px solid var(--navy); }
+/* 사용법 칩이 남은 폭을 차지하되, 좁으면 칩 쪽만 가로 스크롤 — 줌·전체화면은 항상 오른쪽 한 줄 고정 */
+.dock-bar .dock-help { flex: 1 1 auto; min-width: 0; overflow-x: auto; flex-wrap: nowrap; padding: 3px 1px; scrollbar-width: none; }
+.dock-bar .dock-help::-webkit-scrollbar { display: none; }
+.dock-bar > .dock-add, .dock-bar > .dock-tool, .dock-bar > .dock-full-btn { flex-shrink: 0; }
+.dock-full-btn { font: inherit; font-size: 12px; font-weight: 700; padding: 6px 12px; border: 2px solid var(--navy); background: #fff; cursor: pointer; box-shadow: 2px 2px 0 var(--navy); }
+.dock-full-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+.dock.full { position: fixed; inset: 0; z-index: 95; background: var(--white); display: flex; flex-direction: column; }
+.dock.full .dock-stage { flex: 1; border-bottom: 3px solid var(--navy); } /* 열 구성은 인라인(리사이저 조절값) */
+.dock.full .dock-stage { min-height: 0; }
+.dock.full .dock-canvas { height: 100%; }
+.dock.full .dock-scale { height: 100%; }
+.dock.full .dock-frame { height: 100%; min-height: 0; }
+.dock.full .dock-props { max-height: none; }
+.dock.full .dock-code { height: 180px; flex-shrink: 0; }
+
+/* 팀 초대 링크 박스 */
+.invite-url { flex: 1; padding: 11px 13px; border: 3px solid var(--navy); background: var(--navy); color: #d8e6ff; font-family: 'GalmuriMono11', monospace; font-size: 12px; overflow-x: auto; white-space: nowrap; }
+
+/* 해결률 상승선 — 픽셀 사각 마커 */
+.gchart .rateline polyline { fill: none; stroke: var(--mint); stroke-width: 4; }
+.gchart .rateline .dot { fill: var(--mint); stroke: var(--navy); stroke-width: 2.5; }
+.gchart .rateline .rlab { font-family: 'Silkscreen', monospace; font-size: 12px; fill: #1f8f73; }
+
+/* 도크 v2: 툴바·섹션·버튼 그룹 */
+.dock-add { padding: 7px 8px; border: 2px solid var(--navy); background: #fff; font-size: 12px; font-family: inherit; }
+.dock-tool { width: 32px; height: 32px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 14px; box-shadow: 2px 2px 0 var(--navy); }
+.dock-tool:hover { background: var(--sky); }
+.dock-tool:active { transform: translate(2px, 2px); box-shadow: none; }
+.prop-sect { border: 2px solid var(--navy); background: #fff; margin-bottom: 10px; }
+.prop-sect summary { cursor: pointer; font-weight: 700; font-size: 12.5px; padding: 8px 10px; background: var(--sky); border-bottom: 2px solid transparent; list-style: none; }
+.prop-sect summary::before { content: '▸ '; }
+.prop-sect[open] summary { border-bottom-color: var(--navy); }
+.prop-sect[open] summary::before { content: '▾ '; }
+.prop-sect .prop-row { padding: 0 10px; }
+.prop-sect .prop-row:first-of-type { margin-top: 10px; }
+.btn3 { display: flex; gap: 5px; }
+.btn3 button { width: 34px; height: 30px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 13px; }
+.btn3 button:hover { background: var(--yellow); }
+/* 지금 걸려 있는 값 — 눌린 채로 보여야 다시 눌러 풀 수 있다는 게 읽힌다 */
+.btn3 button.on { background: var(--navy); color: var(--white); }
+.btn3 button.on:hover { background: var(--navy); }
+.prop-row input[type="range"] { width: 118px; accent-color: var(--coral); }
+
+/* ── 대시보드 컴팩트 — 100% 줌에서 한 화면(≈900px)에 다 보이도록 ──
+   랜딩의 .device 원본은 그대로 두고 .dash 스코프에서만 줄인다 */
+.dash { padding-top: 18px; padding-bottom: 28px; }
+.dash .page-head { margin-bottom: 14px; }
+.dash .page-head h1, .dash .page-head h2 { font-size: 26px; }
+.dash .page-head .sec-lead, .dash .page-head .lead { font-size: 13px; line-height: 1.6; white-space: pre-line; max-width: none; }
+.dash .panel { padding: 16px 18px; }
+.dash .panel h3 { margin-bottom: 10px; }
+.dash .panel-grid { margin-bottom: 0; }
+
+/* 다마고치 축소판 */
+.dash .device { width: min(400px, 94vw); padding: 14px 16px 16px; border-radius: 20px 20px 26px 26px; }
+.dash .device .brand { margin-bottom: 8px; }
+/* 말풍선이 코기 머리에 얹혀 글자가 겹쳤다. 화면만 조금 키워 띄운다 */
+.dash .lcd { height: 196px; }
+.dash .meta-row { margin-top: 10px; }
+.dash .stats { margin-top: 9px; gap: 7px 14px; }
+.dash .pad { margin-top: 10px; gap: 8px; }
+.dash .pad button { padding: 7px 4px 6px; }
+
+/* 스트릭 사슬·헤더 축소 */
+.dash .streak-head .flame { font-size: 19px; }
+.dash .streak-head .num { font-size: 26px; }
+.dash .chain { row-gap: 10px; }
+.dash .chain .day { width: 29px; height: 29px; border-width: 2px; }
+.dash .chain .day b { font-size: 11px; }
+.dash .chain .day.hit em { font-size: 13px; }
+.dash .chain .link { width: 11px; height: 5px; }
+
+/* 약점 미니 행 축소 */
+.dash .weak-mini { padding: 6px 0; }
+.dash .weak-mini .weak-count { width: 40px; height: 40px; }
+.dash .weak-mini .weak-count b { font-size: 16px; }
+
+/* 미리보기 사용법 — 칩으로 강조 */
+.dock-help { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.dock-help i {
+  font-style: normal; font-size: 11px; line-height: 1; color: var(--sub);
+  background: #fff; border: 2px solid var(--navy); padding: 5px 8px; box-shadow: 2px 2px 0 var(--navy);
+  white-space: nowrap;
+}
+.dock-help i b { color: var(--navy); margin-right: 3px; }
+.dock-guide { font-size: 12px; line-height: 1.9; }
+.dock-guide > b { display: block; margin-bottom: 8px; font-size: 13px; }
+.dock-guide ol { padding-left: 16px; margin-bottom: 10px; }
+.dock-guide li { white-space: nowrap; }         /* 항목은 항상 한 줄 */
+.dock-guide li + li { margin-top: 6px; }
+.dock-guide li b { color: var(--navy); background: var(--sky); padding: 1px 5px; border: 1px solid var(--navy); }
+
+/* 팀 직접 초대 2열 */
+.invite-direct { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+.invite-direct input { flex: 1; padding: 10px 12px; border: 3px solid var(--navy); font-size: 13px; }
+.invite-direct label { display: block; margin-bottom: 7px; }
+@media (max-width: 860px) { .invite-direct { grid-template-columns: 1fr; } }
+
+/* 이슈에서 지적된 코드 라인 */
+.codebox.snippet { border-left: 6px solid var(--coral); margin-bottom: 12px; font-size: 12.5px; }
+
+/* 이슈 설명(AI가 백틱/코드블록을 섞어 보낼 때 구분 표시) */
+.issue-desc { line-height: 1.85; }
+.issue-desc .codebox.snippet { margin-top: 8px; }
+.inline-code {
+  font-family: 'GalmuriMono11', monospace; font-size: 12px;
+  background: #f3eee3; border: 1px solid var(--sub); padding: 1px 5px;
+}
+
+/* 약점 카드 — 반복 횟수를 주인공으로 */
+.weak-card { display: flex; align-items: center; gap: 16px; }
+.weak-count {
+  flex-shrink: 0; min-width: 82px; height: 70px; padding: 8px 12px; border: 3px solid var(--navy);
+  background: var(--coral); color: var(--white); box-shadow: 4px 4px 0 var(--navy);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.weak-count b { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.weak-count span { font-size: 11.5px; line-height: 1; white-space: nowrap; opacity: .9; }
+.weak-count.mild { background: var(--yellow); color: var(--navy); }
+.weak-body { flex: 1; min-width: 0; }
+.weak-body b { font-size: 16.5px; }
+.weak-body .note { margin-top: 5px; }
+.weak-mini { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.weak-mini + .weak-mini { border-top: 2px dashed #d9e4f5; }
+.weak-mini .weak-count { width: 46px; height: 46px; }
+.weak-mini .weak-count b { font-size: 19px; }
+.weak-mini .weak-count span { font-size: 11px; }
+
+/* 관심기술 — 분야 탭(폴더 스타일)과 기술 선택 버튼을 시각적으로 분리 */
+.itabs { display: flex; gap: 6px; border-bottom: 3px solid var(--navy); margin-bottom: 16px; }
+.itabs button {
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  padding: 10px 18px 8px; border: 3px solid var(--navy); border-bottom: none;
+  background: #e8e3d7; color: var(--sub); position: relative; top: 0;
+}
+.itabs button.on { background: var(--yellow); color: var(--navy); top: 3px; padding-bottom: 11px; }
+.itabs .pick-cnt { margin-left: 7px; }
+
+/* 성장 차트 v3: 영역 + 상승 라인 */
+.gchart .area-line-open { fill: none; stroke: var(--coral); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.gchart .area-line-resolved { fill: none; stroke: var(--mint); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.gchart .dot-open { fill: #fff; stroke: var(--coral); stroke-width: 3; }
+.gchart .dot-resolved { fill: var(--mint); stroke: #fff; stroke-width: 2; }
+.gchart .iss-area { fill: #ffb3a8; opacity: .45; }
+.gchart .iss-bar { fill: #ffb3a8; stroke: var(--navy); stroke-width: 2; }
+.gchart .bar-resolved { fill: var(--mint); stroke: var(--navy); stroke-width: 2; }
+.gchart .bar-open { fill: #ffb3a8; stroke: var(--navy); stroke-width: 2; }
+.gchart .iss-line { fill: none; stroke: var(--coral); stroke-width: 3; }
+.gchart .ilab { font-family: 'Silkscreen', monospace; font-size: 12px; fill: var(--coral); }
+.gchart .rate-line { fill: none; stroke: var(--mint); stroke-width: 4.5; }
+.gchart .rate-dot { fill: var(--mint); stroke: var(--navy); stroke-width: 2.5; }
+.gchart .rlab { font-family: 'Silkscreen', monospace; font-size: 12px; fill: #1f8f73; font-weight: 700; }
+
+/* 전체화면 3열: 좌 코드 · 중 미리보기 · 우 속성 + 드래그 리사이저 */
+.dock-resizer { cursor: col-resize; background: var(--navy); position: relative; }
+.dock-resizer::after { content: '⋮'; color: var(--sky); position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 14px; }
+.dock-code.side { height: 100%; border-right: none; resize: none; }
+
+/* ───── 알림 종 ───── */
+.bell-wrap { position: relative; }
+.bell { position: relative; font-size: 20px; background: none; border: none; padding: 4px 6px; cursor: pointer; line-height: 1; }
+.bell:hover { transform: translateY(-1px); }
+.bell-badge { position: absolute; top: -8px; right: -8px; font-style: normal; font-family: 'Silkscreen', monospace; font-size: 12px; background: var(--coral); color: var(--white); border: 2px solid var(--navy); min-width: 20px; height: 20px; line-height: 16px; }
+.bell-drop { position: absolute; right: 0; top: calc(100% + 10px); width: 340px; max-height: 400px; overflow-y: auto; background: var(--white); border: 3px solid var(--navy); box-shadow: 6px 6px 0 var(--navy); z-index: 60; }
+.noti { display: flex; gap: 10px; align-items: flex-start; padding: 13px 14px; cursor: pointer; }
+.noti + .noti { border-top: 2px dashed #d9e4f5; }
+.noti:hover { background: #fffbe8; }
+.noti-icon { font-size: 18px; }
+.noti-body { flex: 1; min-width: 0; }
+.noti-title { display: block; font-size: 13px; margin-bottom: 3px; }
+.noti p { font-size: 12.5px; line-height: 1.7; white-space: pre-line; color: var(--sub); }
+.noti-x { flex-shrink: 0; width: 24px; height: 24px; border: 2px solid var(--navy); background: #fff; cursor: pointer; font-size: 11px; }
+.noti-x:hover { background: var(--coral); color: var(--white); }
+
+/* 편집기 v3 소품 */
+.fit-btn { font: inherit; font-size: 12px; padding: 6px 10px; border: 2px solid var(--navy); background: var(--yellow); cursor: pointer; }
+
+/* 편집기: 회전 숫자입력 */
+.rot-ctrl { display: flex; align-items: center; gap: 8px; }
+.rot-ctrl input[type="range"] { width: 78px; }
+.rot-num { width: 52px; padding: 5px 6px; border: 2px solid var(--navy); font-size: 12px; }
+
+/* #3 코드 변경 하이라이트 (뒤 레이어 색칠 + 투명 textarea 겹침) */
+.dock-code-wrap { position: relative; }
+.dock-code-hl {
+  position: absolute; inset: 0; margin: 0; padding: 14px 18px; pointer-events: none;
+  font-family: 'GalmuriMono11', monospace; font-size: 13px; line-height: 1.75;
+  white-space: pre-wrap; word-break: break-all; color: transparent; overflow: hidden;
+}
+.dock-code-hl .chg { background: rgba(255, 210, 63, .32); box-shadow: inset 3px 0 0 var(--yellow); } /* 방금 바뀐 줄 */
+.dock-code-wrap .dock-code { position: relative; background: transparent; }
+.dock-code-wrap { background: var(--navy); }
+.dock-code-wrap.side { height: 100%; }
+.dock-code-wrap.side .dock-code { height: 100%; }
+
+/* #6 스튜디오 완료 배너 */
+.studio-done { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  margin-top: 14px; padding: 14px 16px; border: 3px dashed #b9c6de; background: #f6f2e8; font-size: 13px; }
+.studio-done.ready { border-style: solid; border-color: var(--navy); background: var(--sky); }
+.studio-done .next-issue { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.studio-done .next-issue .codebox { margin: 0; max-height: 120px; overflow: auto; }
+
+/* 요금제 카드 — 기본은 모두 같은 높이·크기, 현재 플랜만 확대·강조 */
+.panel-grid.c3 { align-items: stretch; }         /* 모든 카드 같은 높이 */
+/* stat 카드 3개 — 라벨 길이 무관하게 칸 너비 완전 균등 (1fr=minmax(auto,1fr)라 긴 라벨 칸이 커지는 것 방지) */
+.stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* grid 안 2·3번째 카드에 .panel + .panel 마진이 붙어 높이/정렬이 틀어지는 것 제거 */
+.stat-grid > .panel { margin-top: 0; }
+/* 현재 카드가 위로 떠오르고(-10px·확대) 그 위에 '현재 이용 중' 플래그까지 얹히므로,
+   세 카드를 통째로 내려 위 안내 문구가 가려지지 않게 여유를 확보 */
+.panel-grid.c3:has(> .plan-card) { margin-top: 32px; }
+.plan-card { position: relative; display: flex; flex-direction: column; transition: transform .12s; }
+/* 핵심: `.panel + .panel { margin-top: 22px }` 전역 규칙이 2·3번째 카드에 그대로 적용되고 있었다.
+   (0,2,0) 특이도라 .plan-card 의 margin 으론 못 이김 → 더 높은 특이도로 '모든' 카드의 마진 제거.
+   이전 수정은 :not(.current) 에만 margin:0 을 줘서, 하필 '선택된' PRO/MAX 카드만 22px 아래로 밀렸다. */
+.panel-grid.c3 .plan-card { margin: 0; }
+.plan-card:not(.current) { transform: none; }    /* 현재 플랜 외에는 항상 기본 크기·위치 */
+.plan-card .btn { margin-top: auto; }            /* 버튼을 바닥에 정렬 → 내용 달라도 높이 통일 */
+.plan-card.current {
+  z-index: 2;
+  /* 가운데 기준으로 사방으로 커지면서 위로 — 어느 칸이든 똑같이 '떠오르는' 느낌 */
+  transform: translateY(-10px) scale(1.06); transform-origin: center center;
+  outline: 4px solid var(--yellow); box-shadow: 8px 8px 0 var(--navy);
+  background: #fffdf3;
+}
+.plan-flag {
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  background: var(--coral); color: var(--white); font-size: 12px; font-weight: 700;
+  padding: 4px 14px; border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy); white-space: nowrap;
+}
+
+/* ── 학습카드 목록·상세 (LRN-002) ── */
+
+/* c3에 이미 넣어둔 것과 같은 처리. 전역 `.panel + .panel { margin-top: 22px }`가
+   그리드 2번째 칸부터 걸려서 첫 줄만 아래로 밀려 높이가 어긋나 보였다. */
+.panel-grid.c2 { align-items: stretch; }
+.panel-grid.c2 > .panel { margin-top: 0; }
+
+/* 카테고리명 길이가 달라도 메타 줄이 같은 높이에 오도록 세로 flex로 편다 */
+.card-tile { display: flex; flex-direction: column; }
+
+/* 승급 진행바 — 히스토리 패널을 걷어내고 이 눈금 하나로 대체했다 */
+.gp-track {
+  position: relative; height: 14px; background: #f1efe6;
+  border: 3px solid var(--navy); overflow: visible;
+}
+.gp-fill { height: 100%; background: var(--mint); transition: width .3s ease; }
+/* 마일스톤 눈금(3·7·8회). 지나온 지점은 코랄로 채워 한눈에 보이게 */
+.gp-mark {
+  position: absolute; top: -5px; width: 8px; height: 18px; margin-left: -4px;
+  background: var(--white); border: 3px solid var(--navy);
+}
+.gp-mark.on { background: var(--coral); }
+
+/* 학습 계획 한 줄 — 제목/할 일/체크포인트를 세로로 쌓는다 */
+.plan-body { display: flex; flex-direction: column; gap: 3px; max-width: 46%; }
+
+/* 셀프 체크는 번호 대신 체크박스 모양으로 */
+.keypoints.selfcheck li::before { content: '☐'; color: var(--navy); }
+
+/* 회원탈퇴 위험구역 (마이페이지 하단) */
+.danger-zone {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin-top: 28px; padding: 18px 20px; border: 3px solid #e24b4a; background: #fff5f3;
+}
+.danger-zone b { font-size: 14px; color: #a32d2d; }
+.danger-zone p { font-size: 12.5px; color: var(--sub); margin-top: 4px; }
+.btn.danger { background: #e24b4a; color: var(--white); }
+/* 탈퇴 확인 문구 입력 (모달) */
+.modal .input {
+  width: 100%; padding: 11px 13px; border: 3px solid var(--navy); font-size: 14px; background: #fff;
+}
+.modal .input:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+
+/* 카드 상세로 들어오면 나갈 길이 없어서 맨 위에 두는 복귀 링크 */
+.back-link {
+  display: inline-block; margin-bottom: 14px; font-size: 12.5px;
+  border-bottom: 2px solid var(--navy); padding-bottom: 2px;
+}
+.back-link:hover { color: var(--coral); border-color: var(--coral); }
+
+/* 퀴즈 유형·모델 셀렉트 — 어느 컨테이너에도 안 속해 브라우저 기본 모양으로 나오던 것 */
+.quiz-tools select {
+  font-family: 'Galmuri11', sans-serif; font-size: 12.5px;
+  background: var(--white); color: var(--navy);
+  border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy);
+  padding: 9px 12px; cursor: pointer;
+}
+.quiz-tools select:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+.quiz-tools select:disabled { background: #f1efe6; cursor: not-allowed; }
+
+/* 카드 본문 강조 — AI가 굵게(별표 두 개)나 형광(등호 두 개)으로 보내면 여기로 그려진다.
+   마크다운 기호를 그대로 쓰면 별표+빗금이 주석을 먼저 닫아버려서 말로 적는다 */
+mark.hl { background: var(--yellow); color: var(--navy); padding: 0 3px; }
+.inline-code {
+  font-family: 'GalmuriMono11', monospace; font-size: 12px;
+  background: var(--navy); color: var(--sky); padding: 1px 6px;
+}
+
+/* 학습 계획 타임라인 — 단계가 시간 순으로 이어지는 걸 세로선으로 보여준다 */
+.plan-timeline { list-style: none; position: relative; padding-left: 4px; }
+.plan-timeline::before {
+  content: ''; position: absolute; left: 27px; top: 16px; bottom: 16px;
+  width: 4px; background: var(--navy);
+}
+.plan-step { position: relative; display: flex; gap: 18px; padding-bottom: 18px; align-items: flex-start; }
+.plan-step:last-child { padding-bottom: 0; }
+/* 알림에서 ?step= 을 달고 들어온 단계 — 스크롤만 하면 어디로 왔는지 모른다 */
+.plan-step.on .ps-body {
+  background: #fffbea; outline: 3px solid var(--yellow); outline-offset: 6px;
+}
+/* 단계 번호 + 소요시간을 원형 눈금 하나에 담는다 */
+.ps-dot {
+  flex-shrink: 0; z-index: 1; width: 58px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--yellow); border: 3px solid var(--navy); padding: 8px 0;
+}
+.ps-dot b { font-family: 'Silkscreen', monospace; font-size: 17px; line-height: 1; color: var(--navy); }
+.ps-dot em { font-family: 'Galmuri11', sans-serif; font-style: normal; font-size: 10px; color: var(--navy); }
+.ps-body { flex: 1; min-width: 0; border: 3px solid var(--navy); background: var(--white); padding: 14px 16px; box-shadow: 4px 4px 0 var(--navy); }
+.ps-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.ps-head b { font-size: 14.5px; }
+.ps-date { font-size: 12px; color: var(--coral); font-weight: 700; white-space: nowrap; }
+.ps-res { font-size: 12.5px; line-height: 1.8; margin-top: 8px; background: #f6f4ec; border-left: 5px solid var(--mint); padding: 8px 12px; }
+.ps-check { font-size: 12px; color: var(--navy); margin-top: 8px; }
+
+/* 퀴즈 문제 — 코드가 섞여도 문단과 코드블록이 또렷하게 갈리도록 */
+.quiz-question { margin-bottom: 16px; }
+.quiz-question .q-text { font-size: 14px; line-height: 1.95; white-space: pre-line; }
+.quiz-question .q-text + .codebox, .quiz-question .codebox + .q-text { margin-top: 12px; }
+.explain-box .q-text { white-space: pre-line; }
+.explain-box .codebox { margin-top: 10px; }
+
+/* AI 스킬 카드 */
+/* 별은 목록 카드(.skill-card)와 추천 카드(.skill-rec) 양쪽에 쓴다.
+   .skill-card 안으로 한정해 뒀더니 추천 카드 별만 규칙을 못 받아 기본 버튼(네모 테두리)으로 나왔다 */
+.star {
+  background: none; border: none; font-size: 24px; line-height: 1;
+  color: var(--navy); padding: 0 4px; cursor: pointer;
+}
+.star.on { color: var(--coral); }
+.skill-how {
+  margin-top: 12px; border-left: 6px solid var(--mint);
+  background: #f6f4ec; padding: 10px 14px;
+}
+.skill-how b { font-size: 12px; }
+.skill-how p { font-size: 12.5px; line-height: 1.9; margin-top: 4px; }
+
+/* 코인 추가(테스트용) — 인라인 스타일 대신 다른 픽셀 버튼과 같은 톤으로 */
+.coin-add {
+  margin-left: 6px; font-family: 'Silkscreen', monospace; font-size: 10px;
+  background: var(--yellow); color: var(--navy);
+  border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy);
+  padding: 2px 7px; line-height: 1.4;
+}
+.coin-add:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--navy); }
+
+/* 상단 코인·크레딧·타이머 — 박스가 둘로 갈려 어색했다. 테두리를 없애고 아이콘+숫자만 남긴다 */
+.nav-wallet, .nav-timer {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+.nav-wallet { gap: 14px; }
+/* Silkscreen Bold는 획이 한 픽셀 두꺼워져 '4'의 뚫린 칸이 메워진다 — 14px에선 글자가 깨져 보인다.
+   <b>라서 기본이 700이므로 굵기만 400으로 되돌린다 (크기·폰트는 그대로) */
+.nav-wallet b, .nav-timer b {
+  font-family: 'Silkscreen', monospace; font-size: 14px; line-height: 1; font-weight: 400;
+  color: var(--navy); white-space: nowrap;
+}
+.nav-timer b { color: var(--sub); font-size: 13px; margin-right: 6px; }
+
+/* ── 대시보드 ──
+   첫 화면에 코기·약점·스트릭·크레딧·추이가 다 들어오고,
+   아래 서비스 안내(InfoSections)는 스크롤해야 나오게 한다.
+   고정 높이 대신 min-height라 어떤 비율에서도 안 잘린다. */
+
+
+/* ═══════════ 대시보드 ═══════════
+   어떤 해상도에서도 한 화면. box(.dash)는 nav~footer 사이 가용 높이로 useFitScale이 잡고,
+   그 안의 .dash-fit을 통째로 transform:scale 해서 넘칠 때만 줄인다(큰 화면은 1.0 그대로).
+   box를 flex center로 둬 축소된 내용이 세로 가운데 오게 한다. overflow:hidden으로 1px 삐침을 막는다. */
+.dash { padding: 28px 22px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.dash-fit { width: 100%; transform-origin: center center; }
+.dash .panel { padding: 15px 17px; }
+.dash .panel h3 { font-size: 15px; margin-bottom: 0; }
+
+/* stretch라 두 칸이 같은 높이로 맞춰진다. start면 짧은 칸 아래가 비어 끝이 들쭉날쭉했다 */
+.dash-grid { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.dash-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* 남는 높이는 그래프 칸이 먹는다 — 코기 칸이 커져도 대시보드 총 높이는 그대로 */
+.dash-col > .trend-panel { flex: 1; }
+.dash-col > .panel { margin-top: 0; }
+
+/* 패널 머리 — 제목과 링크를 한 줄에 */
+.dash-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 11px; }
+.dash-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* ── 약점 ──
+   횟수가 이 카드의 핵심인데 14px 도트로 눌러 두니 눈에 안 들어왔다.
+   숫자를 키우고 단위를 붙여 한 번에 읽히게 한다 */
+/* 한 줄에 하나씩 쌓으면 약점 개수만큼 왼쪽 칸이 길어져 대시보드가 한 화면을 넘긴다.
+   2열 × 2행 네 칸으로 못 박는다 — 약점이 2개든 20개든 이 패널 높이는 같다 */
+.weak-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+/* 넘치는 약점을 대신 받는 칸 — 타일과 같은 크기라 2행 격자가 안 흐트러진다 */
+.weak-tile.more {
+  justify-content: center; color: var(--sub); font-size: 12.5px; text-decoration: none;
+  background: transparent; border-style: dashed;
+}
+.weak-tile.more:hover { color: var(--navy); border-style: solid; }
+.weak-tile {
+  display: flex; align-items: center; gap: 10px;
+  border: 2px solid var(--navy); background: #fdfcf7; padding: 8px 10px; min-width: 0;
+}
+.wt-count {
+  flex-shrink: 0; min-width: 40px; padding: 5px 0; text-align: center;
+  /* 숫자와 단위를 크기까지 갈라 놓으니 '회'가 따로 놀았다. 한 덩어리로 읽히게 같은 크기 */
+  font-family: 'GalmuriMono11', monospace; font-size: 14px; line-height: 1.3; color: var(--navy);
+  background: var(--yellow); border: 2px solid var(--navy);
+}
+.wt-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+/* 2열이라 칸이 좁다. 카테고리·언어가 길면 줄바꿈 대신 말줄임 — 타일 높이가 들쭉날쭉해지면 안 된다 */
+.wt-body b, .wt-body em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-body b { font-size: 14px; color: var(--navy); }
+.wt-body em { font-style: normal; font-size: 11.5px; color: var(--sub); }
+
+/* ── 학습 달력 — 행 높이를 못 박아야 칸이 세로로 늘어나지 않는다 ── */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 32px; gap: 4px; }
+/* 요일 머리 — 색·굵기는 원래대로 두고 크기만 키웠다 */
+/* 첫 행이 다른 칸과 같은 높이(1fr)로 늘어나 위에 여백이 몰렸다. 내용만큼만 차지하게 한다 */
+.cal-wd { font-size: 16px; color: var(--sub); text-align: center; padding: 2px 0 5px; height: auto; }
+.cal-grid { grid-template-rows: auto; }
+.cal-wd:first-child { color: var(--coral); }
+.cal-day, .cal-pad {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Silkscreen', monospace; font-size: 14px; color: var(--navy);
+  background: #f2f4f8; border: 2px solid transparent; border-radius: 4px;
+}
+.cal-pad { background: transparent; }
+.cal-day.hit { background: #ffe9c7; border-color: var(--coral); }
+/* 학습 계획이 있는 날 — 🔥(제출)과 겹칠 수 있어 배경 대신 아래 점으로 표시한다.
+   학습을 마쳐(.hit) 배경이 바뀌어도 점은 그대로 남는다 */
+.cal-day.plan { position: relative; cursor: pointer; }
+.cal-day.plan::after {
+  content: ''; position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%);
+  width: 5px; height: 5px; border-radius: 50%; background: var(--navy);
+}
+.cal-day.today { border-color: var(--yellow); border-width: 3px; font-weight: 700; }
+/* 달력에서 누른 날의 계획 목록 */
+.daypick-list { list-style: none; display: flex; flex-direction: column; gap: 12px; margin: 14px 0 20px; }
+.daypick-list li { border: 2px solid var(--navy); background: #fdfcf7; padding: 12px 14px; }
+.dp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.dp-head b { font-size: 14px; }
+.dp-head em { font-style: normal; font-size: 12px; color: var(--sub); margin-left: auto; }
+
+.cal-credit { margin-top: 12px; }
+.cal-credit .credit-bar { margin-top: 5px; }
+
+/* 오늘 상태 요약 — 숫자만 훑고 지나갈 수 있게. 세로를 아끼려고 한 줄 높이로 눕혔다 */
+.hud-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.hud-card {
+  background: var(--white); border: 3px solid var(--navy); box-shadow: 4px 4px 0 var(--navy);
+  padding: 11px 15px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.sc-label { font-size: 12px; color: var(--sub); }
+.sc-value { font-family: 'Galmuri11', sans-serif; font-size: 22px; color: var(--navy); line-height: 1; }
+.sc-value em { font-family: 'Galmuri11', sans-serif; font-size: 13px; font-style: normal; margin-left: 3px; color: var(--navy); font-weight: 700; }
+.hud-card.warn .sc-value { color: var(--coral); }
+
+/* 두 열을 같은 높이로. 각 열의 마지막 패널이 남는 세로를 채워 빈 공간이 안 생긴다 */
+.dash-grid { align-items: stretch; }
+.dash-col > .panel.cal-panel { flex: 1; display: flex; flex-direction: column; }
+.cal-panel .cal-grid { flex: 1; min-height: 0; grid-auto-rows: minmax(30px, 1fr); }
+.trend-panel .gchart { margin-top: 6px; }
+
+/* ── 대시보드 게임 느낌 ──
+   .stat-card는 요금제 화면에서 이미 쓰는 이름이라(min-height 118px) .hud-card로 분리했다 */
+.hud-card {
+  position: relative;
+  min-height: 0; padding: 12px 16px;
+}
+.sc-label { letter-spacing: -.2px; }
+
+
+
+/* 패널 제목 앞 픽셀 마커 — 카드마다 같은 리듬을 준다 */
+.dash-head h3 { display: flex; align-items: center; gap: 7px; }
+
+/* 달력 칸에 눌리는 맛 — 실제로 눌리는 칸(계획이 있는 날)에만 준다.
+   🔥(제출한 날)에 걸어 두니 눌러도 아무 일이 없는데 버튼처럼 들썩여 오해를 샀다 */
+.cal-day { transition: transform .06s; }
+.cal-day.plan:hover { transform: translateY(-2px); }
+/* 오늘 칸은 살짝 깜빡이게 — 게임 UI의 커서 느낌 */
+.cal-day.today { animation: todayblink 1.6s steps(2) infinite; }
+@keyframes todayblink {
+  0%, 60% { border-color: var(--yellow); }
+  61%, 100% { border-color: #f3d27a; }
+}
+/* 약점 타일도 누르는 느낌 */
+.weak-tile { transition: transform .08s, box-shadow .08s; }
+.weak-tile:hover { transform: translate(-2px, -2px); box-shadow: 3px 3px 0 var(--navy); }
+
+/* ── 대시보드를 코기 본체와 같은 언어로 ──
+   코기(.device)는 둥근 모서리 + 9px 그림자 + Silkscreen 라벨을 쓴다.
+   나머지 패널이 각진 상자라 코기만 따로 노는 느낌이었다. 같은 규칙을 준다 */
+.dash .panel, .dash .hud-card {
+  border-radius: 20px;
+  box-shadow: 7px 7px 0 var(--navy);
+}
+/* 패널 제목 — Silkscreen은 한글 글리프가 없어 흐릿하게 깨진다.
+   요약 카드 라벨과 같은 본문 폰트·네이비로 맞춘다 */
+.dash .dash-head h3 {
+  font-family: 'Galmuri11', sans-serif; font-size: 16px;
+  letter-spacing: 0; color: var(--navy); font-weight: 700;
+}
+/* 오른쪽 부제(2026년 7월)도 제목과 완전히 같은 서체·크기·굵기로 */
+.dash .dash-head .note {
+  font-family: 'Galmuri11', sans-serif; font-size: 16px;
+  color: var(--navy); font-weight: 700; letter-spacing: 0;
+}
+
+/* Silkscreen 10px는 한글 글리프가 없어 흐릿하게 깨진다. 본문 폰트로 키워 또렷하게 */
+.sc-label {
+  font-family: 'Galmuri11', sans-serif; font-size: 13px;
+  letter-spacing: 0; color: var(--navy); font-weight: 700;
+}
+
+/* 달력·추이는 코기 LCD처럼 액자에 넣는다. 어두운 네이비는 안 쓴다 */
+.cal-grid, .trend-panel .gchart { border-radius: 12px; padding: 8px 10px; }
+.cal-grid { background: #f0e6dc; }
+/* 차트는 선과 그라데이션이 주인공이라 바닥을 비운다 */
+.trend-panel .gchart { background: var(--white); border: 3px solid var(--sky2); }
+.cal-wd { color: var(--sub); }
+.cal-wd:first-child { color: var(--coral); }
+.cal-day, .cal-pad { border-radius: 6px; }
+.cal-pad { background: rgba(255, 255, 255, .45); }
+.cal-day { background: var(--white); }
+.cal-day.hit { background: var(--yellow); border-color: var(--yellow); }
+.cal-day.today { border-color: var(--coral); animation: none; }
+
+/* 약점 타일도 둥글게 */
+.weak-tile { border-radius: 10px; }
+.wt-count { border-radius: 6px; }
+
+/* HUD 카드 — 라벨 왼쪽, 숫자 오른쪽 끝으로 한 줄에 눕힌다 */
+.hud-card {
+  display: flex; flex-direction: row; align-items: baseline;
+  justify-content: space-between; gap: 10px; padding: 13px 16px;
+}
+.sc-value { font-size: 22px; white-space: nowrap; font-weight: 600; }
+.sc-value em { font-size: 13px; margin-left: 3px; }
+
+/* ── 머리말 옆 크레딧 HP 게이지 ── */
+.dash-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+.dash-top .page-head { flex: 1; min-width: 0; }
+
+/* 로그인 홈은 대시보드 한 덩어리로 끝난다(랜딩 안내 섹션 제거).
+   남는 높이가 있으면 위아래 가운데로 모아 해상도가 달라도 같은 자리에 보이게 한다.
+
+   display를 grid나 flex로 바꿨더니 폭이 콘텐츠에 맞춰 줄어 화면이 좁아졌다.
+   블록 레이아웃 그대로 두고 align-content만 준다 — 폭 계산에는 아무 영향이 없고,
+   .app-body가 flex:1 0 auto라 내용이 화면보다 길면 컨테이너도 같이 길어져
+   가운데 정렬이 저절로 무효가 된다(위가 잘려 못 올라가는 일 없음). */
+@media (min-width: 641px) {
+  .app-body:has(> .dash) { align-content: center; }
+}
+
+.hp-box {
+  /* 리드 문구 줄에 눈높이를 맞추되 아래 카드와는 띄운다 */
+  flex-shrink: 0; align-self: flex-end; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--white); border: 3px solid var(--navy);
+  border-radius: 14px; box-shadow: 5px 5px 0 var(--navy); padding: 10px 14px;
+}
+/* 상단 네비의 ⚡ 표기와 크기·색을 맞춘다 */
+.hp-label { font-size: 15px; line-height: 1; }
+/* 칸이 그어진 RPG 체력바. 남은 만큼 초록이 차 있고 쓰면 줄어든다 */
+.hp-bar {
+  position: relative; width: 190px; height: 16px;
+  background: #e7e2d6; border: 2px solid var(--navy); overflow: hidden;
+}
+.hp-bar i { display: block; height: 100%; background: var(--mint); transition: width .3s steps(10); }
+/* 눈금 — 게이지 위에 세로선을 얹어 칸으로 보이게 */
+.hp-bar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 17px, rgba(27, 42, 74, .28) 17px 19px);
+}
+/* 요약 카드 라벨(연속 학습)과 같은 서체·크기·굵기 */
+.hp-num { font-family: 'Galmuri11', sans-serif; font-size: 13px; color: var(--navy); font-weight: 700; }
+/* 10% 남으면 빨갛게 */
+.hp-box.low .hp-bar i { background: var(--coral); }
+.hp-box.low .hp-num { color: var(--coral); }
+
+/* 일요일 날짜를 빨갛게 — 요일 머리 7칸이 앞에 있어 8번째 자식부터 7칸마다가 일요일 열 */
+.cal-grid > .cal-day:nth-child(7n + 1) { color: var(--coral); }
+
+/* AI 스킬 화면 하단 "찾는 게 없나요" 자유 입력 박스 (LRN-005 보강) */
+.skill-ask input[type="text"] { flex: 1 1 200px; min-width: 0; padding: 9px 11px; border: 3px solid var(--navy); font-size: 13px; }
+/* skill-how와 같은 왼쪽 선 스타일 — 결과도 "직접 알려주는 답"이라 톤을 맞춘다 */
+.skill-ask-result {
+  margin-top: 16px; padding: 12px 14px; border-left: 5px solid var(--mint); background: #f6f4ec;
+  border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.9; white-space: pre-wrap;
+}
+.cal-grid > .cal-day.hit:nth-child(7n + 1) { color: var(--navy); }
+
+/* landing.css의 .sec-lead가 max-width:32em이라 앱 화면 안내문이 반으로 접혔다.
+   문구에 넣은 줄바꿈(\n)이 곧 의도한 줄 수라 앱 안에서는 폭 제한을 푼다 (대시보드는 이미 풀려 있었다) */
+.app-main .page-head .sec-lead { max-width: none; }
+
+/* 제목 줄 오른쪽 끝에 붙는 약점 추천 버튼 — 팀 화면의 .tm-top과 같은 방식 */
+/* 탭 안 첫 칸 — 그 탭이 무엇을 하는 자리인지 한 줄로 알리고 버튼을 같이 둔다 */
+.skill-lead { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.skill-lead .note { flex: 1; min-width: 240px; line-height: 1.9; }
+.skill-lead .btn { flex-shrink: 0; }
+
+/* 내가 쓰는 AI 선택 — 위 탭과 같은 밑줄 탭이면 어느 쪽이 상위인지 헷갈린다. 알약으로 구분 */
+.skill-providers { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.skill-providers .pick-grid { flex: 1; min-width: 0; }
+
+/* 약점 기준 추천 결과 — AI 네 곳이 한 상자에 쌓인다 */
+.skill-rec { border: 3px solid var(--navy); background: #fdfcf7; padding: 16px 18px; margin-top: 16px; }
+.skill-rec-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.skill-rec-top b { font-size: 15px; word-break: keep-all; } /* 한글 어절 한가운데서 끊기지 않게 */
+.skill-rec-why { font-size: 13px; line-height: 1.9; }
+/* 붙여넣을 내용이라 줄바꿈은 살리되 폭을 넘기면 접는다. 가로 스크롤은 안 만든다 */
+.skill-rec-prompt { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; }
+.skill-rec-prompt pre {
+  flex: 1; min-width: 0; margin: 0; padding: 12px 14px;
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; line-height: 1.85;
+  background: var(--navy); color: var(--sky); border: 3px solid var(--navy);
+  white-space: pre-wrap; overflow-wrap: anywhere; /* 여긴 명령어·경로라 어디서 끊어도 된다 */
+}
+.skill-rec-prompt .btn { flex-shrink: 0; }
+
+/* 자유 입력 — 한 줄짜리 input이 답답해서 여러 줄 상자로 바꿨다 */
+.skill-ask-input {
+  width: 100%; margin-top: 12px; padding: 12px 14px; resize: vertical;
+  border: 3px solid var(--navy); background: #fff; color: var(--navy);
+  font: inherit; font-size: 13px; line-height: 1.8;
+}
+.skill-ask-input:focus { outline: 3px solid var(--yellow); outline-offset: 0; }
+/* 버튼은 상자 아래 오른쪽 — 입력창이 폭을 다 쓰게 */
+.skill-ask-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+
+/* 스튜디오 후속 질문 위 즐겨찾기 스킬 — 버튼으로 접어 둔다 */
+.chat-fav { margin-bottom: 10px; }
+.chat-fav-btn {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 700; padding: 7px 12px;
+  background: #fff; color: var(--navy); border: 3px solid var(--navy);
+}
+.chat-fav-btn.on { background: var(--yellow); }
+.chat-fav-btn i { font-style: normal; font-size: 9px; color: var(--sub); }
+.chat-fav-note { margin-top: 8px; }
+.chat-fav .chat-skills { margin-top: 8px; }
+
+.chat-skills { display: flex; flex-wrap: wrap; gap: 7px; }
+.chat-skill {
+  font: inherit; font-size: 12px; font-weight: 700; line-height: 1.4; cursor: pointer;
+  padding: 6px 12px; background: #fff; color: var(--coral);
+  border: 3px solid var(--coral); box-shadow: 2px 2px 0 var(--coral);
+  word-break: keep-all;
+}
+.chat-skill:hover:not(:disabled) { background: #fff6f4; }
+.chat-skill:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.chat-skill:disabled { color: var(--sub); border-color: #cdd8ea; box-shadow: 2px 2px 0 #cdd8ea; cursor: default; }
+
+
+/* 주간리포트 드릴다운 — 발생/해결 건수 카드를 클릭 가능하게 (버튼이라 기본 모양 초기화) */
+.drill-card { cursor: pointer; font: inherit; text-align: center; transition: transform .08s, box-shadow .08s; }
+.drill-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--navy); background: #fffbe8; }
+.drill-hint { color: var(--coral); font-weight: 700; }
+/* ── GNB 드롭다운 그룹 — 큰 키워드 아래 하위 메뉴를 접어 넣는다. absolute라 펼쳐도 아래 콘텐츠를 안 민다 ── */
+/* 네비 높이만큼 세로로 꽉 채운다. 버튼만 감싸면 버튼 아래에 hover가 안 걸리는 빈 띠가 생겨
+   마우스를 내리는 도중에 닫혀버린다. 그룹이 네비 바닥까지 닿아야 패널까지 끊김 없이 이어진다 */
+.gnb-group { position: relative; align-self: stretch; display: flex; align-items: center; }
+.gnb-group > button {
+  font: inherit; font-size: inherit; color: inherit; background: none; border: none;
+  border-bottom: 3px solid transparent; padding: 4px 1px; white-space: nowrap; cursor: pointer;
+}
+/* 눌러서 펼쳐지는 메뉴라는 표시 */
+.gnb-group > button::after { content: '▾'; margin-left: 5px; font-size: 10px; vertical-align: 1px; }
+.gnb-group > button:hover, .gnb-group > button.on { border-bottom-color: var(--coral); }
+
+/* 네비 바닥선에 딱 붙여서 연다 — 사이를 띄우면 그 틈에서 hover가 끊긴다 */
+.gnb-drop {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%); z-index: 60;
+  display: flex; flex-direction: column; min-width: 158px; padding: 7px 0;
+  background: var(--white); border: 3px solid var(--navy); box-shadow: 6px 6px 0 var(--navy);
+}
+/* nav.gnb .links a 의 코랄 밑줄이 드롭다운 항목까지 따라와 줄줄이 그어졌다. 여기선 끈다 */
+nav.gnb .links .gnb-drop > a {
+  display: block; padding: 9px 17px; border-bottom: none;
+  white-space: nowrap; word-break: keep-all; color: var(--navy);
+}
+nav.gnb .links .gnb-drop > a + a { border-top: 2px dashed #d9e4f5; } /* 굵은 실선은 표처럼 보인다 */
+nav.gnb .links .gnb-drop > a:hover { background: #fffbe8; border-bottom: none; }
+/* 지금 보고 있는 항목 — 왼쪽에 코랄 막대를 세워 한눈에 */
+nav.gnb .links .gnb-drop > a.on {
+  background: var(--sky); font-weight: 700; box-shadow: inset 4px 0 0 var(--coral);
+}
+
+/* ───── 미리보기: 부족한 파일 가져오기(승인 후에만 GitHub 조회) ─────
+   가져올 게 없으면 아래 것들은 아예 렌더되지 않는다 */
+
+/* 팝업을 "나중에"로 닫았을 때 남는 흔적. 다시 누르면 팝업이 열린다 */
+.dock-fetch-reopen {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 700; color: var(--navy); word-break: keep-all;
+  padding: 9px 14px; background: #fff4d6; border: none; border-bottom: 3px solid var(--navy);
+}
+.dock-fetch-reopen:hover { background: var(--yellow); }
+
+/* 어느 레포에서 가져올지 */
+.dock-fetch-repo {
+  font: inherit; font-size: 12px; padding: 6px 9px; flex-shrink: 0; max-width: 200px;
+  border: 2px solid var(--navy); background: var(--white); color: var(--navy);
+}
+
+/* 부족한 파일 팝업 — 공용 .modal 위에 얹는다 */
+.dock-ask { max-width: 520px; }
+.dock-ask .note { line-height: 1.9; }
+.dock-ask .note b { color: var(--coral); }
+.dock-ask-list {
+  list-style: none; margin: 14px 0; padding: 12px 14px;
+  background: var(--navy); border: 3px solid var(--navy);
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; line-height: 1.95; color: var(--sky);
+  overflow-wrap: anywhere; /* 파일 경로라 어디서 끊어도 된다 */
+}
+/* 올릴 때 고를 파일명이 눈에 띄어야 한다. 앞쪽 경로는 흐리게 */
+.dock-ask-list .dock-ask-dir { color: #8fa6c9; }
+.dock-ask-list b { color: var(--yellow); }
+.dock-ask-warn {
+  margin-top: 10px; font-size: 12.5px; line-height: 1.8; color: #d92d20;
+  overflow-wrap: anywhere;
+}
+.dock-ask-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
+/* 가져온 결과 목록 — 항목을 펼치면 원문을 그대로 볼 수 있다 */
+/* 머리줄은 목록이 스크롤돼도 같이 밀리면 안 된다. 목록 밖에 둔다 */
+.dock-fetch-panel { border-bottom: 3px solid var(--navy); background: #f6f2e8; }
+.dock-fetch-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px 6px 14px; border-bottom: 2px dashed #d9e4f5;
+}
+.dock-fetch-head b { flex: 1; min-width: 0; font-size: 12px; color: var(--navy); }
+.dock-fetch-close {
+  flex-shrink: 0; width: 24px; height: 24px; line-height: 1; cursor: pointer;
+  font: inherit; font-size: 17px; color: var(--navy);
+  background: #fff; border: 2px solid var(--navy);
+}
+.dock-fetch-close:hover { background: var(--coral); color: var(--white); }
+.dock-fetch-log { background: #f6f2e8; max-height: 220px; overflow-y: auto; }
+.dock-fetch-item { border-top: 2px dashed #d9e4f5; }
+.dock-fetch-item summary {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; font-size: 12.5px; list-style: none;
+}
+.dock-fetch-item summary b {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: break-all;
+}
+.dock-fetch-item summary .note { flex-shrink: 0; word-break: keep-all; }
+.dock-fetch-body {
+  margin: 0 14px 10px; padding: 10px 12px; background: var(--navy); color: #d8e6ff;
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;
+}
+
+/* 파일 탭 — 가져온 파일이 여러 개면 코드 영역 위에서 옮겨 다닌다. .tabs 톤 그대로, 줄바꿈만 허용해 가로 스크롤 없음 */
+.dock-file-tabs { margin-bottom: 0; border-bottom: 3px solid var(--navy); padding: 8px 12px; }
+.dock-file-tabs button { display: inline-flex; align-items: center; gap: 5px; word-break: keep-all; }
+.dock-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--coral); display: inline-block; }
+
+/* 전체화면 좌측 코드 열 — 탭 바(고정 높이) + 코드 래프(나머지 전부)를 세로로 쌓는다 */
+.dock-code-col.side { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dock-code-col.side .dock-code-wrap.side { flex: 1; min-height: 0; }
+
+/* 주간리포트 드릴다운 — 이슈 하나하나 카드 + 레포 드롭다운 */
+.drill-repo { margin: 14px 0 4px; padding: 8px 11px; border: 3px solid var(--navy); background: #fff; font-size: 13px; width: 100%; }
+.issue-drill { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.idrow { border: 3px solid var(--navy); background: #fdfcf7; padding: 11px 13px; }
+.idrow-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* 파일 경로는 칩/해결 줄 다음, 자기 줄에 전체폭으로 (ml-auto로 우측에 붙던 것 → 줄바꿈) */
+.idrow-top .mono { color: var(--sub); flex-basis: 100%; margin-left: 0; margin-top: 4px; word-break: break-all; overflow-wrap: anywhere; }
+.idrow-desc { font-size: 13px; line-height: 1.75; color: var(--sub); margin-top: 7px; }
+
+/* 자식이 섞인 요소는 내용 칸을 잠그고 대신 두 번 클릭을 안내한다 */
+.dock-edit-hint {
+  font-size: 11.5px; line-height: 1.75; color: var(--sub); word-break: keep-all;
+  padding: 8px 10px; background: #fff8dd; border: 2px solid var(--navy);
+}
+.dock-edit-hint b { color: var(--navy); }
+
+/* ── 미리보기 레이어 목록: 화면에서 못 집는 요소를 구조에서 고른다 ── */
+.dock-layers { border-top: 3px solid var(--navy); margin-top: 14px; padding-top: 10px; }
+.dock-layers > b { display: block; font-size: 12px; margin-bottom: 7px; }
+.dock-layers ul { list-style: none; max-height: 220px; overflow-y: auto; }
+/* 항목 하나 = 선택 버튼 + 순서 화살표 둘. 가로로 넘치면 이름을 줄인다 */
+.dock-layers li { display: flex; align-items: center; gap: 3px; }
+.dock-layers li > button {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 11.5px; text-align: left; cursor: pointer;
+  padding: 4px 6px; background: none; border: none; color: var(--navy);
+}
+.dock-layers li > button:hover { background: #fffbe8; }
+.dock-layers li > button.on { background: var(--sky); font-weight: 700; }
+/* 태그 이름은 고정폭으로 — 목록이 들쭉날쭉하면 구조가 안 읽힌다 */
+.dock-layers li > button i {
+  flex-shrink: 0; font-style: normal; font-family: 'GalmuriMono11', monospace;
+  font-size: 10.5px; color: var(--coral);
+}
+.dock-layers li > button span {
+  flex: 1; min-width: 0; color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dock-layers li > em {
+  flex-shrink: 0; font-style: normal; font-size: 9px; cursor: pointer;
+  padding: 2px 3px; color: var(--sub);
+}
+.dock-layers li > em:hover { color: var(--coral); }

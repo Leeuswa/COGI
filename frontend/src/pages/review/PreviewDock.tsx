@@ -1,0 +1,2072 @@
+/*
+ * 미리보기 도크 v2 — "피그마처럼" 편집 (FR-47~49 확장)
+ *
+ * 캔버스: 호버 하이라이트 → 클릭 선택(W×H 배지) → 드래그 이동 / 우하단 모서리 드래그 리사이즈
+ *         키보드: 방향키 1px(Shift=10px) 이동 · Delete 삭제 · Ctrl+D 복제
+ *         줌(50~150%) · 실행취소/다시실행(Ctrl+Z / Ctrl+Shift+Z) · 요소 추가 5종
+ * 패널:   텍스트 / 배치 / 스타일 / 효과 4섹션 — 폰트·회전·그라데이션·필터(블러/밝기/대비/채도/흑백)까지
+ *
+ * 동기화 원리(변함없음): 모든 편집은 iframe DOM에 인라인 적용 → body 직렬화 → 코드로.
+ * 그래서 "패널에 있는 것"만이 아니라 코드로 표현되는 무엇이든 결과물에 남는다.
+ * 한계선: iframe 정적 렌더(HTML/CSS/JS). React 등 빌드 필요 코드는 리뷰만.
+ */
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as api from "../../api/client";
+
+/* ── iframe 편집 엔진: 선택·드래그·리사이즈·키보드·명령 수신·직렬화 ── */
+const ENGINE = `<script id="__cogi_engine">
+(() => {
+  let sel = null;
+  const toHex = (rgb) => {
+    const m = rgb.match(/\\d+/g); if (!m) return '#000000';
+    return '#' + m.slice(0, 3).map((n) => (+n).toString(16).padStart(2, '0')).join('');
+  };
+
+  const composeFx = () => {
+    const f = JSON.parse(sel.dataset.fx || '{}');
+    const parts = [];
+    if (f.blur) parts.push('blur(' + f.blur + 'px)');
+    if (f.bright != null && f.bright !== 100) parts.push('brightness(' + f.bright + '%)');
+    if (f.contrast != null && f.contrast !== 100) parts.push('contrast(' + f.contrast + '%)');
+    if (f.sat != null && f.sat !== 100) parts.push('saturate(' + f.sat + '%)');
+    if (f.gray) parts.push('grayscale(' + f.gray + '%)');
+    sel.style.filter = parts.join(' ');
+    sel.style.transform = f.rot ? 'rotate(' + f.rot + 'deg)' : '';
+  };
+
+  /* ── 레이어 목록: body 아래 구조를 부모로 올린다. path는 자식 인덱스 사슬 ── */
+  const pathOf = (el) => {
+    const parts = [];
+    let node = el;
+    while (node && node !== document.body && node.parentNode) {
+      parts.unshift(Array.prototype.indexOf.call(node.parentNode.children, node));
+      node = node.parentNode;
+    }
+    return parts.join('.');
+  };
+  const byPath = (path) => {
+    let node = document.body;
+    if (!path) return node;
+    path.split('.').forEach((i) => { node = node && node.children[+i]; });
+    return node;
+  };
+  let extra = [];   // Shift로 더 고른 요소들. sel이 기준(primary)이고 정렬·삭제는 sel+extra를 함께 본다
+  let clip = null;  // Ctrl+C로 담아둔 outerHTML
+  const all = () => (sel ? [sel].concat(extra) : []);
+
+  // 스타일을 같은 값으로 다시 쓰면 MutationObserver가 또 돌아 layout이 무한히 재귀한다.
+  // 의도한 문자열을 JS 프로퍼티에 기억해 두고 달라질 때만 실제로 쓴다
+  const setCss = (el, css) => { if (el.__css !== css) { el.__css = css; el.style.cssText = css; } };
+
+  const nudgeBy = (el, dx, dy) => {
+    if (!dx && !dy) return;
+    el.style.position = el.style.position || 'relative';
+    el.style.left = ((parseInt(el.style.left) || 0) + Math.round(dx)) + 'px';
+    el.style.top = ((parseInt(el.style.top) || 0) + Math.round(dy)) + 'px';
+  };
+
+  const isUi = (el) => !el || el.id === '__cogi_ov' || el.id === '__cogi_multi' || el.id === '__cogi_guide'
+    || !!(el.closest && el.closest('#__cogi_ov, #__cogi_multi, #__cogi_guide'));
+
+  /* ── 선택 오버레이: 8방향 리사이즈 핸들 + 상단 회전 핸들 (피그마식) ── */
+  const ov = document.createElement('div');
+  ov.id = '__cogi_ov';
+  ov.style.cssText = 'position:absolute;pointer-events:none;z-index:99999;display:none;outline:2px solid #ff6b57;outline-offset:0';
+  const HANDLES = ['nw','n','ne','e','se','s','sw','w'];
+  HANDLES.forEach((h) => {
+    const d = document.createElement('div');
+    d.dataset.h = h;
+    d.style.cssText = 'position:absolute;width:9px;height:9px;background:#fff;border:2px solid #1b2a4a;pointer-events:auto;cursor:' + h + '-resize;';
+    ov.appendChild(d);
+  });
+  const rot = document.createElement('div'); // 회전 핸들 (상단 중앙 위)
+  rot.dataset.h = 'rot';
+  rot.style.cssText = 'position:absolute;width:14px;height:14px;border-radius:50%;background:#ffd23f;border:2px solid #1b2a4a;pointer-events:auto;cursor:grab;left:50%;top:-26px;transform:translateX(-50%)';
+  ov.appendChild(rot);
+  const badge = document.createElement('div'); // W×H 배지 (피그마식, 선택 박스 아래 중앙)
+  badge.style.cssText = 'position:absolute;left:50%;bottom:-26px;transform:translateX(-50%);background:#1b2a4a;color:#fff;font:700 10px/1 monospace;padding:3px 7px;border:2px solid #1b2a4a;white-space:nowrap';
+  ov.appendChild(badge);
+  /* 추가 선택된 요소 표시 — 기준 요소는 실선, 나머지는 점선으로 구분한다 */
+  const multiOv = document.createElement('div');
+  multiOv.id = '__cogi_multi';
+  multiOv.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:99998;display:none';
+
+  /* 스냅 가이드선 — 세로 2개, 가로 2개면 실제로 쓰는 경우는 다 덮는다 */
+  const guideBox = document.createElement('div');
+  guideBox.id = '__cogi_guide';
+  guideBox.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:100000;display:none';
+  const guideLines = [0, 1, 2, 3].map(() => {
+    const g = document.createElement('div');
+    g.style.cssText = 'position:absolute;display:none';
+    guideBox.appendChild(g);
+    return g;
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.appendChild(ov);
+    document.body.appendChild(multiOv);
+    document.body.appendChild(guideBox);
+  });
+
+  // 추가 선택 박스를 그린다. 개수가 바뀔 때만 자식을 만들고, 위치는 setCss로 갱신
+  const layoutMulti = () => {
+    if (!extra.length) { setCss(multiOv, 'position:absolute;left:0;top:0;pointer-events:none;z-index:99998;display:none'); return; }
+    setCss(multiOv, 'position:absolute;left:0;top:0;pointer-events:none;z-index:99998;display:block');
+    while (multiOv.children.length < extra.length) multiOv.appendChild(document.createElement('div'));
+    while (multiOv.children.length > extra.length) multiOv.lastChild.remove();
+    extra.forEach((el, i) => {
+      const r = el.getBoundingClientRect();
+      setCss(multiOv.children[i], 'position:absolute;outline:2px dashed #ff6b57;left:'
+        + (r.left + scrollX) + 'px;top:' + (r.top + scrollY) + 'px;width:' + r.width + 'px;height:' + r.height + 'px');
+    });
+  };
+
+  const showGuides = (list) => {
+    if (!list.length) { setCss(guideBox, 'position:absolute;left:0;top:0;pointer-events:none;z-index:100000;display:none'); return; }
+    setCss(guideBox, 'position:absolute;left:0;top:0;pointer-events:none;z-index:100000;display:block');
+    guideLines.forEach((g, i) => {
+      const v = list[i];
+      if (!v) { setCss(g, 'position:absolute;display:none'); return; }
+      setCss(g, v.dir === 'v'
+        ? 'position:absolute;display:block;background:#ff2fb9;width:1px;left:' + (v.at + scrollX) + 'px;top:' + scrollY + 'px;height:' + innerHeight + 'px'
+        : 'position:absolute;display:block;background:#ff2fb9;height:1px;top:' + (v.at + scrollY) + 'px;left:' + scrollX + 'px;width:' + innerWidth + 'px');
+    });
+  };
+
+  const layout = () => { // 오버레이를 선택 요소 위치에 맞춘다 (회전 각도 포함)
+    if (!sel) { ov.style.display = 'none'; return; }
+    const r = sel.getBoundingClientRect();
+    const f = JSON.parse(sel.dataset.fx || '{}');
+    const w = sel.offsetWidth, h = sel.offsetHeight;
+    ov.style.display = 'block';
+    ov.style.left = (r.left + r.width / 2 - w / 2 + scrollX) + 'px';
+    ov.style.top = (r.top + r.height / 2 - h / 2 + scrollY) + 'px';
+    ov.style.width = w + 'px';
+    ov.style.height = h + 'px';
+    ov.style.transform = f.rot ? 'rotate(' + f.rot + 'deg)' : '';
+    const dimLabel = Math.round(w) + ' \u00d7 ' + Math.round(h);
+    if (badge.textContent !== dimLabel) badge.textContent = dimLabel; // 같은 값 재설정 금지 — MutationObserver 무한 루프 방지
+    const pos = { nw:[0,0], n:[.5,0], ne:[1,0], e:[1,.5], se:[1,1], s:[.5,1], sw:[0,1], w:[0,.5] };
+    ov.querySelectorAll('[data-h]').forEach((d) => {
+      const p = pos[d.dataset.h]; if (!p) return;
+      d.style.left = 'calc(' + (p[0] * 100) + '% - 5px)';
+      d.style.top = 'calc(' + (p[1] * 100) + '% - 5px)';
+    });
+    layoutMulti();
+  };
+  new MutationObserver(layout).observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+  addEventListener('scroll', layout, true);
+
+  const dims = () => {
+    if (!sel) return;
+    parent.postMessage({ cogi: 'dim', w: sel.offsetWidth, h: sel.offsetHeight }, '*');
+  };
+  const pick = (el, noFocus) => {
+    sel = el;
+    const cs = getComputedStyle(sel);
+    parent.postMessage({ cogi: 'pick', noFocus: !!noFocus,
+      label: sel.tagName.toLowerCase() + (sel.id ? '#' + sel.id : ''),
+      text: sel.children.length === 0 ? sel.textContent.trim() : null,
+      // 자식이 있는 요소는 내용 칸으로 덮으면 <em>·<br>이 날아간다. 그래서 칸은 잠그고
+      // 대신 화면에서 두 번 눌러 고치라고 안내한다. 글자가 있는지는 부모도 알아야 한다
+      hasKids: sel.children.length > 0,
+      hasText: !!sel.textContent.trim(),
+      path: pathOf(sel), // 레이어 목록에서 지금 고른 줄에 표시하려면 필요하다
+      style: {
+        color: toHex(cs.color), background: toHex(cs.backgroundColor),
+        fontSize: parseInt(cs.fontSize), fontWeight: cs.fontWeight, fontFamily: cs.fontFamily,
+        align: cs.textAlign, letterSpacing: parseFloat(cs.letterSpacing) || 0,
+        // 켜짐/꺼짐 버튼이 지금 상태를 알아야 눌린 표시도 하고 다시 누를 때 풀 수 있다
+        italic: cs.fontStyle === 'italic',
+        underline: (cs.textDecorationLine || '').includes('underline'),
+        strike: (cs.textDecorationLine || '').includes('line-through'),
+        transform: cs.textTransform,
+        padding: parseInt(cs.paddingTop) || 0, margin: parseInt(cs.marginTop) || 0,
+        radius: parseInt(cs.borderRadius) || 0, opacity: Math.round(parseFloat(cs.opacity) * 100),
+        borderW: parseInt(cs.borderTopWidth) || 0, borderC: toHex(cs.borderTopColor),
+      } }, '*');
+    layout(); dims();
+  };
+  /* ── 정렬·분배: 고른 것들의 바깥 경계를 기준으로 삼는다 (피그마와 같은 규칙) ── */
+  const alignAll = (how) => {
+    const els = all().filter((el) => el && el.isConnected);
+    if (els.length < 2) return;
+    const box = els.map((el) => ({ el, r: el.getBoundingClientRect() }));
+    const minL = Math.min.apply(null, box.map((x) => x.r.left));
+    const maxR = Math.max.apply(null, box.map((x) => x.r.right));
+    const minT = Math.min.apply(null, box.map((x) => x.r.top));
+    const maxB = Math.max.apply(null, box.map((x) => x.r.bottom));
+    if (how === 'distH' || how === 'distV') {
+      const horiz = how === 'distH';
+      if (box.length < 3) return; // 둘뿐이면 나눌 간격이 없다
+      const sorted = box.slice().sort((a, b) => (horiz ? a.r.left - b.r.left : a.r.top - b.r.top));
+      const s0 = horiz ? sorted[0].r.left : sorted[0].r.top;
+      const s1 = horiz ? sorted[sorted.length - 1].r.left : sorted[sorted.length - 1].r.top;
+      const gap = (s1 - s0) / (sorted.length - 1);
+      sorted.forEach((x, i) => {
+        const want = s0 + gap * i;
+        const now = horiz ? x.r.left : x.r.top;
+        nudgeBy(x.el, horiz ? want - now : 0, horiz ? 0 : want - now);
+      });
+    } else {
+      const cx = (minL + maxR) / 2, cy = (minT + maxB) / 2;
+      box.forEach(({ el, r }) => {
+        let dx = 0, dy = 0;
+        if (how === 'left') dx = minL - r.left;
+        else if (how === 'right') dx = maxR - r.right;
+        else if (how === 'cx') dx = cx - (r.left + r.width / 2);
+        else if (how === 'top') dy = minT - r.top;
+        else if (how === 'bottom') dy = maxB - r.bottom;
+        else if (how === 'cy') dy = cy - (r.top + r.height / 2);
+        nudgeBy(el, dx, dy);
+      });
+    }
+    layout(); emit();
+  };
+
+  /* ── 스냅: 드래그 시작 때 다른 요소들의 변 좌표를 한 번만 모아둔다 (매 프레임 재수집하면 버벅인다) ── */
+  const SNAP = 6;
+  const collectEdges = (moving) => {
+    const vs = [], hs = [];
+    document.body.querySelectorAll('*').forEach((el) => {
+      if (isUi(el) || moving.indexOf(el) >= 0 || moving.some((m) => m.contains(el))) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return;
+      vs.push(r.left, r.left + r.width / 2, r.right);
+      hs.push(r.top, r.top + r.height / 2, r.bottom);
+    });
+    return { vs, hs };
+  };
+  // 움직인 요소의 변 셋(앞·중앙·뒤)을 후보와 견줘 가장 가까운 것 하나로 붙인다
+  const snapAxis = (mine, cands) => {
+    let best = null;
+    mine.forEach((m) => cands.forEach((c) => {
+      const d = c - m;
+      if (Math.abs(d) <= SNAP && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, at: c };
+    }));
+    return best;
+  };
+
+  const postTree = () => {
+    const nodes = [];
+    const walk = (parent, depth) => {
+      Array.prototype.forEach.call(parent.children, (c) => {
+        if (isUi(c) || c.tagName === 'SCRIPT' || c.tagName === 'STYLE' || c.tagName === 'LINK') return;
+        nodes.push({
+          path: pathOf(c),
+          tag: c.tagName.toLowerCase() + (c.id ? '#' + c.id : ''),
+          depth,
+          label: (c.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 22),
+        });
+        if (depth < 4) walk(c, depth + 1); // 더 깊이 들어가면 목록이 읽을 수 없게 길어진다
+      });
+    };
+    walk(document.body, 0);
+    parent.postMessage({ cogi: 'tree', nodes }, '*');
+  };
+
+  // 인라인 style 을 최소 형태로 정리 — 브라우저가 자동으로 채운 longhand(예: border-width/style/color/image)
+  // 와 기본값을 걷어내, 한 번 편집해도 코드가 길어지지 않게 한다 (#4)
+  const DEFAULTS = {
+    'border-image': 'none', 'border-color': 'currentcolor', 'border-style': 'none', 'border-width': 'medium',
+    'border-top-style': 'none', 'border-right-style': 'none', 'border-bottom-style': 'none', 'border-left-style': 'none',
+    position: 'static', 'text-align': 'start', 'font-style': 'normal', 'text-decoration': 'none solid rgb(0, 0, 0)',
+    'text-decoration-line': 'none', 'text-transform': 'none', // 꺼진 상태를 코드에 남기지 않는다
+    left: '0px', top: '0px', 'margin-top': '0px', 'margin-left': '0px', filter: 'none', transform: 'none', opacity: '1',
+  };
+  const tidy = (el) => {
+    const st = el.getAttribute('style'); if (!st) return;
+    const keep = st.split(';').map((r) => r.trim()).filter(Boolean).filter((r) => {
+      const [k, v] = r.split(':').map((x) => x.trim().toLowerCase());
+      if (!v) return false;
+      if (DEFAULTS[k] !== undefined && v === DEFAULTS[k]) return false; // 기본값 제거
+      if (k.startsWith('border') && (v === '0px' || v === 'none')) return false;
+      return true;
+    });
+    // relative 인데 좌표 이동이 없으면 position 도 군더더기 → 제거
+    const hasOffset = keep.some((r) => /^(left|top)\s*:/.test(r));
+    const finalKeep = keep.filter((r) => !(/^position\s*:\s*relative/.test(r) && !hasOffset));
+    finalKeep.length ? el.setAttribute('style', finalKeep.join('; ')) : el.removeAttribute('style');
+  };
+  const emit = () => {
+    // body만 떼면 head의 <style>·<link>가 통째로 사라져 편집 한 번에 화면이 민무늬가 된다.
+    // 문서 전체를 복사해 두고, 통짜로 쓸지 body만 쓸지는 원본 모양을 아는 부모가 고른다
+    const clone = document.documentElement.cloneNode(true);
+    // 편집 UI 는 코드에 안 남긴다 — 선택 테두리·추가선택 박스·스냅 가이드 셋 다
+    clone.querySelectorAll('#__cogi_ov, #__cogi_multi, #__cogi_guide').forEach((o) => o.remove());
+    // 편집 엔진 스크립트도 코드에 안 남긴다 — 과거에 섞여 들어간 사본까지 전부 청소
+    clone.querySelectorAll('script').forEach((sc) => {
+      if (sc.id === '__cogi_engine' || sc.textContent.includes('__cogi_ov')) sc.remove();
+    });
+    // 인라인 편집 표시가 결과 코드에 남으면 안 된다
+    clone.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
+    // 호버·편집 테두리는 편집 UI다. 지우지 않으면 style="outline: ... dashed 2px"가 코드에 박힌다
+    clone.querySelectorAll('[style*="outline"]').forEach((el) => { el.style.outline = ''; });
+    clone.querySelectorAll('[style]').forEach(tidy);
+    const pretty = (s) => s.trim().replace(/></g, '>\\n<'); // 태그마다 개행
+    parent.postMessage({ cogi: 'code',
+      body: pretty(clone.querySelector('body').innerHTML),
+      full: pretty(clone.outerHTML) }, '*');
+    postTree(); // 구조가 바뀌었으니 레이어 목록도 새로 올린다
+  };
+  const postMulti = () => parent.postMessage({ cogi: 'multi', count: all().length }, '*');
+
+  /* ── 인라인 글자 편집: 두 번 누르면 그 자리에 커서가 들어간다 (피그마·포토샵의 텍스트 툴 감각) ──
+     자식이 섞인 요소도 이 방식이면 <em>·<br>을 안 부수고 고칠 수 있다 */
+  let editing = null;
+  const startEdit = (el) => {
+    if (editing === el) return;
+    stopEdit();
+    editing = el;
+    el.setAttribute('contenteditable', 'plaintext-only'); // 붙여넣기로 남의 태그가 끼는 걸 막는다
+    if (el.contentEditable !== 'plaintext-only') el.setAttribute('contenteditable', 'true'); // 미지원 브라우저 폴백
+    el.style.outline = '2px solid #ff6b57';
+    el.focus();
+    layout();
+  };
+  const stopEdit = () => {
+    if (!editing) return;
+    const el = editing; editing = null;
+    el.removeAttribute('contenteditable');
+    el.style.outline = '';
+    tidy(el);
+    layout(); emit(); // 고친 글자를 코드로 흘려보낸다
+  };
+
+  document.addEventListener('dblclick', (e) => {
+    const t = e.target;
+    if (t === document.body || t === document.documentElement || t.closest('#__cogi_ov')) return;
+    if (!t.textContent.trim()) return; // 이미지·빈 상자는 편집할 글자가 없다
+    e.preventDefault();
+    pick(t, true); // noFocus — 부모가 iframe으로 포커스를 되돌리면 커서가 빠진다
+    startEdit(t);
+    // 두 번 누른 자리에 커서를 놓는다. 안 하면 맨 앞으로 간다
+    const r = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+    if (r) { const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); }
+  }, true);
+
+  /* 링크·폼 이동 차단 — srcDoc 문서의 기준 주소는 부모(우리 앱)라서
+     원본의 상대 링크(../index.html)가 우리 주소로 풀린다. 미리보기는 화면 확인용이라 따라갈 곳이 없다.
+     mousedown 의 preventDefault 로는 click 기본동작이 안 막혀 따로 잡는다 */
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('a[href], area[href]')) e.preventDefault();
+  }, true);
+  document.addEventListener('submit', (e) => e.preventDefault(), true);
+
+  /* 호버 미리 표시 */
+  let hoverEl = null;
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target;
+    if (editing) return; // 편집 중엔 점선이 깜빡여서 방해만 된다
+    if (t === sel || t.closest('#__cogi_ov') || t === document.body || t === document.documentElement) return;
+    if (hoverEl) hoverEl.style.outline = '';
+    hoverEl = t; t.style.outline = '2px dashed #7ba7e0';
+  });
+  document.addEventListener('mouseout', (e) => { if (e.target === hoverEl) { hoverEl.style.outline = ''; hoverEl = null; } });
+
+  /* ── 드래그: 이동 / 핸들 리사이즈 / 회전 ── */
+  let drag = null;
+  document.addEventListener('mousedown', (e) => {
+    window.focus(); // preventDefault 때문에 자동 포커스가 막히므로 직접 포커스 → 키보드 입력이 iframe 으로
+
+    if (editing) {
+      // 편집 중인 상자 안을 누르면 캐럿만 옮긴다. preventDefault를 걸면 커서가 안 움직인다
+      if (e.target === editing || editing.contains(e.target)) return;
+      stopEdit(); // 바깥을 누르면 편집을 닫고 평소 선택으로 돌아간다
+    }
+
+    const hd = e.target.closest('[data-h]');
+    if (hd && sel) { // 핸들 잡음
+      e.preventDefault();
+      const r = sel.getBoundingClientRect();
+      if (hd.dataset.h === 'rot') {
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const f = JSON.parse(sel.dataset.fx || '{}');
+        drag = { mode: 'rot', cx, cy, base: f.rot || 0,
+                 start: Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI };
+      } else {
+        drag = { mode: 'resize', h: hd.dataset.h, x: e.clientX, y: e.clientY,
+                 w: sel.offsetWidth, hh: sel.offsetHeight };
+      }
+      return;
+    }
+    const t = e.target;
+    if (t === document.body || t === document.documentElement || isUi(t)) return;
+    e.preventDefault();
+    if (hoverEl) { hoverEl.style.outline = ''; hoverEl = null; }
+
+    // Shift 클릭 = 추가 선택/해제. 여기서 드래그를 시작하면 고르는 순간 요소가 밀린다
+    if (e.shiftKey && sel && t !== sel) {
+      const i = extra.indexOf(t);
+      if (i >= 0) extra.splice(i, 1); else extra.push(t);
+      layout(); postMulti();
+      return;
+    }
+    if (t !== sel && extra.indexOf(t) < 0) { extra = []; pick(t); postMulti(); }
+
+    const st = sel.style;
+    st.position = st.position || 'relative';
+    // 고른 것 전부를 같은 만큼 옮긴다. 각자의 시작 좌표를 기억해 둔다
+    const movers = all();
+    movers.forEach((el) => { el.style.position = el.style.position || 'relative'; });
+    drag = { mode: 'move', x: e.clientX, y: e.clientY,
+             left: parseInt(st.left) || 0, top: parseInt(st.top) || 0,
+             group: movers.map((el) => ({ el, left: parseInt(el.style.left) || 0, top: parseInt(el.style.top) || 0 })),
+             edges: collectEdges(movers) };
+  }, true);
+
+  document.addEventListener('mousemove', (e) => {
+    if (!drag || !sel) return;
+    if (drag.mode === 'move') {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.group.forEach((g) => {
+        g.el.style.left = g.left + dx + 'px';
+        g.el.style.top = g.top + dy + 'px';
+      });
+      // 붙이기: 기준 요소의 변만 견준다. Alt를 누르면 스냅을 끈다 (피그마와 같은 관례)
+      const lines = [];
+      if (!e.altKey && drag.edges) {
+        const r = sel.getBoundingClientRect();
+        const sv = snapAxis([r.left, r.left + r.width / 2, r.right], drag.edges.vs);
+        const sh = snapAxis([r.top, r.top + r.height / 2, r.bottom], drag.edges.hs);
+        if (sv) { drag.group.forEach((g) => { g.el.style.left = (parseInt(g.el.style.left) || 0) + Math.round(sv.d) + 'px'; }); lines.push({ dir: 'v', at: sv.at }); }
+        if (sh) { drag.group.forEach((g) => { g.el.style.top = (parseInt(g.el.style.top) || 0) + Math.round(sh.d) + 'px'; }); lines.push({ dir: 'h', at: sh.at }); }
+      }
+      showGuides(lines);
+    } else if (drag.mode === 'resize') {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y, h = drag.h;
+      if (h.includes('e')) sel.style.width = Math.max(10, drag.w + dx) + 'px';
+      if (h.includes('w')) sel.style.width = Math.max(10, drag.w - dx) + 'px';
+      if (h.includes('s')) sel.style.height = Math.max(10, drag.hh + dy) + 'px';
+      if (h.includes('n')) sel.style.height = Math.max(10, drag.hh - dy) + 'px';
+      dims();
+    } else if (drag.mode === 'rot') {
+      const now = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx) * 180 / Math.PI;
+      let deg = Math.round(drag.base + now - drag.start);
+      if (e.shiftKey) deg = Math.round(deg / 15) * 15; // Shift = 15도 스냅
+      const f = JSON.parse(sel.dataset.fx || '{}'); f.rot = deg; sel.dataset.fx = JSON.stringify(f);
+      composeFx(); parent.postMessage({ cogi: 'rot', deg }, '*');
+    }
+    layout();
+  });
+  document.addEventListener('mouseup', () => { if (drag) { drag = null; showGuides([]); emit(); } });
+
+  /* 키보드 */
+  document.addEventListener('keydown', (e) => {
+    if (editing && e.key === 'Escape') { e.preventDefault(); stopEdit(); return; } // 편집 끝내기
+    if (!sel) return;
+    // 미리보기 안에도 입력칸이 있을 수 있다. 거기서 백스페이스를 누르면 글자를 지워야 하는데
+    // 아래 분기가 요소를 지워버렸다. 입력 중이면 편집 단축키를 아예 안 탄다
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const step = e.shiftKey ? 10 : 1;
+    const mv = { ArrowUp: [0, -step], ArrowDown: [0, step], ArrowLeft: [-step, 0], ArrowRight: [step, 0] }[e.key];
+    if (mv) {
+      e.preventDefault();
+      sel.style.position = sel.style.position || 'relative';
+      sel.style.left = ((parseInt(sel.style.left) || 0) + mv[0]) + 'px';
+      sel.style.top = ((parseInt(sel.style.top) || 0) + mv[1]) + 'px';
+      layout(); emit();
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      const dead = all(); sel = null; extra = []; layout();
+      dead.forEach((el) => el.remove());
+      parent.postMessage({ cogi: 'clear' }, '*'); postMulti(); emit();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'd' || e.code === 'KeyD')) {
+      e.preventDefault(); const copy = sel.cloneNode(true);
+      sel.after(copy); extra = []; pick(copy); postMulti(); emit();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'c' || e.code === 'KeyC')) {
+      // 고른 것들을 나란히 담는다. 붙여넣을 때 한 덩어리로 들어간다
+      e.preventDefault(); clip = all().map((el) => el.outerHTML).join('');
+      parent.postMessage({ cogi: 'copied', count: all().length }, '*');
+    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'v' || e.code === 'KeyV')) {
+      e.preventDefault();
+      if (!clip) return;
+      const tmp = document.createElement('div'); tmp.innerHTML = clip;
+      const nodes = Array.prototype.slice.call(tmp.children);
+      if (!nodes.length) return;
+      let anchor = sel;
+      nodes.forEach((node) => { anchor.after(node); anchor = node; nudgeBy(node, 12, 12); }); // 원본과 겹치면 안 보인다
+      extra = nodes.slice(1);
+      pick(nodes[0]); postMulti(); emit();
+    }
+  });
+
+
+  /* 새 요소 — 텍스트는 inline-block: 상자가 글 길이에 딱 맞는다 (요구 #7) */
+  const ADD = {
+    text: '<p style="display:inline-block;font-size:16px;color:#1b2a4a">새 텍스트를 입력하세요</p>',
+    button: '<button style="padding:12px 24px;background:#ff6b57;color:#fff;border:3px solid #1b2a4a;font-size:14px">버튼</button>',
+    box: '<div style="width:140px;height:90px;background:#cfe8ff;border:3px solid #1b2a4a"></div>',
+    image: '<img alt="이미지 자리" width="140" height="90" style="background:#e8e3d7;border:3px solid #1b2a4a;object-fit:cover" src="data:image/gif;base64,R0lGODlhAQABAIAAAMLCwgAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==">',
+    divider: '<hr style="border:none;border-top:3px solid #1b2a4a;margin:16px 0">',
+    input: '<input placeholder="입력하세요" style="padding:10px 14px;border:3px solid #1b2a4a;font-size:14px;width:220px">',
+    badge: '<span style="display:inline-block;padding:4px 12px;background:#ffd23f;border:2px solid #1b2a4a;font-size:12px;font-weight:700">NEW</span>',
+    card: '<div style="width:240px;padding:18px;background:#fff;border:3px solid #1b2a4a;box-shadow:6px 6px 0 #1b2a4a"><b style="font-size:16px">카드 제목</b><p style="font-size:13px;color:#5a6a85;margin-top:8px">설명 텍스트를 입력하세요.</p></div>',
+  };
+
+  addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.cogi === 'add') {
+      const wrap = document.createElement('div'); wrap.innerHTML = ADD[d.kind];
+      const node = wrap.firstChild;
+      (sel ? sel.after(node) : document.body.appendChild(node));
+      pick(node); emit(); return;
+    }
+    if (d.cogi === 'align') { alignAll(d.how); return; }
+    if (d.cogi === 'tree?') { postTree(); return; }
+    if (d.cogi === 'selectPath') {
+      const node = byPath(d.path);
+      if (node && node !== document.body) { extra = []; pick(node); postMulti(); }
+      return;
+    }
+    if (!sel || d.cogi !== 'apply') return;
+    const { prop, value } = d;
+    if (prop === 'text') sel.textContent = value;
+    else if (prop === 'fit') { sel.style.width = 'fit-content'; sel.style.height = 'auto'; dims(); } // 내용에 맞춤
+    else if (prop === 'bgImage') { sel.style.backgroundImage = value ? 'url(' + value + ')' : ''; sel.style.backgroundSize = 'cover'; sel.style.backgroundPosition = 'center'; }
+    else if (prop === 'nudge') {
+      sel.style.position = sel.style.position || 'relative';
+      sel.style.left = ((parseInt(sel.style.left) || 0) + value[0]) + 'px';
+      sel.style.top = ((parseInt(sel.style.top) || 0) + value[1]) + 'px';
+    } else if (prop === 'centerX') { sel.style.display = 'block'; sel.style.marginLeft = 'auto'; sel.style.marginRight = 'auto'; }
+    else if (prop === 'layer') {
+      if (value === 'up' && sel.nextElementSibling) sel.nextElementSibling.after(sel);
+      if (value === 'down' && sel.previousElementSibling) sel.previousElementSibling.before(sel);
+    } else if (prop === 'dup') { const copy = sel.cloneNode(true); sel.after(copy); pick(copy); }
+    else if (prop === 'del') { const dead = sel; sel = null; layout(); dead.remove(); parent.postMessage({ cogi: 'clear' }, '*'); }
+    else if (['rot', 'blur', 'bright', 'contrast', 'sat', 'gray'].includes(prop)) {
+      const f = JSON.parse(sel.dataset.fx || '{}'); f[prop] = value; sel.dataset.fx = JSON.stringify(f); composeFx();
+    } else sel.style[prop] = value;
+    if (prop === 'width' || prop === 'height') dims();
+    layout(); emit();
+    // 바뀐 값을 다시 올려보낸다 — 안 그러면 패널의 눌림 표시가 옛 상태에 멈춘다
+    if (prop !== 'del' && sel) pick(sel);
+  });
+})();
+</script>`;
+
+/* ── 패널 부품 ── */
+const Prop = ({ label, children }) => (
+  <label className="prop-row">
+    <span>{label}</span>
+    {children}
+  </label>
+);
+// 아코디언: 한 번에 한 섹션만 — 열면 다른 섹션은 접힌다
+const Sect = ({ id, title, children, openId, setOpenId }) => (
+  <details
+    className="prop-sect"
+    open={openId === id}
+    onToggle={(e) => {
+      if ((e.currentTarget as HTMLDetailsElement).open && openId !== id)
+        setOpenId(id);
+    }}
+  >
+    <summary
+      onClick={(e) => {
+        e.preventDefault();
+        setOpenId(openId === id ? null : id);
+      }}
+    >
+      {title}
+    </summary>
+    {children}
+  </details>
+);
+
+const FONTS = [
+  ["inherit", "기본"],
+  ["'Galmuri11', sans-serif", "갈무리(도트)"],
+  ["sans-serif", "고딕"],
+  ["serif", "명조"],
+  ["monospace", "코드체"],
+  ["system-ui", "시스템 둥근고딕"],
+  ["cursive", "필기체"],
+];
+const GRADS = [
+  ["", "없음(단색 유지)"],
+  ["linear-gradient(135deg,#cfe8ff,#ffd23f)", "하늘→노랑"],
+  ["linear-gradient(135deg,#ff6b57,#ffd23f)", "산호→노랑"],
+  ["linear-gradient(180deg,#1b2a4a,#4ec9a4)", "네이비→민트"],
+  ["linear-gradient(135deg,#7c5cff,#ff6bcb)", "보라→분홍"],
+  ["linear-gradient(135deg,#4ec9a4,#cfe8ff)", "민트→하늘"],
+  ["linear-gradient(135deg,#ff9a5a,#ff5a7e)", "노을"],
+];
+const SHADOWS_T = [
+  ["none", "없음"],
+  ["1px 1px 0 rgba(0,0,0,.35)", "또렷하게"],
+  ["0 2px 6px rgba(0,0,0,.3)", "은은하게"],
+  ["0 0 10px currentColor", "네온"],
+];
+
+/* ── 부족한 파일 자동 감지: PR엔 없는 로컬 참조(css/js/img)만 골라낸다 ── */
+const isExternalRef = (src: string) => /^(https?:)?\/\//i.test(src) || /^data:/i.test(src); // http(s)://, //, data: 는 제외
+function parseLocalRefs(html: string): string[] {
+  const dom = new DOMParser().parseFromString(html, "text/html");
+  const refs = new Set<string>();
+  dom.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => refs.add(el.getAttribute("href") || ""));
+  dom.querySelectorAll("script[src]").forEach((el) => refs.add(el.getAttribute("src") || ""));
+  dom.querySelectorAll("img[src]").forEach((el) => refs.add(el.getAttribute("src") || ""));
+  return [...refs].filter((src) => src && !isExternalRef(src));
+}
+
+/* ── 가져온 파일을 코드 안에 직접 박아넣기: css→style, js→script, 이미지→data URI ── */
+const MIME_BY_EXT: Record<string, string> = {
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
+  svg: "image/svg+xml", webp: "image/webp", ico: "image/x-icon", bmp: "image/bmp",
+};
+const guessMime = (path: string) => MIME_BY_EXT[(path.split(".").pop() || "").toLowerCase()] || "application/octet-stream";
+// 원본이 통짜 문서면 통짜로 돌려줘야 한다. body만 떼면 head의 <style>이 날아가 민무늬가 된다
+const isFullDoc = (html: string) => /<(!doctype\s+html|html[\s>]|head[\s>])/i.test(html);
+// DOMParser는 조각을 넣어도 html/head/body를 만들어 준다. 원본 모양대로 다시 뱉는다
+const serializeLike = (original: string, dom: Document) =>
+  isFullDoc(original)
+    ? (/<!doctype/i.test(original) ? "<!doctype html>\n" : "") + dom.documentElement.outerHTML
+    : dom.body.innerHTML;
+
+type FetchedAsset = { content: string; encoding: string };
+function inlineFetchedAssets(html: string, fetched: Record<string, FetchedAsset>): string {
+  const dom = new DOMParser().parseFromString(html, "text/html");
+  // head에 걸린 <link rel=stylesheet>도 끼워야 한다 — body만 뒤지면 정작 스타일시트를 놓친다
+  const body = dom as unknown as { querySelectorAll: Document["querySelectorAll"] };
+  let touched = false;
+  body.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => {
+    const href = el.getAttribute("href") || "";
+    const f = fetched[href];
+    if (!f) return;
+    const style = dom.createElement("style");
+    style.textContent = f.content;
+    el.replaceWith(style);
+    touched = true;
+  });
+  body.querySelectorAll("script[src]").forEach((el) => {
+    const src = el.getAttribute("src") || "";
+    const f = fetched[src];
+    if (!f) return;
+    const script = dom.createElement("script");
+    script.textContent = f.content;
+    el.replaceWith(script);
+    touched = true;
+  });
+  body.querySelectorAll("img[src]").forEach((el) => {
+    const src = el.getAttribute("src") || "";
+    const f = fetched[src];
+    if (!f) return;
+    el.setAttribute("src", `data:${guessMime(src)};base64,${f.content}`);
+    touched = true;
+  });
+  return touched ? serializeLike(html, dom) : html;
+}
+
+// 이미지면 base64로, 아니면 글자로 읽는다 — inlineFetchedAssets가 img만 base64를 쓴다
+const isImageRef = (p: string) => /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(p);
+// "../assets/omong-flow.png" → "omong-flow.png". 업로드한 파일과 맞출 때 쓴다
+const baseName = (p: string) => (p.split("/").pop() ?? p).toLowerCase();
+
+// 밑줄·취소선은 text-decoration 하나를 나눠 쓴다. 켜진 것만 모아 다시 조립한다
+const deco = (underline: boolean, strike: boolean) =>
+  [underline && "underline", strike && "line-through"].filter(Boolean).join(" ") || "none";
+
+const NO_LINES = new Set<number>(); // 빈 변경 라인 집합 재사용(렌더마다 새로 만들지 않게)
+
+// 지금 글자를 입력하는 중인지. 편집 단축키(Del·방향키·Ctrl+Z)가 입력을 가로채면 안 된다
+const isEditingField = (el?: Element | null) => {
+  const t = (el ?? document.activeElement) as HTMLElement | null;
+  if (!t) return false;
+  return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
+};
+
+// 가져온 파일 하나의 상태 — 성공하면 content/size/encoding, 실패하면 error만 채워진다
+type AssetEntry = { content: string; size: number; encoding: string; status: "ok" | "error"; error?: string };
+
+export default function PreviewDock({ code, onCode, repoId }: { code: any; onCode: any; repoId?: any }) {
+  const [picked, setPicked] = useState(null);
+  const [text, setText] = useState("");
+  const typingRef = useRef(false); // 내용 입력칸에 포커스가 있는 동안 true — 되돌아온 pick이 값을 못 덮게
+  const [selCount, setSelCount] = useState(0); // Shift로 함께 고른 개수 — 정렬 버튼을 켤지 정한다
+  const [tree, setTree] = useState([]); // 레이어 목록 (body 아래 구조)
+  const [copied, setCopied] = useState(0); // Ctrl+C로 담은 개수. 잠깐 띄우고 지운다
+  const [dim, setDim] = useState(null); // 선택 요소 W×H
+  const [rotVal, setRotVal] = useState(0); // 회전(마우스 핸들 ↔ 슬라이더 양방향)
+
+  /* ── 파일별 변경 라인 추적: "main"(메인 HTML) + 가져온 자산 경로별로 각각 스냅샷을 둔다 ── */
+  const [activeTab, setActiveTab] = useState("main"); // "main" | 가져온 파일 경로
+  const [changedByTab, setChangedByTab] = useState<Record<string, Set<number>>>({}); // { [탭키]: Set<라인번호> } — 잠깐 뒤 소멸
+  const [assets, setAssets] = useState<Record<string, AssetEntry>>({}); // 경로별 가져오기 결과
+  const [logOpen, setLogOpen] = useState(true); // 가져온 파일 목록 — ×로 닫는다 (assets는 안 지운다)
+  const [fetching, setFetching] = useState(false);
+  const prevByTab = useRef({ main: code });
+  const chgTimers = useRef({});
+  const noteChange = (tabKey, newText) => {
+    const before = (prevByTab.current[tabKey] ?? "").split("\n");
+    const after = newText.split("\n");
+    const diff = new Set();
+    after.forEach((ln, i) => { if (ln !== before[i]) diff.add(i); });
+    prevByTab.current[tabKey] = newText;
+    if (!diff.size) return;
+    setChangedByTab((m) => ({ ...m, [tabKey]: diff }));
+    clearTimeout(chgTimers.current[tabKey]);
+    // 2초는 미리보기에서 눈을 떼고 코드로 옮기는 사이에 이미 꺼졌다. 한 번은 보이게 늘린다
+    chgTimers.current[tabKey] = setTimeout(() => {
+      setChangedByTab((m) => { const n = { ...m }; delete n[tabKey]; return n; });
+    }, 4000);
+    setActiveTab((cur) => (cur === tabKey ? cur : tabKey)); // 지금 보던 탭이 아니면 바뀐 탭으로 전환
+  };
+  // 메인 HTML이 바뀔 때마다(드래그 편집·직접 타이핑·자산 인라인 반영 등) 라인 비교
+  useEffect(() => { noteChange("main", code); }, [code]);
+
+  /* ── 미리보기 부족 파일: 승인 전엔 파싱만, 네트워크는 버튼을 눌러야만 나간다 ── */
+  const missingRefs = useMemo(() => parseLocalRefs(code), [code]); // DOMParser만 쓰는 순수 파싱 — 여기선 절대 fetch 안 함
+  const fileTabs = useMemo(
+    () => ["main", ...Object.keys(assets).filter((p) => assets[p].status === "ok")],
+    [assets],
+  );
+
+  // 가져올 게 하나도 없으면 안내도 버튼도 아예 안 보여야 한다
+  const needAssets = missingRefs.length > 0;
+
+  // 빠진 파일이 생기면 팝업을 자동으로 띄운다. "나중에"로 닫으면 목록이 바뀔 때까지 다시 안 뜬다
+  const [askOpen, setAskOpen] = useState(false);
+  const askedFor = useRef('');
+  useEffect(() => {
+    const key = missingRefs.join('|');
+    if (!needAssets) { setAskOpen(false); askedFor.current = ''; return; }
+    if (askedFor.current === key) return; // 같은 목록으로 또 띄우지 않는다
+    askedFor.current = key;
+    setAskOpen(true);
+  }, [missingRefs, needAssets]);
+
+  // 어느 레포에서 가져올지 — 스튜디오가 안 알려줘서 여기서 직접 고른다
+  const [repos, setRepos] = useState([]);
+  const [pickedRepo, setPickedRepo] = useState(null);
+  const srcRepoId = repoId ?? pickedRepo; // prop으로 오면 그걸 쓰고, 없으면 고른 값
+
+  // 부족한 파일이 있을 때만 내 레포 목록을 받는다. 멀쩡한 미리보기에서 괜히 요청하지 않게
+  // (파일 내용을 실제로 받는 건 아래 버튼을 눌러야만 한다 — 이건 선택지를 채우는 조회일 뿐)
+  useEffect(() => {
+    if (missingRefs.length === 0 || repoId || repos.length > 0) return;
+    api.getMyLinkedRepos().then((list) => {
+      setRepos(list ?? []);
+      if (list?.length === 1) setPickedRepo(list[0].repoId); // 하나뿐이면 고를 것도 없다
+    }).catch(() => setRepos([]));
+  }, [missingRefs, repoId, repos.length]);
+
+  // 결과를 화면과 코드에 반영하는 마지막 한 걸음 — 깃허브에서 받든 내 컴퓨터에서 올리든 여기로 모인다
+  const applyAssets = (entries: Record<string, AssetEntry>, ok: Record<string, FetchedAsset>) => {
+    setAssets((prev) => ({ ...prev, ...entries }));
+    setLogOpen(true); // 닫아 뒀어도 새로 가져오면 결과는 봐야 한다
+    Object.entries(ok).forEach(([p, f]) => noteChange(p, f.content)); // 새 탭도 "방금 바뀜"으로 표시
+    if (Object.keys(ok).length > 0) {
+      const inlined = inlineFetchedAssets(code, ok);
+      if (inlined !== code) onCode(inlined); // main 쪽 노트가 이 effect 뒤에 돌아서 최종 탭은 다시 main으로
+    }
+  };
+
+  // [승인 버튼 클릭 시에만 호출] — 부족한 파일을 레포에서 받아 결과 목록에 남기고, 성공한 것만 코드에 인라인
+  const handleFetchAssets = async () => {
+    if (!srcRepoId || fetching || missingRefs.length === 0) return;
+    const targets = missingRefs;
+    setFetching(true);
+    const results = await Promise.allSettled(targets.map((p) => api.getRepoFileContent(srcRepoId, p)));
+    // setState 콜백 안에서 모으면 StrictMode가 updater를 두 번 돌려 헷갈린다. 밖에서 다 만들고 한 번에 넣는다
+    const entries: Record<string, AssetEntry> = {};
+    const ok: Record<string, FetchedAsset> = {};
+    results.forEach((r, i) => {
+      const p = targets[i];
+      if (r.status === "fulfilled") {
+        const f = r.value;
+        entries[p] = { content: f.content, size: f.size, encoding: f.encoding, status: "ok" };
+        ok[p] = { content: f.content, encoding: f.encoding };
+      } else {
+        const err: any = r.reason;
+        const reason = err?.status
+          ? `${err.status}${err.message ? " " + err.message : ""}`
+          : err?.message || "가져오기 실패";
+        entries[p] = { content: "", size: 0, encoding: "utf-8", status: "error", error: reason };
+      }
+    });
+    applyAssets(entries, ok);
+    setAskOpen(false); // 결과는 아래 목록에서 본다. 실패분은 흔적 버튼으로 다시 열 수 있다
+    setFetching(false);
+  };
+
+  /* ── 내 컴퓨터에서 올리기 ──
+   * 레포에 없는 파일(아직 커밋 안 한 이미지 등)은 깃허브에서 못 받는다.
+   * 코드에는 ../assets/x.png 같은 상대경로로 적혀 있고 사용자는 파일 하나를 고르므로 파일명으로 맞춘다. */
+  const uploadRef = useRef(null);
+  const [uploadNote, setUploadNote] = useState("");
+
+  const readAsset = (file: File, asBase64: boolean) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => {
+        const out = String(reader.result);
+        // readAsDataURL은 "data:image/png;base64,XXXX"로 준다.
+        // inlineFetchedAssets가 접두사를 직접 붙이므로 쉼표 뒤만 넘긴다
+        resolve(asBase64 ? out.slice(out.indexOf(",") + 1) : out);
+      };
+      if (asBase64) reader.readAsDataURL(file);
+      else reader.readAsText(file);
+    });
+
+  const handleUploadAssets = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    const entries: Record<string, AssetEntry> = {};
+    const ok: Record<string, FetchedAsset> = {};
+    const unmatched: string[] = [];
+
+    for (const file of files) {
+      const targets = missingRefs.filter((p) => baseName(p) === file.name.toLowerCase());
+      if (targets.length === 0) { unmatched.push(file.name); continue; }
+      // img는 base64로 끼우고 css·js는 글자 그대로 끼운다 (inlineFetchedAssets가 그렇게 쓴다)
+      const asBase64 = isImageRef(file.name);
+      const encoding = asBase64 ? "base64" : "utf-8";
+      try {
+        const content = await readAsset(file, asBase64);
+        targets.forEach((p) => {
+          entries[p] = { content, size: file.size, encoding, status: "ok" };
+          ok[p] = { content, encoding };
+        });
+      } catch {
+        targets.forEach((p) => {
+          entries[p] = { content: "", size: 0, encoding, status: "error", error: "파일을 읽지 못했어요" };
+        });
+      }
+    }
+
+    applyAssets(entries, ok);
+    // 이름이 안 맞으면 조용히 넘기지 않는다 — 왜 안 끼워졌는지 알려줘야 다시 고를 수 있다
+    setUploadNote(unmatched.length > 0
+      ? `이름이 안 맞아 건너뛴 파일: ${unmatched.join(", ")} — 위 목록의 파일명과 같아야 해요.`
+      : "");
+    if (unmatched.length === 0) setAskOpen(false);
+  };
+
+  const isMainTab = activeTab === "main";
+  const activeContent = isMainTab ? code : (assets[activeTab]?.content ?? "");
+  const activeChangedLines = changedByTab[activeTab] ?? NO_LINES;
+
+  // 바뀐 첫 줄이 화면 밖이면 코드 영역 안에서만 스크롤(페이지 스크롤 금지, scrollIntoView 금지)
+  const activeTaRef = useRef(null);
+  const hlRef = useRef(null); // 색칠 레이어 — textarea 뒤에 깔린 별개 엘리먼트다
+  const lineElsRef = useRef({});
+
+  // 레이어는 absolute + overflow:hidden이라 textarea가 스크롤해도 저 혼자 제자리에 있었다.
+  // 그래서 첫 화면을 넘어간 줄은 색칠은 돼도 눈에 안 보였다("스크롤만 가고 표시가 없다")
+  const syncHl = () => {
+    const ta = activeTaRef.current;
+    const hl = hlRef.current;
+    if (!ta || !hl) return;
+    hl.scrollTop = ta.scrollTop;
+    hl.scrollLeft = ta.scrollLeft;
+  };
+
+  useEffect(() => {
+    if (!activeChangedLines.size) return;
+    const firstLine = Math.min(...activeChangedLines);
+    const ta = activeTaRef.current;
+    const lineEl = lineElsRef.current[firstLine];
+    if (!ta || !lineEl) return;
+    const target = lineEl.offsetTop - ta.clientHeight / 2;
+    ta.scrollTop = Math.max(0, Math.min(target, ta.scrollHeight - ta.clientHeight));
+    syncHl(); // 프로그램이 옮긴 스크롤도 레이어에 그대로 옮겨야 한다
+  }, [activeChangedLines, activeTab]);
+
+  const [full, setFull] = useState(false);
+  const [openSect, setOpenSect] = useState("text"); // 아코디언: 열려있는 섹션 하나
+  const [cols, setCols] = useState({ code: 30, props: 22 }); // 전체화면 3열 비율(%) — 리사이저로 조절
+  const [zoom, setZoom] = useState(100);
+  const skipNext = useRef(false);
+  const frameRef = useRef(null);
+
+  /* 실행취소/다시실행 — 코드 스냅샷 스택 (피그마의 Ctrl+Z 감각)
+   *
+   * 예전엔 iframe에서 온 변경만 스택에 넣었다. 그래서 코드창 직접 수정이나
+   * 빠진 파일 끼우기로 코드가 바뀌면 스택은 그대로인데 idx만 옛 자리를 가리켜,
+   * 실행취소를 누르면 엉뚱한 시점으로 튀었다. code가 바뀌는 모든 길을 한 곳에서 받는다. */
+  const hist = useRef({ stack: [code], idx: 0 });
+  const traveling = useRef(false); // 되돌리기가 만든 변경은 다시 쌓지 않는다
+  const [histAt, setHistAt] = useState({ idx: 0, len: 1 }); // 버튼 활성/비활성용 사본
+
+  useEffect(() => {
+    if (traveling.current) { traveling.current = false; return; }
+    const h = hist.current;
+    if (h.stack[h.idx] === code) return;
+    h.stack = h.stack.slice(0, h.idx + 1).concat(code).slice(-50);
+    h.idx = h.stack.length - 1;
+    setHistAt({ idx: h.idx, len: h.stack.length });
+  }, [code]);
+
+  const timeTravel = (dir) => {
+    const h = hist.current;
+    const to = h.idx + dir;
+    if (to < 0 || to >= h.stack.length) return;
+    h.idx = to;
+    traveling.current = true;
+    setHistAt({ idx: to, len: h.stack.length });
+    onCode(h.stack[to]); // skipNext 미설정 → 프레임 재렌더로 시점 복원
+    setPicked(null);
+  };
+  const canUndo = histAt.idx > 0;
+  const canRedo = histAt.idx < histAt.len - 1;
+
+  useEffect(() => {
+    const onMsg = (e) => {
+      const d = e.data || {};
+      if (d.cogi === "pick") {
+        setPicked(d);
+        // 입력창에서 타이핑 중이면 값을 덮지 않는다. apply 뒤 iframe이 pick을 다시 보내는데,
+        // 그때 되돌아온 값으로 덮으면 커서가 맨 뒤로 튄다
+        if (!typingRef.current) setText(d.text ?? "");
+        // 방향키·Del로 요소를 옮기려면 iframe에 포커스가 있어야 한다.
+        // 다만 오른쪽 속성창에 타이핑 중일 때 빼앗으면 한 글자 치고 포커스가 날아가고,
+        // 다음 백스페이스가 iframe 핸들러로 가서 요소가 지워졌다. 입력 중이면 그대로 둔다
+        // noFocus = 화면에서 두 번 눌러 인라인 편집으로 들어온 선택. 여기서 포커스를 되돌리면 커서가 빠진다
+        if (!d.noFocus && !isEditingField()) frameRef.current?.focus();
+      }
+      if (d.cogi === "dim") setDim({ w: d.w, h: d.h });
+      if (d.cogi === "multi") setSelCount(d.count);
+      if (d.cogi === "tree") setTree(d.nodes ?? []);
+      if (d.cogi === "copied") setCopied(d.count); // 몇 개 담았는지 잠깐 알려준다
+      if (d.cogi === "clear") {
+        setPicked(null);
+        setDim(null);
+        setSelCount(0);
+      }
+      if (d.cogi === "rot") setRotVal(d.deg); // 마우스 회전 → 슬라이더 동기화
+      if (d.cogi === "code") {
+        // 원본이 통짜 문서면 head까지 살려서 되돌려준다. body만 받으면 <style>이 사라져 민무늬가 된다
+        const next = isFullDoc(code)
+          ? (/<!doctype/i.test(code) ? "<!doctype html>\n" : "") + d.full
+          : d.body;
+        skipNext.current = true;
+        onCode(next);
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [onCode, code]); // code를 읽으니 의존성에 넣는다 — 빼면 옛 문서 모양으로 판단한다
+
+  /* 부모 쪽 단축키: Ctrl+Z / Ctrl+Shift+Z (iframe 밖에서도 동작) */
+  useEffect(() => {
+    const onKey = (e) => {
+      // 입력창에 타이핑 중이면 편집 단축키를 하나도 안 탄다.
+      // Ctrl+Z가 이 가드보다 앞에 있어서 글자 되돌리기가 코드 되돌리기로 가로채였다
+      const editing = isEditingField(e.target as Element);
+      if (
+        !editing &&
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === "z" || e.code === "KeyZ")
+      ) {
+        e.preventDefault();
+        timeTravel(e.shiftKey ? 1 : -1);
+        return;
+      }
+      if (full && e.key === "Escape") setFull(false);
+      // 선택된 요소가 있으면 편집 키를 iframe 으로 전달 — 포커스가 부모에 있어도 방향키/Del/Ctrl+D 동작
+      if (!picked || editing) return;
+      const step = e.shiftKey ? 10 : 1;
+      const mv = {
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+      }[e.key];
+      if (mv) {
+        e.preventDefault();
+        apply("nudge", mv);
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        apply("del");
+      } else if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === "d" || e.code === "KeyD")
+      ) {
+        e.preventDefault();
+        apply("dup");
+      }
+    };
+    // 캡처 단계 + document: 포커스가 어디에 있어도(심지어 어디에도 없어도) 가장 먼저 받는다
+    document.addEventListener("keydown", onKey, true);
+    if (full) document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.body.style.overflow = "";
+    };
+  }, [full, picked]);
+
+  const [doc, setDoc] = useState(code);
+  useEffect(() => {
+    if (skipNext.current) {
+      skipNext.current = false;
+      return;
+    }
+    setDoc(code);
+    setPicked(null);
+    setDim(null);
+    setRotVal(0);
+  }, [code]);
+
+  const apply = (prop: string, value?: any) =>
+    frameRef.current?.contentWindow?.postMessage(
+      { cogi: "apply", prop, value },
+      "*",
+    );
+  const addEl = (kind) =>
+    frameRef.current?.contentWindow?.postMessage({ cogi: "add", kind }, "*");
+  const alignEl = (how) =>
+    frameRef.current?.contentWindow?.postMessage({ cogi: "align", how }, "*");
+  const selectPath = (path) =>
+    frameRef.current?.contentWindow?.postMessage({ cogi: "selectPath", path }, "*");
+
+  // 담았다는 표시는 잠깐만 — 계속 남으면 지금 담은 건지 헷갈린다
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(0), 1600);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  // 문서가 바뀌면(되돌리기·자산 인라인 등) 레이어 목록도 다시 받는다
+  useEffect(() => {
+    const t = setTimeout(() => frameRef.current?.contentWindow?.postMessage({ cogi: "tree?" }, "*"), 200);
+    return () => clearTimeout(t);
+  }, [doc]);
+
+  const srcDoc = useMemo(() => doc + ENGINE, [doc]);
+  const st = picked?.style;
+
+  // 파일 탭 — 메인 HTML 하나뿐이면 아예 안 그린다(기존 화면 그대로)
+  const fileTabsBar = fileTabs.length > 1 && (
+    <div className="tabs dock-file-tabs">
+      {fileTabs.map((t) => (
+        <button
+          key={t}
+          type="button"
+          className={activeTab === t ? "on" : ""}
+          title={t === "main" ? "메인 HTML" : t}
+          onClick={() => setActiveTab(t)}
+        >
+          {t === "main" ? "메인 HTML" : t.split("/").pop()}
+          {changedByTab[t]?.size ? <i className="dock-tab-dot" /> : null}
+        </button>
+      ))}
+    </div>
+  );
+
+  // 전체화면 리사이저: 경계선을 잡고 끌면 좌/우 열 너비(%)가 바뀐다
+  const stageRef = useRef(null);
+  const startResize = (side) => (e) => {
+    e.preventDefault();
+    const rect = stageRef.current.getBoundingClientRect();
+    const onMove = (ev) => {
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      setCols((c) =>
+        side === "code"
+          ? { ...c, code: Math.min(55, Math.max(15, pct)) }
+          : { ...c, props: Math.min(40, Math.max(14, 100 - pct)) },
+      );
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  return (
+    <div className={`dock ${full ? "full" : ""}`}>
+      {/* ── 툴바: 요소 추가 · 실행취소 · 줌 · 전체화면 ── */}
+      <div className="dock-bar">
+        <select
+          className="dock-add"
+          defaultValue=""
+          aria-label="요소 추가"
+          onChange={(e) => {
+            if (e.target.value) {
+              addEl(e.target.value);
+              e.target.value = "";
+            }
+          }}
+        >
+          <option value="" disabled>
+            ＋ 요소 추가
+          </option>
+          <option value="text">텍스트</option>
+          <option value="button">버튼</option>
+          <option value="box">박스</option>
+          <option value="image">이미지</option>
+          <option value="divider">구분선</option>
+          <option value="input">입력창</option>
+          <option value="badge">뱃지</option>
+          <option value="card">카드</option>
+        </select>
+        {/* 끝에 닿으면 눌러도 아무 일이 없어 고장난 줄 안다. 아예 비활성으로 보여준다 */}
+        <button
+          className="dock-tool"
+          title={canUndo ? "실행취소 (Ctrl+Z)" : "되돌릴 게 없어요"}
+          disabled={!canUndo}
+          onClick={() => timeTravel(-1)}
+        >
+          ↩
+        </button>
+        <button
+          className="dock-tool"
+          title={canRedo ? "다시실행 (Ctrl+Shift+Z)" : "다시실행할 게 없어요"}
+          disabled={!canRedo}
+          onClick={() => timeTravel(1)}
+        >
+          ↪
+        </button>
+        <span className="dock-help" aria-label="사용법">
+          <i>
+            <b>클릭</b> 선택
+          </i>
+          <i>
+            <b>드래그</b> 이동
+          </i>
+          <i>
+            <b>8점 핸들</b> 크기
+          </i>
+          <i>
+            <b>🟡 핸들</b> 회전
+          </i>
+          <i>
+            <b>방향키</b> 이동
+          </i>
+          <i>
+            <b>Del</b> 삭제
+          </i>
+          <i>
+            <b>Ctrl+D</b> 복제
+          </i>
+          <i>
+            <b>두 번 클릭</b> 글자 편집
+          </i>
+        </span>
+        <select
+          className="dock-add"
+          value={zoom}
+          aria-label="줌"
+          onChange={(e) => setZoom(Number(e.target.value))}
+        >
+          {[50, 75, 100, 125, 150].map((z) => (
+            <option key={z} value={z}>
+              {z}%
+            </option>
+          ))}
+        </select>
+        <button
+          className="dock-full-btn"
+          title={full ? "창 모드로 (Esc)" : "전체화면으로"}
+          onClick={() => setFull((f) => !f)}
+        >
+          {full ? "⤡ 창 모드" : "⤢ 전체화면"}
+        </button>
+      </div>
+
+      {/* ── 부족한 파일 팝업: 가져올 게 있을 때만 뜬다. 승인 전엔 fetch를 절대 만들지 않는다 ──
+           닫아도 다시 열 수 있게 아래 한 줄짜리 흔적을 남긴다 */}
+      {needAssets && !askOpen && (
+        <button className="dock-fetch-reopen" onClick={() => setAskOpen(true)}>
+          ⚠ 파일 {missingRefs.length}개가 빠져 미리보기가 원본과 다르게 보여요 — 가져오기
+        </button>
+      )}
+
+      {needAssets && askOpen && (
+        <div className="modal-mask" onClick={() => setAskOpen(false)}>
+          <div className="modal dock-ask" onClick={(e) => e.stopPropagation()}>
+            <h3>미리보기에 필요한 파일이 있어요</h3>
+            <p className="note">
+              지금 코드가 아래 파일을 불러 쓰는데 미리보기에는 없어요.
+              <b> 가져오지 않으면 스타일과 이미지가 빠진 채로 그려져 실제 화면과 다르게 보입니다.</b>
+            </p>
+            <ul className="dock-ask-list">
+              {/* 올릴 때 이 이름으로 고르면 된다 — 경로는 코드에 적힌 그대로, 굵은 쪽이 파일명 */}
+              {missingRefs.map((p) => (
+                <li key={p}>
+                  <span className="dock-ask-dir">{p.slice(0, p.length - baseName(p).length)}</span>
+                  <b>{p.split("/").pop()}</b>
+                </li>
+              ))}
+            </ul>
+            <p className="note sm">
+              이 파일만 읽어와 미리보기에 끼워 넣어요. 코드는 바뀌지 않아요.
+              <br />
+              아직 커밋 안 한 파일이면 깃허브에 없으니 내 컴퓨터에서 올리면 돼요.
+            </p>
+            {uploadNote && <p className="dock-ask-warn">{uploadNote}</p>}
+
+            {/* 파일명이 위 목록과 같아야 어디에 끼울지 알 수 있다 */}
+            <input
+              ref={uploadRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => { handleUploadAssets(e.target.files); e.target.value = ""; }}
+            />
+
+            <div className="dock-ask-foot">
+              {/* 레포가 두 개 이상이면 어디서 가져올지 고른다. prop으로 이미 정해져 오면 안 띄운다 */}
+              {!repoId && repos.length > 1 && (
+                <select className="dock-fetch-repo" value={pickedRepo ?? ""}
+                  onChange={(e) => setPickedRepo(Number(e.target.value))} aria-label="가져올 레포">
+                  <option value="">레포 선택</option>
+                  {repos.map((r) => <option key={r.repoId} value={r.repoId}>{r.repoName}</option>)}
+                </select>
+              )}
+              <span className="ml-auto" />
+              <button className="btn wh sm" onClick={() => setAskOpen(false)}>나중에</button>
+              <button className="btn wh sm" onClick={() => uploadRef.current?.click()}>
+                📁 내 컴퓨터에서 올리기
+              </button>
+              {srcRepoId ? (
+                <button className="btn co sm" disabled={fetching} onClick={handleFetchAssets}>
+                  {fetching ? "가져오는 중…" : "깃허브에서 가져오기"}
+                </button>
+              ) : (
+                <span className="note sm">
+                  {repos.length > 1 ? "가져올 레포를 고르세요" : "레포가 없으면 올리기로 넣으세요"}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 가져온 결과 확인: 성공/실패와 크기, 펼치면 원문까지 ──
+          base64 이미지는 펼치면 화면을 다 덮는다. 확인이 끝나면 닫을 수 있어야 한다.
+          닫아도 assets는 그대로라 파일 탭으로 언제든 다시 본다 */}
+      {logOpen && Object.keys(assets).length > 0 && (
+        <div className="dock-fetch-panel">
+          <div className="dock-fetch-head">
+            <b>가져온 파일 {Object.keys(assets).length}개</b>
+            <button
+              type="button"
+              className="dock-fetch-close"
+              title="닫기"
+              aria-label="가져온 파일 목록 닫기"
+              onClick={() => setLogOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+          <div className="dock-fetch-log">
+          {Object.entries(assets).map(([path, a]) => (
+            <details key={path} className="dock-fetch-item">
+              <summary>
+                <span className={`chip sm ${a.status === "ok" ? "low" : "hi"}`}>
+                  {a.status === "ok" ? "성공" : "실패"}
+                </span>
+                <b title={path}>{path}</b>
+                <span className="note sm">
+                  {a.status === "ok" ? `${a.size.toLocaleString()} B` : a.error}
+                </span>
+              </summary>
+              <pre className="dock-fetch-body">
+                {a.status === "ok" ? a.content : a.error || "알 수 없는 오류"}
+              </pre>
+            </details>
+          ))}
+          </div>
+        </div>
+      )}
+
+      <div
+        className="dock-stage"
+        ref={stageRef}
+        style={
+          full
+            ? {
+                gridTemplateColumns: `${cols.code}% 6px 1fr 6px ${cols.props}%`,
+              }
+            : undefined
+        }
+      >
+        {/* 전체화면 전용: 코드가 제일 왼쪽 — 크게 보면서 수정 */}
+        {full && (
+          <>
+            <div className="dock-code-col side">
+              {fileTabsBar}
+              <div className="dock-code-wrap side">
+                <pre className="dock-code-hl" ref={hlRef} aria-hidden="true">
+                  {activeContent.split("\n").map((ln, i) => (
+                    <div
+                      key={i}
+                      ref={(el) => { lineElsRef.current[i] = el; }}
+                      className={activeChangedLines.has(i) ? "chg" : ""}
+                    >
+                      {ln || " "}
+                    </div>
+                  ))}
+                </pre>
+                <textarea
+                  ref={activeTaRef}
+                  className="dock-code side"
+                  value={activeContent}
+                  spellCheck={false}
+                  readOnly={!isMainTab}
+                  onChange={(e) => {
+                    if (!isMainTab) return; // 가져온 파일 탭은 이미 메인에 인라인됐으니 읽기 전용
+                    onCode(e.target.value); // 스냅샷은 code를 지켜보는 곳에서 한 번에 쌓는다
+                  }}
+                  onScroll={syncHl}
+                  aria-label="코드 (실시간 동기화)"
+                />
+              </div>
+            </div>
+            <div
+              className="dock-resizer"
+              onMouseDown={startResize("code")}
+              title="드래그로 폭 조절"
+            />
+          </>
+        )}
+        <div className="dock-canvas">
+          <div
+            className="dock-scale"
+            style={{
+              width: `${10000 / zoom}%`,
+              height: full ? `${10000 / zoom}%` : undefined,
+              transform: `scale(${zoom / 100})`,
+            }}
+          >
+            <iframe
+              ref={frameRef}
+              title="라이브 미리보기"
+              className="dock-frame"
+              sandbox="allow-scripts allow-same-origin"
+              srcDoc={srcDoc}
+            />
+          </div>
+        </div>
+
+        {full && (
+          <div
+            className="dock-resizer"
+            onMouseDown={startResize("props")}
+            title="드래그로 폭 조절"
+          />
+        )}
+        {/* ── 속성 패널: 텍스트 / 배치 / 스타일 / 효과 (아코디언) ── */}
+        <aside className="dock-props">
+          {picked ? (
+            <>
+              <div className="row" style={{ marginBottom: 10 }}>
+                <span className="chip navy">{picked.label}</span>
+                {dim && (
+                  <span className="chip gray">
+                    {dim.w}×{dim.h}
+                  </span>
+                )}
+                {/* Shift로 더 골랐으면 몇 개인지 보여준다. 안 보이면 왜 정렬이 되는지 모른다 */}
+                {selCount > 1 && <span className="chip hi">{selCount}개 선택</span>}
+                {copied > 0 && <span className="chip low">{copied}개 복사됨</span>}
+              </div>
+
+              {/* ── 정렬·분배: 두 개 이상 골라야 의미가 있다 ── */}
+              <Sect
+                id="align"
+                title="정렬 · 분배"
+                openId={openSect}
+                setOpenId={setOpenSect}
+              >
+                {selCount < 2 ? (
+                  <p className="dock-edit-hint">
+                    <b>Shift</b>를 누른 채 다른 요소를 클릭하면 함께 골라져요. 두 개 이상부터 정렬할 수 있어요.
+                  </p>
+                ) : (
+                  <>
+                    <Prop label="가로">
+                      <div className="btn3">
+                        <button title="왼쪽 맞춤" onClick={() => alignEl("left")}>⇤</button>
+                        <button title="가로 가운데" onClick={() => alignEl("cx")}>⇹</button>
+                        <button title="오른쪽 맞춤" onClick={() => alignEl("right")}>⇥</button>
+                      </div>
+                    </Prop>
+                    <Prop label="세로">
+                      <div className="btn3">
+                        <button title="위 맞춤" onClick={() => alignEl("top")}>⤒</button>
+                        <button title="세로 가운데" onClick={() => alignEl("cy")}>⇳</button>
+                        <button title="아래 맞춤" onClick={() => alignEl("bottom")}>⤓</button>
+                      </div>
+                    </Prop>
+                    <Prop label="간격 균등">
+                      <div className="btn3">
+                        <button title="가로로 고르게 (3개 이상)" disabled={selCount < 3}
+                          onClick={() => alignEl("distH")}>↔</button>
+                        <button title="세로로 고르게 (3개 이상)" disabled={selCount < 3}
+                          onClick={() => alignEl("distV")}>↕</button>
+                      </div>
+                    </Prop>
+                  </>
+                )}
+              </Sect>
+
+              <Sect
+                id="text"
+                title="텍스트"
+                openId={openSect}
+                setOpenId={setOpenSect}
+              >
+                {picked.text !== null ? (
+                  <Prop label="내용">
+                    <input
+                      type="text"
+                      value={text}
+                      onFocus={() => { typingRef.current = true; }}
+                      onBlur={() => { typingRef.current = false; }}
+                      onChange={(e) => {
+                        setText(e.target.value);
+                        apply("text", e.target.value);
+                      }}
+                    />
+                  </Prop>
+                ) : picked.hasText ? (
+                  /* 안에 <em>·<br> 같은 자식이 섞인 요소. 내용 칸으로 덮으면 그게 다 날아가서 잠근다 */
+                  <p className="dock-edit-hint">
+                    글자가 여러 조각으로 나뉘어 있어요 — <b>화면에서 두 번 누르면</b> 그 자리에서 고칠 수 있어요.
+                  </p>
+                ) : null}
+                <Prop label="글꼴">
+                  <select
+                    defaultValue="inherit"
+                    onChange={(e) => apply("fontFamily", e.target.value)}
+                  >
+                    {FONTS.map(([v, ko]) => (
+                      <option key={ko} value={v}>
+                        {ko}
+                      </option>
+                    ))}
+                  </select>
+                </Prop>
+                <Prop label="크기">
+                  <input
+                    type="number"
+                    min="8"
+                    max="120"
+                    defaultValue={st.fontSize}
+                    onChange={(e) => apply("fontSize", e.target.value + "px")}
+                  />
+                </Prop>
+                <Prop label="굵기">
+                  <select
+                    defaultValue={st.fontWeight >= 600 ? "bold" : "normal"}
+                    onChange={(e) => apply("fontWeight", e.target.value)}
+                  >
+                    <option value="300">얇게</option>
+                    <option value="normal">보통</option>
+                    <option value="bold">굵게</option>
+                    <option value="900">아주 굵게</option>
+                  </select>
+                </Prop>
+                <Prop label="색">
+                  <input
+                    type="color"
+                    defaultValue={st.color}
+                    onChange={(e) => apply("color", e.target.value)}
+                  />
+                </Prop>
+                <Prop label="정렬">
+                  {/* 셋 중 하나 — 지금 걸린 쪽을 눌린 상태로 보여준다 */}
+                  <span className="btn3">
+                    {[["left", "⇤"], ["center", "≡"], ["right", "⇥"]].map(([v, icon]) => (
+                      <button key={v} className={st.align === v ? "on" : ""}
+                        onClick={() => apply("textAlign", v)}>
+                        {icon}
+                      </button>
+                    ))}
+                  </span>
+                </Prop>
+                <Prop label="꾸밈">
+                  {/* 켜짐/꺼짐 — 다시 누르면 풀리고 코드에서도 빠진다.
+                      밑줄과 취소선은 같은 text-decoration이라 한쪽만 바꾸면 다른 쪽이 지워진다.
+                      둘 다 현재 값에서 다시 조립한다 */}
+                  <span className="btn3">
+                    <button
+                      className={st.italic ? "on" : ""}
+                      style={{ fontStyle: "italic" }}
+                      onClick={() => apply("fontStyle", st.italic ? "normal" : "italic")}
+                    >
+                      I
+                    </button>
+                    <button
+                      className={st.underline ? "on" : ""}
+                      style={{ textDecoration: "underline" }}
+                      onClick={() => apply("textDecoration", deco(!st.underline, st.strike))}
+                    >
+                      U
+                    </button>
+                    <button
+                      className={st.strike ? "on" : ""}
+                      style={{ textDecoration: "line-through" }}
+                      onClick={() => apply("textDecoration", deco(st.underline, !st.strike))}
+                    >
+                      S
+                    </button>
+                  </span>
+                </Prop>
+                <Prop label="자간">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="-3"
+                    max="24"
+                    defaultValue={st.letterSpacing}
+                    onChange={(e) =>
+                      apply("letterSpacing", e.target.value + "px")
+                    }
+                  />
+                </Prop>
+                <Prop label="줄간격">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1"
+                    max="3"
+                    defaultValue="1.6"
+                    onChange={(e) => apply("lineHeight", e.target.value)}
+                  />
+                </Prop>
+                <Prop label="글자 그림자">
+                  <select
+                    defaultValue="none"
+                    onChange={(e) => apply("textShadow", e.target.value)}
+                  >
+                    {SHADOWS_T.map(([v, ko]) => (
+                      <option key={ko} value={v}>
+                        {ko}
+                      </option>
+                    ))}
+                  </select>
+                </Prop>
+                <Prop label="대소문자">
+                  {/* 켜짐/꺼짐 — 다시 누르면 원래대로 돌아가고 코드에서도 빠진다 */}
+                  <span className="btn3">
+                    <button
+                      className={st.transform === "uppercase" ? "on" : ""}
+                      title="모두 대문자"
+                      onClick={() => apply("textTransform", st.transform === "uppercase" ? "none" : "uppercase")}
+                    >
+                      AA
+                    </button>
+                    <button
+                      className={st.transform === "lowercase" ? "on" : ""}
+                      title="모두 소문자"
+                      onClick={() => apply("textTransform", st.transform === "lowercase" ? "none" : "lowercase")}
+                    >
+                      Aa
+                    </button>
+                  </span>
+                </Prop>
+                <Prop label="글자 그라데이션">
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        apply("backgroundImage", "none");
+                        apply("WebkitBackgroundClip", "");
+                        apply("WebkitTextFillColor", "");
+                        return;
+                      }
+                      apply("backgroundImage", e.target.value);
+                      apply("WebkitBackgroundClip", "text");
+                      apply("WebkitTextFillColor", "transparent");
+                    }}
+                  >
+                    {GRADS.map(([v, ko]) => (
+                      <option key={ko} value={v}>
+                        {ko}
+                      </option>
+                    ))}
+                  </select>
+                </Prop>
+              </Sect>
+
+              {/* 컨테이너 배치(flex) — 박스·카드 안 요소를 웹 레이아웃처럼 정렬 */}
+              <Sect
+                id="flex"
+                title="컨테이너 정렬"
+                openId={openSect}
+                setOpenId={setOpenSect}
+              >
+                <Prop label="배치 방향">
+                  <span className="btn3">
+                    <button
+                      title="가로 배치"
+                      onClick={() => {
+                        apply("display", "flex");
+                        apply("flexDirection", "row");
+                      }}
+                    >
+                      ⇄
+                    </button>
+                    <button
+                      title="세로 배치"
+                      onClick={() => {
+                        apply("display", "flex");
+                        apply("flexDirection", "column");
+                      }}
+                    >
+                      ⇅
+                    </button>
+                    <button
+                      title="배치 해제"
+                      onClick={() => apply("display", "")}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                </Prop>
+                <Prop label="주축 정렬">
+                  <select
+                    defaultValue="flex-start"
+                    onChange={(e) => apply("justifyContent", e.target.value)}
+                  >
+                    <option value="flex-start">시작</option>
+                    <option value="center">가운데</option>
+                    <option value="flex-end">끝</option>
+                    <option value="space-between">양끝 분산</option>
+                    <option value="space-evenly">고른 간격</option>
+                  </select>
+                </Prop>
+                <Prop label="교차 정렬">
+                  <select
+                    defaultValue="stretch"
+                    onChange={(e) => apply("alignItems", e.target.value)}
+                  >
+                    <option value="stretch">늘림</option>
+                    <option value="flex-start">시작</option>
+                    <option value="center">가운데</option>
+                    <option value="flex-end">끝</option>
+                  </select>
+                </Prop>
+                <Prop label="간격(px)">
+                  <input
+                    type="number"
+                    min="0"
+                    max="80"
+                    defaultValue="0"
+                    onChange={(e) => apply("gap", e.target.value + "px")}
+                  />
+                </Prop>
+                <Prop label="줄바꿈">
+                  <span className="btn3">
+                    <button
+                      title="넘치면 줄바꿈"
+                      onClick={() => apply("flexWrap", "wrap")}
+                    >
+                      ↩
+                    </button>
+                    <button
+                      title="한 줄 유지"
+                      onClick={() => apply("flexWrap", "nowrap")}
+                    >
+                      —
+                    </button>
+                  </span>
+                </Prop>
+              </Sect>
+
+              <Sect
+                id="layout"
+                title="배치"
+                openId={openSect}
+                setOpenId={setOpenSect}
+              >
+                <Prop label="너비">
+                  <input
+                    type="number"
+                    min="0"
+                    max="1600"
+                    defaultValue={dim?.w}
+                    onChange={(e) =>
+                      apply(
+                        "width",
+                        e.target.value ? e.target.value + "px" : "auto",
+                      )
+                    }
+                  />
+                </Prop>
+                <Prop label="높이">
+                  <input
+                    type="number"
+                    min="0"
+                    max="1200"
+                    defaultValue={dim?.h}
+                    onChange={(e) =>
+                      apply(
+                        "height",
+                        e.target.value ? e.target.value + "px" : "auto",
+                      )
+                    }
+                  />
+                </Prop>
+                <Prop label="안쪽 여백">
+                  <input
+                    type="number"
+                    min="0"
+                    max="160"
+                    defaultValue={st.padding}
+                    onChange={(e) => apply("padding", e.target.value + "px")}
+                  />
+                </Prop>
+                <Prop label="바깥 여백">
+                  <input
+                    type="number"
+                    min="0"
+                    max="160"
+                    defaultValue={st.margin}
+                    onChange={(e) => apply("margin", e.target.value + "px")}
+                  />
+                </Prop>
+                <Prop label="회전(°)">
+                  <span className="rot-ctrl">
+                    <input
+                      type="range"
+                      min="-180"
+                      max="180"
+                      value={rotVal}
+                      onChange={(e) => {
+                        setRotVal(Number(e.target.value));
+                        apply("rot", Number(e.target.value));
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min="-180"
+                      max="180"
+                      value={rotVal}
+                      className="rot-num"
+                      onChange={(e) => {
+                        const v = Number(e.target.value) || 0;
+                        setRotVal(v);
+                        apply("rot", v);
+                      }}
+                    />
+                  </span>
+                </Prop>
+                <Prop label="크기 맞춤">
+                  <button
+                    className="fit-btn"
+                    title="상자를 내용 길이에 딱 맞게"
+                    onClick={() => apply("fit")}
+                  >
+                    내용에 맞춤
+                  </button>
+                </Prop>
+                <Prop label="정렬·겹침">
+                  <span className="btn3">
+                    <button
+                      title="가로 가운데"
+                      onClick={() => apply("centerX")}
+                    >
+                      ▣
+                    </button>
+                    <button
+                      title="한 층 앞으로"
+                      onClick={() => apply("layer", "up")}
+                    >
+                      ⬆
+                    </button>
+                    <button
+                      title="한 층 뒤로"
+                      onClick={() => apply("layer", "down")}
+                    >
+                      ⬇
+                    </button>
+                  </span>
+                </Prop>
+                <Prop label="복제·삭제">
+                  <span className="btn3">
+                    <button title="복제 (Ctrl+D)" onClick={() => apply("dup")}>
+                      ⧉
+                    </button>
+                    <button title="삭제 (Del)" onClick={() => apply("del")}>
+                      🗑
+                    </button>
+                  </span>
+                </Prop>
+              </Sect>
+
+              <Sect
+                id="style"
+                title="스타일"
+                openId={openSect}
+                setOpenId={setOpenSect}
+              >
+                <Prop label="배경색">
+                  <input
+                    type="color"
+                    defaultValue={st.background}
+                    onChange={(e) => apply("background", e.target.value)}
+                  />
+                </Prop>
+                <Prop label="배경 이미지">
+                  <input
+                    type="text"
+                    placeholder="이미지 URL"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter")
+                        apply("bgImage", (e.target as HTMLInputElement).value);
+                    }}
+                    onBlur={(e) =>
+                      e.target.value && apply("bgImage", e.target.value)
+                    }
+                  />
+                </Prop>
+                <Prop label="그라데이션">
+                  <select
+                    defaultValue=""
+                    onChange={(e) =>
+                      e.target.value && apply("background", e.target.value)
+                    }
+                  >
+                    {GRADS.map(([v, ko]) => (
+                      <option key={ko} value={v}>
+                        {ko}
+                      </option>
+                    ))}
+                  </select>
+                </Prop>
+                <Prop label="테두리 굵기">
+                  <input
+                    type="number"
+                    min="0"
+                    max="12"
+                    defaultValue={st.borderW}
+                    onChange={(e) =>
+                      apply(
+                        "border",
+                        Number(e.target.value)
+                          ? `${e.target.value}px solid ${st.borderC}`
+                          : "none",
+                      )
+                    }
+                  />
+                </Prop>
+                <Prop label="테두리 색">
+                  <input
+                    type="color"
+                    defaultValue={st.borderC}
+                    onChange={(e) =>
+                      apply(
+                        "border",
+                        `${st.borderW || 2}px solid ${e.target.value}`,
+                      )
+                    }
+                  />
+                </Prop>
+                <Prop label="테두리 스타일">
+                  <select
+                    defaultValue="solid"
+                    onChange={(e) => apply("borderStyle", e.target.value)}
+                  >
+                    <option value="solid">실선</option>
+                    <option value="dashed">파선</option>
+                    <option value="dotted">점선</option>
+                    <option value="double">이중선</option>
+                  </select>
+                </Prop>
+                <Prop label="둥글기">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    defaultValue={st.radius}
+                    onChange={(e) =>
+                      apply("borderRadius", e.target.value + "px")
+                    }
+                  />
+                </Prop>
+                <Prop label="그림자">
+                  <select
+                    defaultValue=""
+                    onChange={(e) => apply("boxShadow", e.target.value)}
+                  >
+                    <option value="none">없음</option>
+                    <option value="4px 4px 0 #1b2a4a">픽셀 하드섀도우</option>
+                    <option value="0 4px 14px rgba(0,0,0,.18)">부드럽게</option>
+                    <option value="0 12px 34px rgba(0,0,0,.28)">크게</option>
+                    <option value="inset 0 3px 8px rgba(0,0,0,.25)">
+                      안쪽
+                    </option>
+                  </select>
+                </Prop>
+                <Prop label="투명도(%)">
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    defaultValue={st.opacity}
+                    onChange={(e) =>
+                      apply("opacity", Number(e.target.value) / 100)
+                    }
+                  />
+                </Prop>
+              </Sect>
+
+              <Sect
+                id="fx"
+                title="효과 (필터)"
+                openId={openSect}
+                setOpenId={setOpenSect}
+              >
+                <Prop label="블러">
+                  <input
+                    type="range"
+                    min="0"
+                    max="12"
+                    defaultValue="0"
+                    onChange={(e) => apply("blur", Number(e.target.value))}
+                  />
+                </Prop>
+                <Prop label="밝기(%)">
+                  <input
+                    type="range"
+                    min="40"
+                    max="180"
+                    defaultValue="100"
+                    onChange={(e) => apply("bright", Number(e.target.value))}
+                  />
+                </Prop>
+                <Prop label="대비(%)">
+                  <input
+                    type="range"
+                    min="40"
+                    max="180"
+                    defaultValue="100"
+                    onChange={(e) => apply("contrast", Number(e.target.value))}
+                  />
+                </Prop>
+                <Prop label="채도(%)">
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    defaultValue="100"
+                    onChange={(e) => apply("sat", Number(e.target.value))}
+                  />
+                </Prop>
+                <Prop label="흑백(%)">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    defaultValue="0"
+                    onChange={(e) => apply("gray", Number(e.target.value))}
+                  />
+                </Prop>
+              </Sect>
+            </>
+          ) : (
+            <div className="dock-guide">
+              <b>이렇게 편집해요</b>
+              <ol>
+                <li>
+                  <b>클릭</b> — 요소 선택
+                </li>
+                <li>
+                  <b>드래그</b> — 잡아서 이동
+                </li>
+                <li>
+                  <b>8점 핸들</b> — 크기 조절
+                </li>
+                <li>
+                  <b>🟡 노란 핸들</b> — 회전 (Shift=15°)
+                </li>
+                <li>
+                  <b>방향키</b> — 1px 이동 (Shift=10px)
+                </li>
+                <li>
+                  <b>Del</b> 삭제 · <b>Ctrl+D</b> 복제
+                </li>
+                <li>
+                  <b>두 번 클릭</b> — 그 자리에 커서가 들어가 글자를 바로 고친다 (Esc로 끝)
+                </li>
+              </ol>
+              <p className="note xs">
+                <b>Shift+클릭</b> 여러 개 · <b>Ctrl+C/V</b> 복사·붙여넣기 ·{" "}
+                <b>Ctrl+Z</b> 실행취소. 편집하면 왼쪽 코드가 실시간으로
+                바뀝니다.
+              </p>
+            </div>
+          )}
+
+          {/* ── 레이어 목록: 화면에서 못 집는 요소(겹쳐 있거나 크기 0)를 여기서 고른다.
+                 선택 여부와 무관하게 항상 보여야 쓸모가 있다 ── */}
+          <div className="dock-layers">
+            <b>레이어</b>
+            {tree.length === 0 ? (
+              <p className="note xs">아직 읽은 구조가 없어요.</p>
+            ) : (
+              <ul>
+                {tree.map((nd) => (
+                  <li key={nd.path} style={{ paddingLeft: 4 + nd.depth * 11 }}>
+                    <button
+                      className={picked?.path === nd.path ? "on" : ""}
+                      title={nd.tag}
+                      onClick={() => selectPath(nd.path)}
+                    >
+                      <i>{nd.tag}</i>
+                      {nd.label && <span>{nd.label}</span>}
+                    </button>
+                    {/* 순서 바꾸기는 이미 있는 layer 명령을 그대로 쓴다 */}
+                    <em
+                      title="한 칸 위로"
+                      onClick={() => { selectPath(nd.path); setTimeout(() => apply("layer", "down"), 0); }}
+                    >
+                      ▲
+                    </em>
+                    <em
+                      title="한 칸 아래로"
+                      onClick={() => { selectPath(nd.path); setTimeout(() => apply("layer", "up"), 0); }}
+                    >
+                      ▼
+                    </em>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {/* 변경 라인 하이라이트: 뒤에 색칠된 레이어를 깔고 그 위에 투명 textarea. 파일이 여럿이면 탭으로 옮겨 다닌다 */}
+      {!full && (
+        <>
+          {fileTabsBar}
+          <div className="dock-code-wrap">
+            <pre className="dock-code-hl" ref={hlRef} aria-hidden="true">
+              {activeContent.split("\n").map((ln, i) => (
+                <div
+                  key={i}
+                  ref={(el) => { lineElsRef.current[i] = el; }}
+                  className={activeChangedLines.has(i) ? "chg" : ""}
+                >
+                  {ln || " "}
+                </div>
+              ))}
+            </pre>
+            <textarea
+              ref={activeTaRef}
+              className="dock-code"
+              value={activeContent}
+              spellCheck={false}
+              readOnly={!isMainTab}
+              onChange={(e) => {
+                if (!isMainTab) return; // 가져온 파일 탭은 이미 메인에 인라인됐으니 읽기 전용
+                onCode(e.target.value); // 스냅샷은 code를 지켜보는 곳에서 한 번에 쌓는다
+              }}
+              onScroll={syncHl}
+              aria-label="미리보기 코드 (실시간 동기화)"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

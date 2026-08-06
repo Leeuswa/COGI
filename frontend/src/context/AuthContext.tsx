@@ -1,0 +1,82 @@
+/*
+ * 로그인 세션 관리.
+ * JWT는 HttpOnly 쿠키(서버 관리, JS 접근 불가)에 두고, 화면 표시용 user 정보만 localStorage('cogi-user')에 캐싱한다.
+ * localStorage에 토큰을 두지 않는 이유: XSS로 토큰이 새는 걸 막기 위해(쿠키+HttpOnly).
+ * 새로고침 시 user는 API-009(getProfile)로 다시 받아오면 된다. (쿠키가 살아 있으면 인증 유지)
+ */
+import { createContext, useContext, useState, useEffect } from 'react';
+import { claimGuestReview, logout as apiLogout, getProfile } from '../api/client';
+
+const AuthCtx = createContext(null);
+
+// 세션(JWT) 수명 — 백엔드 jwt.access-token-expiration(1시간)과 맞춤. 헤더 타이머·자동 로그아웃 기준.
+export const SESSION_MS = 2 * 60 * 60 * 1000;
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cogi-user') || 'null'); }
+    catch { return null; }
+  });
+
+  // 새로고침 때 캐시를 서버 프로필로 맞춘다.
+  // 지금까지는 localStorage를 끝까지 믿어서, DB를 새로 심은 뒤에도 화면은 GitHub이 연동된 줄 알고
+  // /api/repos/github를 때렸다가 "연동되어 있지 않습니다" 400을 받았다.
+  // 쿠키가 죽었으면 http()가 401을 보고 알아서 로그아웃시킨다.
+  useEffect(() => {
+    if (!localStorage.getItem('cogi-user')) return; // 비로그인은 부를 이유가 없다
+    getProfile()
+      .then((fresh) => {
+        if (!fresh) return;
+        // 캐시에만 있는 값(플랜 등 화면 표시용)은 남기고 서버가 준 값으로 덮는다
+        setUser((prev) => {
+          const next = { ...prev, ...fresh };
+          localStorage.setItem('cogi-user', JSON.stringify(next));
+          return next;
+        });
+      })
+      .catch(() => { /* 401이면 http()가 이미 로그인 화면으로 보낸다 */ });
+  }, []);
+
+  // 로그인 성공(이메일/GitHub/카카오 공통). 토큰은 이미 쿠키에 있으니 user 정보만 캐싱한다.
+  const signIn = (userData) => {
+    localStorage.setItem('cogi-user', JSON.stringify(userData));
+    localStorage.setItem('cogi-expires', String(Date.now() + SESSION_MS)); // 세션 만료 예정 시각
+    setUser(userData);
+    // 게스트 체험 리뷰가 있으면 내 계정으로 매핑.
+    // 모든 로그인/가입 경로가 여길 지나므로 이 한 곳이면 충분. 실패해도 로그인은 막지 않는다.
+    const guest = localStorage.getItem('cogi-guest-review');
+    if (guest) {
+      try {
+        const { reviewId, guestToken } = JSON.parse(guest);
+        claimGuestReview(reviewId, guestToken).catch(() => {});
+      } catch { /* 파싱 실패 = 버린다 */ }
+      localStorage.removeItem('cogi-guest-review');
+    }
+  };
+
+  // 프로필 일부만 갱신 (온보딩 제출, GitHub 연동, 플랜 변경 등에서 씀)
+  const patchUser = (patch) => {
+    setUser((prev) => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem('cogi-user', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // 로그아웃 — HttpOnly 쿠키는 JS로 못 지우므로 서버에 삭제를 요청한다. (실패해도 로컬 상태는 비운다)
+  const signOut = async () => {
+    try { await apiLogout(); } catch { /* 네트워크 실패해도 클라이언트는 로그아웃 처리 */ }
+    localStorage.removeItem('cogi-user');
+    localStorage.removeItem('cogi-expires');
+    // 코기 스탯 캐시는 GameProvider가 user가 빠지는 걸 보고 지운다 (여기서 지워도 곧 덮어쓴다)
+    setUser(null);
+  };
+
+  return (
+    <AuthCtx.Provider value={{ user, signIn, signOut, patchUser }}>
+      {children}
+    </AuthCtx.Provider>
+  );
+}
+
+export const useAuth = () => useContext(AuthCtx);

@@ -1,0 +1,33 @@
+/* 모바일 PR 리뷰 — 7열 표를 버리고 카드 리스트로 */
+@media (max-width: 640px) {
+  /* 레포 선택(.msel)·심각도 세그먼트(.mseg)·빈 상태(.mempty)는 공통이라 mobile.css로 옮겼다 */
+
+  /* PR 카드 리스트 */
+  .mpr { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .mpr li a {
+    display: block; background: var(--white); border: 2px solid var(--navy);
+    border-radius: 14px; padding: 13px 14px; color: var(--navy);
+  }
+  .mpr li a:active { background: #f6f9ff; }
+
+  .mpr-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .mpr-num { font-family: 'Silkscreen', monospace; font-size: 13px; color: var(--sub); }
+  .mpr-sev {
+    font-size: 11px; font-weight: 700; color: var(--white);
+    padding: 3px 9px; border-radius: 999px; background: var(--sub);
+  }
+  .mpr-sev.critical { background: var(--coral); }
+  .mpr-sev.major { background: #c9862e; }
+  .mpr-sev.minor { background: var(--mint); }
+  .mpr-go { margin-left: auto; font-size: 20px; color: #b6c0d8; line-height: 1; }
+
+  /* 제목은 두 줄까지만 — 길어도 카드 높이가 들쭉날쭉하지 않게 */
+  .mpr-title {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; font-size: 14px; line-height: 1.5;
+  }
+  .mpr-meta { display: flex; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--sub); }
+  .mpr-meta .dot { color: #c3cbdd; }
+
+  .mpr-cta { margin-top: 4px; }
+}

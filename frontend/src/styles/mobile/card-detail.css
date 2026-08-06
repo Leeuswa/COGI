@@ -1,0 +1,111 @@
+/* 모바일 학습카드 상세 — 긴 한 장을 탭 넷으로 쪼갠다 */
+@media (max-width: 640px) {
+  /* 카드 머리 */
+  .mcd-head { display: flex; flex-direction: column; gap: 8px; }
+  .mcd-cat { font-size: 19px; color: var(--navy); }
+  .mcd-meta { font-size: 12px; color: var(--sub); }
+  .mcd-bar { height: 7px; background: #eef2fa; border-radius: 999px; overflow: hidden; }
+  .mcd-bar i { display: block; height: 100%; background: var(--mint); }
+  .mcd-toggles { display: flex; gap: 8px; margin-top: 2px; }
+  .mcd-tg {
+    flex: 1; padding: 10px 0; font: inherit; font-size: 12.5px; cursor: pointer;
+    background: var(--white); color: var(--sub);
+    border: 2px solid #dfe5f0; border-radius: 10px;
+  }
+  .mcd-tg.on { background: var(--yellow); color: var(--navy); border-color: var(--navy); font-weight: 700; }
+
+  /* .mapp를 붙여 특이도를 올린다 — 공통 .mseg(4칸)가 파일 순서에 따라 이기던 문제 */
+  .mapp .mcd-seg { grid-template-columns: repeat(4, 1fr); }
+  .mcd-sel { margin-top: 10px; }
+  .mcd-sub { margin-top: 16px; }
+  .mcd-body { font-size: 13.5px; line-height: 1.95; color: var(--navy); }
+  .mcd-points { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .mcd-points li {
+    font-size: 13px; line-height: 1.85; padding-left: 20px; position: relative;
+  }
+  .mcd-points li::before { content: '▸'; position: absolute; left: 2px; color: var(--coral); }
+
+  /* ── 기존 → 추천 코드. 한 카드에 위아래로 놔야 비교가 된다 ── */
+  .mcd-diff { display: flex; flex-direction: column; gap: 0; }
+  .mcd-code { display: flex; flex-direction: column; gap: 7px; }
+  .mcd-tag {
+    align-self: flex-start; font-size: 11.5px; font-weight: 700; color: var(--white);
+    padding: 4px 11px; border-radius: 999px;
+  }
+  .mcd-code.bad .mcd-tag { background: var(--coral); }
+  .mcd-code.good .mcd-tag { background: var(--mint); }
+  /* 코드블록이 카드 벽에 붙어 답답했다. 안쪽 여백과 라운드를 준다 */
+  .mcd-diff .codebox {
+    font-size: 11px; line-height: 1.85; padding: 12px 13px;
+    border-radius: 10px; border: none;
+  }
+  .mcd-arrow { text-align: center; font-size: 17px; color: var(--sub); padding: 9px 0; }
+  .mcd-diffnote {
+    font-size: 12.5px; line-height: 1.8; color: var(--sub);
+    margin-top: 12px; border-top: 2px solid #eef2fa; padding-top: 11px;
+  }
+
+  /* ── 문제 ── */
+  .mcd-qtype {
+    display: inline-block; font-size: 11px; font-weight: 700; color: var(--white);
+    background: var(--navy); padding: 4px 10px; border-radius: 999px;
+  }
+  .mcd-q { margin: 11px 0; font-size: 14px; line-height: 1.9; }
+  .mcd-q .codebox { font-size: 11px; padding: 11px 12px; border-radius: 9px; }
+  .mcd-picks { display: flex; flex-direction: column; gap: 8px; }
+  .mcd-pick {
+    padding: 13px 14px; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+    background: var(--white); color: var(--navy);
+    border: 2px solid var(--navy); border-radius: 12px;
+  }
+  .mcd-pick.sel { background: var(--yellow); }
+  .mcd-pick.ok { background: var(--mint); color: var(--white); }
+  .mcd-pick.miss { background: var(--coral); color: var(--white); }
+  .mcd-verdict { margin-top: 12px; font-size: 14px; font-weight: 700; }
+  .mcd-verdict.ok { color: var(--mint); }
+  .mcd-verdict.no { color: var(--coral); }
+  .mcd-explain {
+    margin-top: 10px; font-size: 12.5px; line-height: 1.85;
+    background: #f6f4ec; border-left: 5px solid var(--yellow);
+    padding: 11px 13px; border-radius: 0 8px 8px 0;
+  }
+
+  /* ── 계획 ── */
+  .mapp .mcd-days { grid-template-columns: repeat(4, 1fr); margin-top: 10px; }
+  .mcd-plan { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .mcd-plan li { border: 2px solid var(--navy); border-radius: 12px; padding: 12px 13px; }
+  /* 알림에서 ?step= 을 달고 들어온 단계 — 스크롤만 하면 어디로 왔는지 모른다 */
+  .mcd-plan li.on { background: #fffbea; border-color: var(--yellow); border-width: 3px; }
+  .mp-head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+  .mp-no {
+    flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+    font-family: 'Silkscreen', monospace; font-size: 12px;
+    background: var(--yellow); border: 2px solid var(--navy); border-radius: 50%;
+  }
+  .mp-head b { flex: 1; min-width: 0; font-size: 13.5px; }
+  .mp-min { flex-shrink: 0; font-size: 11px; color: var(--sub); }
+  .mp-date { font-size: 12px; color: var(--coral); font-weight: 700; margin-bottom: 6px; }
+  .mp-focus { font-size: 12.5px; line-height: 1.8; color: var(--navy); }
+  .mp-res {
+    font-size: 12px; line-height: 1.75; margin-top: 7px;
+    background: #f6f4ec; border-left: 4px solid var(--mint); padding: 8px 10px;
+  }
+  .mp-check { font-size: 12px; color: var(--sub); margin: 7px 0 10px; }
+  /* 캘린더 3종 — 한 줄에 셋, 폭은 균등 */
+  .mp-cal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .mp-cal .btn { width: 100%; text-align: center; padding: 10px 0; font-size: 12px; }
+
+  .mcd-planfoot { margin-top: 14px; border-top: 2px solid #eef2fa; padding-top: 12px; }
+  .mcd-planfoot p { font-size: 12px; color: var(--sub); margin-bottom: 9px; }
+
+  /* ── 복습 ── */
+  .mcd-log { border-top: 2px solid #eef2fa; padding: 13px 0; }
+  .mcd-log:first-child { border-top: none; padding-top: 0; }
+  .mcd-logtop { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .mcd-mark { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; color: var(--white); }
+  .mcd-mark.ok { background: var(--mint); }
+  .mcd-mark.no { background: var(--coral); }
+  .mcd-when { margin-left: auto; font-size: 11px; color: var(--sub); }
+  .mcd-ans { font-size: 12.5px; line-height: 1.8; color: var(--sub); }
+  .mcd-ans b { color: var(--navy); }
+}

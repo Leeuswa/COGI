@@ -1,0 +1,81 @@
+/*
+ * 모바일 공통 — 앱 셸과 카드 껍데기만. 화면별 스타일은 mobile/<화면>.css 로 나눠 둔다.
+ * 640px 초과에서는 이 파일 규칙을 아예 만나지 않으므로 데스크톱에 영향이 없다.
+ */
+@media (max-width: 640px) {
+  /* 앱 화면 바탕 — 카드가 떠 보이게 한 톤 밝게 */
+  .mapp {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 12px 12px 20px; background: #dfeeff;
+  }
+
+  /* 어떤 화면에서도 옆으로 밀리지 않게 */
+  .mapp, .mapp * { min-width: 0; max-width: 100%; }
+  .mapp { overflow-x: hidden; }
+
+  /* 공통 카드 */
+  .mcard {
+    background: var(--white); border: 2px solid var(--navy);
+    border-radius: 16px; padding: 14px 15px;
+  }
+  .mcard-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 11px; }
+  .mcard-head h2 { font-size: 14.5px; font-weight: 700; color: var(--navy); }
+  .mcard-head a { font-size: 12px; color: var(--coral); white-space: nowrap; }
+  .mnote { font-size: 12.5px; line-height: 1.8; color: var(--sub); }
+
+  /* 화면 맨 위 안내 문구 */
+  .mlead { font-size: 12.5px; line-height: 1.75; color: var(--sub); padding: 0 2px; }
+
+  /* 폭을 꽉 채우는 액션 버튼 */
+  .mapp .btn.full { display: block; width: 100%; text-align: center; }
+
+  /* 드롭다운 — 폰에서는 폭을 꽉 채워야 누르기 쉽다 */
+  .msel {
+    width: 100%; padding: 12px 13px; font-size: 14px;
+    border: 2px solid var(--navy); border-radius: 12px;
+    background: var(--white); color: var(--navy);
+  }
+
+  /* 세그먼트 — 선택지가 적으면 드롭다운보다 한 번에 다 보이는 게 낫다.
+     칸 수는 쓰는 쪽에서 grid-template-columns로 정한다 */
+  .mseg {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    background: var(--white); border: 2px solid var(--navy);
+    border-radius: 12px; overflow: hidden;
+  }
+  .mseg button {
+    padding: 10px 0; font: inherit; font-size: 12.5px; color: var(--sub);
+    background: none; border: none; border-left: 2px solid #eef2fa; cursor: pointer;
+  }
+  .mseg button:first-child { border-left: none; }
+  .mseg button.on { background: var(--navy); color: var(--white); font-weight: 700; }
+
+  /* 비어 있을 때 */
+  .mempty { text-align: center; }
+  .mempty p { font-size: 13px; line-height: 1.8; color: var(--sub); margin-bottom: 14px; }
+
+  /* 코드블록 — 폰에서는 옆으로 스크롤시키면 오른쪽이 잘린 줄도 모른다.
+     줄을 접어서 다 보여준다. 들여쓰기는 pre-wrap이 그대로 살린다 */
+  .mapp .codebox {
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+    overflow-x: visible; max-width: 100%;
+  }
+}
+
+/* ── 모바일 공통: 데스크톱 화면이 그대로 뜨는 페이지 최소 보정 ──
+   전용 화면(mobile/*.tsx)이 아직 없는 페이지가 폰에서 깨지지 않게 하는 안전망이다. */
+@media (max-width: 640px) {
+  /* 필터 드롭다운은 한 줄에 하나씩 폭을 꽉 채운다 */
+  .app-main .filter-bar { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .app-main .filter-bar select,
+  .app-main .filter-bar input { width: 100%; }
+
+  /* 안내 문구는 문장부호에서 끊는다 */
+  .app-main .sec-lead, .app-main .page-head .note { text-wrap: balance; }
+}
+
+/* 앱 헤더에 이미 뒤로가기(←)가 있어서 본문의 복귀 링크는 중복이다.
+   화면마다 문구가 달라 클래스로 한 번에 감춘다 */
+@media (max-width: 640px) {
+  .app-main .back-link { display: none; }
+}

@@ -1,0 +1,290 @@
+/*
+ * [관리자 탭] AI 사용량 (ADM-001, API-014)
+ * 기간 필터 + 비용 합계/상한 경고(FR-81) + 리뷰 응답시간(API-054, FR-77) + 로그 테이블.
+ * 데이터 조회는 부모(Admin)가 하고 여긴 그리기만 — 탭 전환 때 재조회를 안 하기 위해서.
+ */
+import { useEffect, useState } from 'react';
+import Pager, { pageSlice } from '../../../components/Pager';
+
+const PAGE_SIZE = 15; // 로그는 기간이 길수록 계속 쌓인다 — 표는 페이지로 끊어 본다
+
+// 벤더 분류 + 고정 색상. 모델명 접두사로 판별.
+// real=true 는 벤더 Admin API로 실사용량을 받아오는 벤더 — 그래프/누적바도 그 값을 쓴다.
+// GEMINI/GROQ는 usage API가 없어 우리 자체집계(ai_usage_logs)를 그대로 쓴다.
+const VENDORS = [
+  { key: 'GEMINI', color: '#4c6ef5', real: false, match: (s) => s.startsWith('gemini') },
+  { key: 'GROQ',   color: '#e8590c', real: false, match: (s) => s.startsWith('llama') || s.startsWith('groq') },
+  { key: 'CLAUDE', color: '#f59f00', real: true,  match: (s) => s.startsWith('claude') },
+  { key: 'OPENAI', color: '#12b886', real: true,  match: (s) => s.startsWith('gpt') || s.startsWith('openai') },
+];
+const REAL_KEYS = new Set(VENDORS.filter((v) => v.real).map((v) => v.key));
+const vendorOf = (m) => VENDORS.find((v) => v.match((m || '').toLowerCase()))?.key || null;
+const BUDGET_USD = 10; // 벤더별 상한 $10 — 이 금액의 토큰 환산치가 바의 100%
+const WARN_PCT = 90;   // 예산 90% 넘으면 경고 — 누적바가 붉어지고 상단 배너 + 토스트로 알린다
+
+export default function UsageTab({ usage, range, setRange, latency, providerUsage = [], notify }) {
+  // 명세(credit_usage 비고): 관리자 전체 비용상한은 두지 않는다 — 합계는 참고용 표기만
+  const totalCost = usage.reduce((a, u) => a + Number(u.cost || 0), 0);
+
+  // 그래프에서 벤더 선을 켜고/끌 수 있게 (기본 전부 표시)
+  const [hidden, setHidden] = useState({});
+  const [page, setPage] = useState(1); // 로그 표 페이지. 기간이 바뀌어 목록이 줄면 Pager가 마지막 페이지로 접어준다
+
+  const toggle = (key) => setHidden((h) => ({ ...h, [key]: !h[key] }));
+  const visibleVendors = VENDORS.filter((v) => !hidden[v.key]);
+
+  // 기간 끝(range.to, 기본 오늘) 기준 최근 5칸 × 벤더별 토큰 집계 — 기록 없는 칸도 0으로 채워 x축을 채운다.
+  // 한 칸의 폭은 일별=1일 / 주간별=7일 / 월별=역월.
+  const SHOW = 5, DAY_MS = 86400000;
+  const [gran, setGran] = useState('day');
+  const spanDays = gran === 'week' ? 7 : 1;
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const monthIdx = (s) => Number(s.slice(0, 4)) * 12 + Number(s.slice(5, 7));
+  const endMs = Date.parse(range.to); // UTC 자정 기준
+  const endDate = new Date(endMs);
+
+  // 버킷 5개(과거 → 최근). key = 버킷 시작일, label = x축 표기.
+  const buckets = [];
+  for (let k = SHOW - 1; k >= 0; k--) {
+    if (gran === 'month') {
+      const key = iso(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() - k, 1));
+      buckets.push({ key, label: key.slice(0, 7) }); // 2026-04
+    } else {
+      // 주간은 끝나는 날(마지막 칸 = range.to)을 라벨로 — 마지막 칸이 오늘로 읽히게
+      const key = iso(endMs - ((k + 1) * spanDays - 1) * DAY_MS);
+      buckets.push({ key, label: iso(endMs - k * spanDays * DAY_MS).slice(5) });
+    }
+  }
+  // 날짜 → 버킷 key. 범위 밖(더 과거 / range.to 이후)이면 null.
+  const bucketKeyOf = (day) => {
+    if (!day) return null;
+    const i = gran === 'month'
+      ? SHOW - 1 - (monthIdx(range.to) - monthIdx(day))
+      : SHOW - 1 - Math.floor((endMs - Date.parse(day)) / DAY_MS / spanDays);
+    return i >= 0 && i < SHOW ? buckets[i].key : null;
+  };
+
+  // 조회기간(위 날짜 입력)은 그래프 단위와 무관하게 그대로 둔다 — 기본 최근 1달.
+  // 그래서 주간/월별 칸 중 조회기간 밖은 0으로 보인다. 더 보려면 시작일을 직접 당기면 된다.
+  const byDay = {};
+  for (const b of buckets) byDay[b.key] = {};
+
+  // 하이브리드(+폴백): GEMINI/GROQ는 자체집계. CLAUDE/OPENAI(real)는 오늘=자체집계(실시간),
+  // 과거=벤더 실측 — 단 벤더에 그 날 데이터가 없으면(워크스페이스 전환 갭·지연 등) 자체집계로 폴백해 항상 보이게.
+  const _t = new Date();
+  const realToday = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, '0')}-${String(_t.getDate()).padStart(2, '0')}`;
+  const liveDay = range.to === realToday ? realToday : null;  // null이면 과거 조회 → 전부 벤더 실측(+폴백)
+
+  // 날짜별 벤더 토큰/비용을 자체집계(selfDay)·벤더 실측(provDay)으로 따로 모은다.
+  const selfDay = {}, provDay = {};
+  const tokOf = (o) => (o.inputTokens || 0) + (o.outputTokens || 0);
+  for (const u of usage) {
+    const day = (u.createdAt || '').slice(0, 10); if (!day) continue;
+    const v = vendorOf(u.modelName); if (!v) continue;
+    const s = (selfDay[day] ??= {}); (s[v] ??= { tok: 0, cost: 0 });
+    s[v].tok += tokOf(u); s[v].cost += Number(u.cost || 0);
+  }
+  for (const p of providerUsage) {
+    if (!REAL_KEYS.has(p.vendor)) continue;
+    const s = (provDay[p.date] ??= {}); (s[p.vendor] ??= { tok: 0, cost: 0 });
+    s[p.vendor].tok += tokOf(p); s[p.vendor].cost += Number(p.cost || 0);
+  }
+  // 날짜·벤더별 최종값 결정: GEMINI/GROQ·오늘 real = 자체집계 / 과거 real = 벤더 우선, 없으면 자체집계 폴백.
+  const resolve = (day, vd) => {
+    const self = selfDay[day]?.[vd.key];
+    if (!vd.real || day === liveDay) return self;
+    const prov = provDay[day]?.[vd.key];
+    return (prov && prov.tok > 0) ? prov : self;
+  };
+
+  // 결정값을 버킷에 합산 (일/주/월 단위 모두 날짜 단위로 먼저 결정 후 합산 — 단위별로 안 깨진다)
+  const allDays = new Set([...Object.keys(selfDay), ...Object.keys(provDay)]);
+  for (const day of allDays) {
+    const bucket = byDay[bucketKeyOf(day)]; if (!bucket) continue;
+    for (const vd of VENDORS) {
+      const r = resolve(day, vd);
+      if (r?.tok) bucket[vd.key] = (bucket[vd.key] || 0) + r.tok;
+    }
+  }
+  // y스케일: 보이는 벤더들의 일자별 값 중 최댓값
+  const maxTokens = Math.max(1, ...buckets.flatMap((b) => visibleVendors.map((v) => byDay[b.key][v.key] || 0)));
+  // 버킷별 밴드 좌표계 — 밴드 안에 보이는 벤더 수만큼 막대를 나란히 그린다.
+  const W = 720, H = 210, PAD = 48;
+  const band = (W - PAD * 2) / SHOW;              // 한 칸이 차지하는 폭
+  const cxOf = (i) => PAD + band * (i + 0.5);     // 밴드 중심
+  const yOf = (v) => H - 34 - ((H - 74) * v) / maxTokens;
+  const fmt = (t) => (t >= 1000 ? `${(t / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(t)); // 1840 → 1.8k
+
+  // 벤더별 누적 토큰/비용(기간 전체) — 진행바는 $10 예산 대비 사용률
+  // 그래프와 같은 소스·같은 하이브리드 규칙 — GEMINI/GROQ는 자체집계, CLAUDE/OPENAI는 오늘=자체집계·과거=벤더.
+  const vendorTok = {}, vendorCost = {};
+  for (const day of allDays) {
+    for (const vd of VENDORS) {
+      const r = resolve(day, vd);
+      if (!r) continue;
+      vendorTok[vd.key] = (vendorTok[vd.key] || 0) + r.tok;
+      vendorCost[vd.key] = (vendorCost[vd.key] || 0) + r.cost;
+    }
+  }
+
+  // 예산 소진 경고 — 누적바와 같은 계산을 쓰되 90% 넘은 벤더만 따로 모은다
+  const pctOf = (key) => ((vendorCost[key] || 0) / BUDGET_USD) * 100;
+  const overBudget = VENDORS.filter((v) => pctOf(v.key) >= WARN_PCT);
+
+  // 관리자 콘솔을 열자마자 눈에 띄게 — 배너는 계속 떠 있고 토스트는 대상이 바뀔 때만 한 번.
+  // (조회 기간을 바꾸면 누적도 바뀌므로 벤더 목록이 실제로 달라질 때만 다시 띄운다)
+  const overKeys = overBudget.map((v) => v.key).join(',');
+  useEffect(() => {
+    if (!overKeys || !notify) return;
+    notify(`⚠ ${overKeys.split(',').join('·')} 누적 사용량이 예산의 ${WARN_PCT}%를 넘었어요.`);
+  }, [overKeys, notify]);
+
+  return (
+    <>
+      {overBudget.length > 0 && (
+        <div className="reagree-banner" style={{ border: '3px solid var(--navy)', marginBottom: 18 }}>
+          <b>⚠ AI 예산 경고</b>
+          <span>
+            {overBudget.map((v) => `${v.key} ${Math.round(pctOf(v.key))}%`).join(' · ')}
+            {' — '}벤더별 ${BUDGET_USD} 예산의 {WARN_PCT}%를 넘었어요. 한도 초과 전에 키·플랜을 확인해주세요.
+          </span>
+        </div>
+      )}
+      <div className="filter-bar">
+        <input type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
+        <span className="note sm">~</span>
+        <input type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
+        <span className="chip navy ml-auto">기간 합계 ${totalCost.toFixed(4)}</span>
+        {latency && (
+          <span className={`chip ${latency.p95Sec > latency.targetSec ? 'hi' : 'low'}`} title="리뷰 응답시간 (API-054)">
+            응답 평균 {latency.avgSec}s · p95 {latency.p95Sec}s / 목표 {latency.targetSec}s
+          </span>
+        )}
+      </div>
+      {/* 일자별 사용량 그래프 — 날짜×모델로 묶어 모델별 선 그래프로 시각화 */}
+      <div className="panel">
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+          <b>기간별 토큰 사용량 (벤더별)</b>
+          <div className="row" style={{ gap: 6 }}>
+            {[['day', '일별'], ['week', '주간별'], ['month', '월별']].map(([g, label]) => (
+              <button key={g} type="button" className={`btn ${gran === g ? 'co' : 'wh'} sm`}
+                aria-pressed={gran === g} onClick={() => setGran(g)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <p className="note sm" style={{ marginTop: 0, marginBottom: 10 }}>
+          최근 5{gran === 'day' ? '일' : gran === 'week' ? '주' : '개월'} · 범례를 눌러 켜고/끌 수 있어요 · CLAUDE·OPENAI는 어제까지 벤더 실측, 오늘은 실시간 추정(우리 로그) · GEMINI·GROQ는 우리 로그(ai_usage_logs)
+        </p>
+        {/* CLAUDE/OPENAI는 벤더 Admin API(providerUsage)로 따로 들어오므로, 자체집계가 비어도 그린다 */}
+        {usage.length === 0 && providerUsage.length === 0 ? (
+          <p className="note sm">이 기간에 사용 기록이 없어요.</p>
+        ) : (
+          <>
+            {/* 범례 = 선 토글 버튼 */}
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+              {VENDORS.map((v) => {
+                const on = !hidden[v.key];
+                return (
+                  <button key={v.key} type="button" onClick={() => toggle(v.key)}
+                    title={on ? '숨기기' : '보이기'}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                             fontSize: 12, fontWeight: 700, color: 'var(--navy)', padding: '4px 10px',
+                             border: '2px solid var(--navy)', background: on ? '#fff' : 'transparent',
+                             opacity: on ? 1 : 0.45, textDecoration: on ? 'none' : 'line-through' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: v.color, display: 'inline-block' }} />
+                    {v.key}
+                  </button>
+                );
+              })}
+            </div>
+            <svg className="gchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="기간별 벤더별 토큰 사용량">
+              {/* 그리드 */}
+              {[0.25, 0.5, 0.75, 1].map((t) => (
+                <line key={t} x1={PAD} x2={W - PAD} y1={yOf(maxTokens * t)} y2={yOf(maxTokens * t)} className="grid" />
+              ))}
+              {/* 버킷별 밴드 안에 보이는 벤더 막대를 나란히 */}
+              {buckets.map((b, i) => {
+                const groupW = band * 0.7;                       // 밴드의 70%만 막대에 사용
+                const bw = groupW / Math.max(1, visibleVendors.length);
+                const startX = cxOf(i) - groupW / 2;
+                const base = yOf(0);
+                return visibleVendors.map((v, j) => {
+                  const t = byDay[b.key][v.key] || 0;
+                  const x = startX + bw * j;
+                  const y = yOf(t);
+                  const w = Math.max(1, bw - 2);
+                  return (
+                    <g key={v.key}>
+                      <rect x={x} y={y} width={w} height={Math.max(0, base - y)} rx="2" fill={v.color}>
+                        <title>{`${b.key}${gran === 'day' ? '' : ' 부터'} · ${v.key}\n토큰 ${t.toLocaleString()}`}</title>
+                      </rect>
+                      {t > 0 && (
+                        <text x={x + w / 2} y={y - 4} textAnchor="middle" fontSize="9" fontWeight="700" fill={v.color}>{fmt(t)}</text>
+                      )}
+                    </g>
+                  );
+                });
+              })}
+              {/* x축 라벨 + 축 */}
+              {buckets.map((b, i) => (
+                <text key={b.key} x={cxOf(i)} y={H - 10} textAnchor="middle" className="xlab2">{b.label}</text>
+              ))}
+              <line x1={PAD} x2={W - PAD} y1={yOf(0)} y2={yOf(0)} className="axis" />
+            </svg>
+          </>
+        )}
+      </div>
+
+      {/* 벤더별 누적 사용량 — $10 예산 대비 사용률 (기간 전체) */}
+      {(usage.length > 0 || providerUsage.length > 0) && (
+        <div className="panel">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
+            <b>모델별 누적 사용량</b>
+            <span className="note sm">벤더별 ${BUDGET_USD} 예산 대비 사용률</span>
+          </div>
+          {VENDORS.map((v) => {
+            const tok = vendorTok[v.key] || 0;
+            const cost = vendorCost[v.key] || 0;
+            const rawPct = pctOf(v.key);
+            const pct = Math.round(rawPct);
+            const warn = rawPct >= WARN_PCT;
+            return (
+              <div key={v.key} style={{ marginBottom: 14 }}>
+                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: v.color, display: 'inline-block' }} />
+                    {v.key}
+                  </span>
+                  <span className="note sm">{tok.toLocaleString()} 토큰 · ${cost.toFixed(2)} / ${BUDGET_USD} · {pct}%</span>
+                </div>
+                <div className={`credit-bar${warn ? ' warn' : ''}`}>
+                  <i style={{ width: `${Math.min(100, rawPct)}%`, background: warn ? undefined : v.color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="panel flush">
+        <table className="tbl">
+          <thead><tr><th>일시</th><th>유저</th><th>모델</th><th>유형</th><th>IN</th><th>OUT</th><th>비용(USD)</th></tr></thead>
+          <tbody>
+            {pageSlice(usage, page, PAGE_SIZE).map((u) => (
+              <tr key={u.id}>
+                <td className="mono xs">{u.createdAt.slice(0, 16).replace('T', ' ')}</td>
+              <td className="mono">{u.userId == null ? '비로그인' : (u.nickname || `#${u.userId}`)}</td>
+                <td className="mono xs">{u.modelName}</td>
+                <td><span className="chip navy">{u.requestType}</span></td>
+                <td className="mono">{u.inputTokens.toLocaleString()}</td>
+                <td className="mono">{u.outputTokens.toLocaleString()}</td>
+                <td className="mono">${u.cost}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Pager page={page} total={usage.length} size={PAGE_SIZE} onChange={setPage} />
+      </div>
+    </>
+  );
+}

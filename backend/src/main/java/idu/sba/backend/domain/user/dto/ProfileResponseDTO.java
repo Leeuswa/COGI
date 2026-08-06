@@ -1,0 +1,49 @@
+package idu.sba.backend.domain.user.dto;
+
+import idu.sba.backend.domain.user.entity.Level;
+import idu.sba.backend.domain.user.entity.Provider;
+import idu.sba.backend.domain.user.entity.Role;
+import lombok.Getter;
+
+import java.util.List;
+
+@Getter
+public class ProfileResponseDTO {
+
+    private final Long userId;
+    private final String nickname;
+    private final String githubUsername; // GitHub 연동 탭 표시용
+    private final String email;
+    private final Level level;
+    private final List<String> interests;
+    private final Long planId;
+    private final String planName;                // ACTIVE 구독 기준 실제 플랜명(FREE/PRO/MAX) — 프론트 모델 잠금 판정용
+    private final boolean onboardingCompleted;   // 프론트 온보딩 가드용
+    private final boolean guideConfirmed;
+    private final Provider provider;             // 가입 방식 (마이페이지 표시/분기용)
+    private final Role role;                      // 프론트 관리자 화면(/app/admin) 진입 가드용
+    private final boolean totpEnabled;           // 2차 인증 활성 여부 — 로그인/새로고침 후에도 보안탭이 상태 유지하게
+
+    private ProfileResponseDTO(Long userId, String nickname, String email, Level level, List<String> interests,
+                               Long planId, String planName, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role, boolean totpEnabled) {
+        this.userId = userId;
+        this.nickname = nickname;
+        this.email = email;
+        this.level = level;
+        this.interests = interests;
+        this.planId = planId;
+        this.planName = planName;
+        this.onboardingCompleted = onboardingCompleted;
+        this.guideConfirmed = guideConfirmed;
+        this.provider = provider;
+        this.githubUsername = githubUsername;
+        this.role = role;
+        this.totpEnabled = totpEnabled;
+    }
+
+    public static ProfileResponseDTO of(Long userId, String nickname, String email, Level level, List<String> interests,
+                                        Long planId, String planName, boolean onboardingCompleted, boolean guideConfirmed, Provider provider, String githubUsername, Role role, boolean totpEnabled) {
+        return new ProfileResponseDTO(userId, nickname, email, level, interests, planId, planName, onboardingCompleted, guideConfirmed, provider, githubUsername, role, totpEnabled);
+    }
+
+}

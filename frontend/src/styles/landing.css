@@ -1,0 +1,607 @@
+/* 랜딩 페이지 전용 — 히어로/다마고치 기기/마퀴/기능 소개/요금제/푸터
+   (원본 와이어프레임 HTML의 CSS 그대로. 픽셀 문법: 3px navy 테두리 + 하드섀도우) */
+/* ───── 히어로: 스플릿 + 다마고치 ───── */
+.hero {
+  min-height: calc(100dvh - 96px);
+  display: grid; grid-template-columns: 1.02fr .98fr;
+  align-items: center; gap: 44px;
+  padding: 48px 5vw 76px;
+  position: relative; overflow: hidden;
+}
+.cloud {
+  position: absolute; height: 14px; width: 14px; background: var(--white);
+  box-shadow: 14px -14px 0 var(--white), 28px -14px 0 var(--white), 42px -14px 0 var(--white),
+              -14px 0 0 var(--white), 56px 0 0 var(--white), 14px -28px 0 var(--white), 28px -28px 0 var(--white);
+  opacity: .9; animation: drift linear infinite;
+}
+@keyframes drift { from { transform: translateX(-140px); } to { transform: translateX(calc(100vw + 140px)); } }
+.hero-copy { position: relative; z-index: 2; }
+.hero-copy .lv {
+  display: inline-block; font-family: 'Silkscreen', monospace; font-size: 12px;
+  background: var(--navy); color: var(--yellow); padding: 6px 12px; margin-bottom: 22px; letter-spacing: 1px;
+}
+.hero-copy h1 { font-size: clamp(25px, 3.5vw, 46px); line-height: 1.45; }
+.hero-copy h1 .hl { background: var(--yellow); box-shadow: 0 0 0 3px var(--yellow); }
+.hero-copy .sub {
+  margin-top: 22px; font-size: clamp(14px, 1.6vw, 16.5px);
+  line-height: 1.95; color: var(--sub); max-width: 32em;
+}
+.hero-copy .cta-row { margin-top: 30px; display: flex; gap: 14px; flex-wrap: wrap; }
+.hero-copy .hint {
+  margin-top: 22px; font-family: 'GalmuriMono11', monospace;
+  font-size: 12px; color: var(--coral);
+}
+
+/* ───── 포켓 코기 기기 ───── */
+.device {
+  position: relative; z-index: 2;
+  width: min(440px, 94vw); justify-self: center;
+  background: var(--white);
+  border: 3px solid var(--navy);
+  box-shadow: 9px 9px 0 var(--navy);
+  border-radius: 26px 26px 34px 34px;
+  padding: 20px 20px 22px;
+}
+.device .brand {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--sub);
+  letter-spacing: 2px; margin-bottom: 12px;
+}
+.device .brand i { width: 9px; height: 9px; background: var(--coral); display: inline-block; border-radius: 50%; }
+.screen-frame { background: var(--navy); border-radius: 14px; padding: 9px; }
+.lcd {
+  position: relative; height: 236px; border-radius: 8px; overflow: hidden;
+  background: linear-gradient(var(--sky) 0 68%, #a8d8a0 68% 74%, #8fca86 74% 100%);
+}
+/* LCD 구름/지면 스크롤 */
+.lcd .c1, .lcd .c2 {
+  position: absolute; height: 10px; width: 10px; background: #fff;
+  box-shadow: 10px 0 0 #fff, 20px 0 0 #fff, 10px -10px 0 #fff;
+  animation: lcdDrift 26s linear infinite;
+}
+.lcd .c1 { top: 34px; left: 20%; }
+.lcd .c2 { top: 64px; left: 70%; animation-duration: 34s; animation-delay: -12s; }
+@keyframes lcdDrift { from { transform: translateX(0); } to { transform: translateX(-420px); } }
+.lcd.walking .c1, .lcd.walking .c2 { animation-duration: 3.5s; }
+.lcd .tuft {
+  position: absolute; bottom: 52px; width: 8px; height: 6px; background: #6db463;
+  box-shadow: 4px 2px 0 #6db463, -4px 2px 0 #6db463;
+}
+.lcd .t1 { left: 14%; } .lcd .t2 { left: 56%; } .lcd .t3 { left: 88%; }
+.lcd.walking .tuft { animation: tuftMove 1.1s linear infinite; }
+@keyframes tuftMove { from { transform: translateX(0); } to { transform: translateX(-120px); } }
+
+/* 코기 스프라이트 */
+.pet-slot {
+  position: absolute; left: 0; right: 0; bottom: 44px;
+  display: flex; justify-content: center; align-items: flex-end;
+  height: 130px;
+}
+.pet-slot img { display: block; height: 80px; width: auto; }
+.pet-slot.bob img { animation: bob 1s steps(2) infinite; }
+@keyframes bob { 50% { transform: translateY(-4px); } }
+.pet-slot.wobble img { animation: wob 1.4s steps(2) infinite; }
+@keyframes wob { 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
+.pet-slot.hop img { animation: hop .55s steps(3) infinite; }
+@keyframes hop { 40% { transform: translateY(-10px); } }
+
+/* 응가 (CSS 픽셀아트) */
+.poop {
+  position: absolute; bottom: 46px; width: 6px; height: 6px; background: #7c5b3a;
+  box-shadow: 6px 0 0 #7c5b3a, 12px 0 0 #7c5b3a, 3px -6px 0 #6a4c2f, 9px -6px 0 #6a4c2f, 6px -12px 0 #7c5b3a;
+}
+/* 반짝이 */
+.spark {
+  position: absolute; width: 4px; height: 12px; background: var(--yellow);
+  box-shadow: -4px 4px 0 var(--yellow), 4px 4px 0 var(--yellow);
+  animation: tw .8s steps(2) infinite;
+}
+@keyframes tw { 50% { opacity: .2; } }
+/* 하트 */
+.heart {
+  position: absolute; width: 5px; height: 5px; background: var(--coral);
+  box-shadow: 7px 0 0 var(--coral), 0 4px 0 var(--coral), 7px 4px 0 var(--coral), 3.5px 7px 0 var(--coral);
+  animation: rise 1.6s steps(6) forwards;
+}
+@keyframes rise { to { transform: translateY(-46px); opacity: 0; } }
+
+.bubble {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  background: var(--white); border: 2px solid var(--navy);
+  font-size: 12px; padding: 5px 10px; white-space: nowrap;
+  opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 3;
+}
+.bubble.on { opacity: 1; }
+.lvl-flash {
+  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px;
+  align-items: center; justify-content: center;
+  font-family: 'Silkscreen', monospace; font-size: 16px; color: var(--coral);
+  background: rgba(253, 252, 247, .82);
+  opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 4;
+  letter-spacing: 2px; text-align: center;
+}
+.lvl-flash img { height: 84px; }
+.lvl-flash.on { opacity: 1; }
+
+/* 퀴즈 오버레이 (기기 안 미니 퀴즈) */
+.quiz {
+  position: absolute; inset: 0; z-index: 5; background: var(--white);
+  display: none; flex-direction: column; justify-content: center;
+  padding: 16px 18px; gap: 9px;
+}
+.quiz.on { display: flex; }
+.quiz .q { font-size: 13px; line-height: 1.8; }
+.quiz .q b { color: var(--coral); font-family: 'GalmuriMono11', monospace; font-weight: normal; }
+.quiz button {
+  text-align: left; font-size: 12.5px;
+  border: 2px solid var(--navy); background: #fff; padding: 8px 10px;
+}
+.quiz button:hover { background: var(--yellow); }
+.quiz .res { font-size: 13px; text-align: center; padding: 4px 0; }
+
+/* 상태/코인/버튼 */
+.meta-row {
+  margin-top: 14px; display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Silkscreen', monospace; font-size: 12px;
+}
+.coin { display: flex; align-items: center; gap: 7px; }
+.coin i {
+  width: 13px; height: 13px; border-radius: 50%; display: inline-block;
+  background: var(--yellow); border: 2px solid var(--navy);
+}
+.coin b.pulse { animation: cpulse .5s steps(2); }
+@keyframes cpulse { 50% { transform: scale(1.5); color: var(--coral); } }
+.stats { margin-top: 13px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px 16px; }
+.stat { font-size: 12px; }
+.stat .lb { display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--sub); }
+.stat .bar { height: 12px; border: 2px solid var(--navy); background: #fff; }
+.stat .bar i { display: block; height: 100%; width: 60%; transition: width .4s steps(10); }
+.stat.hun .bar i { background: var(--yellow); }
+.stat.hap .bar i { background: var(--coral); }
+.stat.cln .bar i { background: var(--mint); }
+.stat.xp .bar i { background: var(--navy); }
+.pad { margin-top: 15px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.pad.three { grid-template-columns: repeat(3, 1fr); }
+.pad button {
+  border: 3px solid var(--navy); background: #fff;
+  box-shadow: 0 4px 0 var(--navy);
+  padding: 10px 4px 8px; font-size: 12px; line-height: 1.5; border-radius: 9px;
+}
+.pad button:active { transform: translateY(4px); box-shadow: 0 0 0 var(--navy); }
+.pad button:disabled { opacity: .45; cursor: not-allowed; }
+.pad button .ico { display: block; font-size: 15px; margin-bottom: 3px; }
+.pad button small { display: block; font-family: 'GalmuriMono11', monospace; font-size: 11px; color: var(--sub); }
+.pad .study { background: var(--yellow); }
+
+/* ───── 공통 섹션 ───── */
+section { padding: 92px 5vw; }
+.wrap { max-width: 1080px; margin: 0 auto; }
+.badge {
+  display: inline-block; font-family: 'Silkscreen', monospace; font-size: 14px;
+  background: var(--coral); color: var(--white); padding: 7px 14px;
+  border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy);
+  margin-bottom: 14px; letter-spacing: 0.5px; line-height: 1.4;
+}
+.badge.mint { background: var(--mint); }
+.badge.navy { background: var(--navy); }
+.sec-title { font-size: clamp(23px, 3.2vw, 36px); margin-bottom: 14px; }
+.sec-lead { color: var(--sub); line-height: 1.95; font-size: 15px; max-width: 32em; margin-bottom: 46px; }
+.rv { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease; }
+.rv.show { opacity: 1; transform: none; }
+
+/* ───── 코드리뷰 소개 ───── */
+.rev-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 36px; align-items: center; }
+.rev-panel { background: var(--white); border: 3px solid var(--navy); box-shadow: 6px 6px 0 var(--navy); padding: 20px; }
+.rev-head { display: flex; justify-content: space-between; font-family: 'GalmuriMono11', monospace; font-size: 12px; color: var(--sub); border-bottom: 2px solid var(--navy); padding-bottom: 10px; margin-bottom: 14px; }
+.rev-line { font-family: 'GalmuriMono11', monospace; font-size: 12.5px; line-height: 2.1; color: var(--navy); }
+.sev { font-family: 'Silkscreen', monospace; font-weight: normal; font-size: 12px; color: var(--white); padding: 2px 6px; margin-right: 8px; letter-spacing: 1px; }
+.sev.hi { background: var(--coral); }
+.sev.mid { background: #c9862e; }
+.sev.low { background: var(--mint); }
+.rev-foot { margin-top: 12px; padding-top: 10px; border-top: 2px dotted var(--sky2); font-family: 'GalmuriMono11', monospace; font-size: 12.5px; color: var(--coral); }
+.rev-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.rev-list li { background: var(--white); border: 3px solid var(--navy); box-shadow: 4px 4px 0 var(--navy); padding: 14px 16px; font-size: 12.5px; color: var(--sub); line-height: 1.8; }
+.rev-list li b { display: block; font-family: 'Galmuri14', sans-serif; font-weight: normal; color: var(--navy); font-size: 14px; margin-bottom: 4px; }
+
+/* ───── 루프 / 케어 ───── */
+.loop { background: var(--sky2); border-top: 3px solid var(--navy); border-bottom: 3px solid var(--navy); }
+.loop-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.l-card {
+  background: var(--white); border: 3px solid var(--navy);
+  box-shadow: 6px 6px 0 var(--navy); padding: 24px 20px; text-align: center;
+}
+.l-card .n {
+  font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--white);
+  background: var(--navy); display: inline-block; padding: 4px 10px; margin-bottom: 14px;
+}
+.l-card:nth-child(1) .n { background: var(--coral); }
+.l-card:nth-child(2) .n { background: #c9862e; }
+.l-card:nth-child(3) .n { background: var(--mint); }
+.l-card h3 { font-size: 16px; margin-bottom: 10px; }
+.l-card p { font-size: 12.5px; color: var(--sub); line-height: 1.85; }
+
+.care-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.care {
+  background: var(--white); border: 3px solid var(--navy);
+  box-shadow: 6px 6px 0 var(--navy); padding: 26px 24px;
+}
+.care .head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.care .head .em { font-size: 22px; }
+.care .head h3 { font-size: 16.5px; }
+.care .map {
+  font-family: 'GalmuriMono11', monospace; font-size: 12px; color: var(--white);
+  background: var(--mint); display: inline-block; padding: 3px 9px;
+  border: 2px solid var(--navy); margin-bottom: 12px;
+}
+.care:nth-child(2) .map { background: var(--coral); }
+.care:nth-child(3) .map { background: var(--navy); }
+.care p { font-size: 13px; color: var(--sub); line-height: 1.9; }
+
+/* ───── 성장 단계 ───── */
+.pet-sec { background: var(--sky2); border-top: 3px solid var(--navy); border-bottom: 3px solid var(--navy); }
+.g-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+.g-card {
+  background: var(--white); border: 3px solid var(--navy);
+  box-shadow: 5px 5px 0 var(--navy); padding: 16px 14px; text-align: center;
+}
+.g-card .box {
+  height: 110px; display: flex; align-items: flex-end; justify-content: center;
+  background: linear-gradient(var(--sky) 0 72%, #a8d8a0 72% 100%);
+  border: 2px solid var(--navy); padding-bottom: 8px;
+}
+.g-card .box img { height: 56px; width: auto; }
+.g-card .box img.sm { height: 42px; }
+.g-card .box img.lg { height: 72px; }
+.g-card h3 { font-size: 13.5px; margin-top: 12px; }
+.g-card p { font-size: 12px; color: var(--sub); margin-top: 6px; line-height: 1.7; font-family: 'GalmuriMono11', monospace; }
+
+/* ───── 요금제 ───── */
+.chars { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 22px; align-items: stretch; }
+.char {
+  background: var(--white); border: 3px solid var(--navy);
+  box-shadow: 6px 6px 0 var(--navy); padding: 28px 24px; text-align: center;
+  display: flex; flex-direction: column;
+}
+.char.mid { background: #fff6d6; position: relative; }
+.char.mid::before {
+  content: "★ RECOMMENDED";
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  font-family: 'Silkscreen', monospace; font-size: 12px;
+  background: var(--navy); color: var(--yellow); padding: 4px 10px; white-space: nowrap;
+}
+/* 현재 이용 중인 플랜: 확대·강조 + 깃발. RECOMMENDED 배지는 숨김 */
+.char.current { position: relative; transform: scale(1.05); z-index: 2; outline: 4px solid var(--yellow); background: #fffdf3; }
+.char.current.mid::before { display: none; }
+.char .plan-flag {
+  position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+  background: var(--coral); color: var(--white); font-size: 12px; font-weight: 700;
+  padding: 4px 14px; border: 3px solid var(--navy); box-shadow: 3px 3px 0 var(--navy); white-space: nowrap;
+}
+.char .pname { font-family: 'Silkscreen', monospace; font-size: 19px; }
+.char .model { font-family: 'GalmuriMono11', monospace; font-size: 12px; color: #68729a; margin: 8px 0 18px; }
+.char .credit {
+  font-family: 'Silkscreen', monospace; font-size: 30px;
+  padding: 14px 0; border-top: 3px solid var(--navy); border-bottom: 3px solid var(--navy);
+}
+.char .credit small { display: block; font-family: 'Galmuri11', sans-serif; font-size: 12px; color: #68729a; margin-top: 8px; }
+.char ul { list-style: none; margin: 18px 0 24px; text-align: left; flex: 1; }
+.char li { font-size: 12.5px; line-height: 1.8; padding: 6px 0 6px 20px; position: relative; color: #33406b; }
+.char li::before { content: "▸"; position: absolute; left: 2px; color: var(--coral); }
+.char .btn { width: 100%; }
+/* 모델 칩 — 랜딩(.lp)과 로그인 요금제(Plan.tsx) 공용 베이스. .lp에선 아래 미디어쿼리가 덮어씀 */
+.char .chips { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: 12px 0; }
+.char .chips-plus { font-family: 'GalmuriMono11', monospace; font-size: 12.5px; color: var(--sub); align-self: center; }
+.char .chip {
+  font-family: 'GalmuriMono11', monospace; font-size: 12.5px; line-height: 1.9;
+  color: var(--navy); background: var(--white); border: 2px solid var(--navy); padding: 1px 9px;
+}
+.char.mid .chip { border-color: var(--coral); color: var(--coral); }
+/* 로그인 요금제 화면(Plan.tsx) — 추천 배지·크림/노랑 없이, 정사각형에 가깝게 크게.
+   내용을 이름·가격·크레딧·모델칩으로 줄이고, 버튼은 margin-top:auto로 카드 바닥에 맞춘다. */
+.plan-cards { grid-template-columns: repeat(3, 1fr); margin-bottom: 22px; }
+.plan-cards .char { padding: 30px 26px; }
+.plan-cards .char .credit { margin-top: 4px; }
+.plan-cards .char .chips { margin: 16px 0 14px; }
+/* "아래 플랜 전부 +"를 한 줄 차지하게 해 모델 칩이 다음 줄로 내려가게 */
+.plan-cards .char .chips-plus { flex-basis: 100%; }
+.plan-cards .char .btn { margin-top: auto; }        /* 버튼 하단 정렬 — FREE만 처지던 문제 해결 */
+.plan-cards .char.current { transform: none; background: var(--white); outline: 3px solid var(--coral); }
+.plan-note { margin-top: 20px; text-align: center; font-family: 'GalmuriMono11', monospace; font-size: 12px; color: var(--sub); }
+
+/* ───── 최종 CTA / 푸터 ───── */
+.final {
+  text-align: center; background: var(--navy); color: var(--white);
+  position: relative; overflow: hidden;
+}
+.final h2 { font-size: clamp(25px, 4vw, 42px); line-height: 1.5; color: var(--white); }
+.final p { color: #aebfe0; margin: 18px 0 32px; line-height: 1.9; }
+.final .stars i {
+  position: absolute; width: 8px; height: 8px; background: var(--yellow);
+  animation: tw 1.6s steps(2) infinite;
+}
+footer.ft {
+  background: var(--navy); color: #aebfe0;
+  text-align: center; padding: 20px 24px 56px; font-size: 12.5px; line-height: 2;
+}
+/* 탭바 없는 데스크톱(≥1025px)에선 푸터를 전체적으로 ~75%로 줄인다.
+   아래 56px은 모바일 하단 탭바 가림 방지용이라 태블릿·모바일에선 그대로 둔다. */
+@media (min-width: 1025px) {
+  footer.ft { padding: 15px 24px; font-size: 9.5px; line-height: 1.75; }
+}
+
+/* ═══════════ 로그인 전 랜딩 — 화면 배분 (641px 이상) ═══════════
+   콘텐츠 양으로 화면을 나눈다. 전부 묶으면 섹션당 412px밖에 안 남아 글씨를 줄여야 하고
+   ("다 작아 보인다"), 전부 단독이면 작은 섹션에 여백만 남는다.
+   많은 것(리뷰·루프·플랜)은 단독 화면, 작은 것(케어·성장단계)만 .lp-duo로 묶는다.
+   묶음은 스냅 한 칸으로 센다 — 페이지 점도 duo 하나에 하나다.
+
+   문서가 스크롤하므로 스냅은 html에 걸고, sticky GNB(76px)에 가리지 않게
+   높이에서 빼고 scroll-margin으로 밀어 준다. .lp는 랜딩에만 붙는다 —
+   대시보드가 같은 InfoSections를 쓰기 때문에 섹션 태그로 잡으면 거기까지 걸린다. */
+@media (min-width: 641px) {
+  html:has(.lp) { scroll-snap-type: y mandatory; }
+
+  .lp > .hero, .lp > section, .lp > .lp-duo {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;      /* 한 번에 여러 화면을 건너뛰지 않게 */
+    scroll-margin-top: 76px;
+    min-height: calc(100dvh - 76px);
+    position: relative; overflow: hidden;   /* 구름을 자기 안에서 자른다 */
+  }
+  .lp > .hero { align-items: center; }   /* 히어로는 자체 2열 grid — display를 덮으면 안 된다 */
+
+  /* 단독 화면 */
+  .lp > section { display: flex; align-items: center; padding: clamp(26px, 3.8vh, 52px) 5vw; }
+  /* 묶음 화면 — 위아래로 나누고, 남는 높이만 두 섹션이 갈라 갖는다.
+     반씩 강제로 나누면 내용이 적은 쪽이 다시 텅 빈다 */
+  .lp-duo { display: flex; flex-direction: column; }
+  .lp-duo > section {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; align-items: center;
+    padding: clamp(10px, 1.4vh, 24px) 5vw;
+  }
+  /* 히어로는 .wrap을 안 쓰고 섹션 폭을 그대로 쓴다. 나머지 섹션은 .wrap의 1080px에
+     갇혀 있어서 2페이지부터 갑자기 좁아 보였고, 가로 배치도 힘들었다 */
+  /* flex 자식이라 width를 안 주면 폭이 콘텐츠 기준으로 줄어든다(882px까지 좁아졌다) */
+  .lp .wrap { position: relative; z-index: 2; width: 100%; max-width: min(1560px, 92vw); }
+
+  /* 배경·테두리를 걷어내 화면끼리 이어 보이게. 묶음 화면 가운데 굵은 선도 이것 때문이었고,
+     그 불투명 배경이 구름까지 덮고 있었다.
+     .final은 밤하늘이 디자인이라 제외 — 투명하게 하면 흰 글씨가 안 보인다 */
+  .lp section:not(.final) { background: transparent; border-top: 0; border-bottom: 0; }
+
+  /* 마지막 화면(#plan)은 푸터까지 한 화면에 담는다 — mandatory 스냅은 마지막 지점 뒤로
+     넘어가지 않아서, 푸터가 그 뒤에 있으면 아래가 잘려 안 내려간다. GNB 76 + 푸터 실측 76 */
+  .lp > #plan { min-height: calc(100dvh - 76px - 76px); }
+  /* 위 계산이 어긋나도(폰트·패딩 변경) 끝까지는 내려가게 푸터도 스냅 지점으로 */
+  body:has(.lp) .ft { scroll-snap-align: end; }
+}
+
+/* ── 아래 화면에도 흘러가는 구름 ──
+   히어로에만 있던 도트 구름을 나머지 화면에도 이어 붙인다. JSX를 늘리지 않으려고
+   가상 요소로 두 개씩 띄운다(모양·애니메이션은 .cloud와 같은 값).
+   .lp 안에서만 걸리므로 대시보드의 InfoSections에는 안 뜬다. */
+@media (min-width: 641px) {
+  .lp > section:not(.final)::before, .lp > section:not(.final)::after,
+  .lp-duo::before, .lp-duo::after {
+    content: ''; position: absolute; z-index: 1; pointer-events: none;
+    height: 14px; width: 14px; background: var(--white);
+    box-shadow: 14px -14px 0 var(--white), 28px -14px 0 var(--white), 42px -14px 0 var(--white),
+                -14px 0 0 var(--white), 56px 0 0 var(--white), 14px -28px 0 var(--white), 28px -28px 0 var(--white);
+    opacity: .85; animation: drift linear infinite;
+  }
+  .lp > *::before { top: 12%; animation-duration: 61s; }
+  .lp > *::after { top: 72%; animation-duration: 74s; animation-delay: -28s; }
+  /* 화면마다 높이·속도를 어긋나게 — 같은 자리에서 반복돼 보이지 않게 */
+  .lp > *:nth-child(3)::before { top: 23%; animation-duration: 55s; animation-delay: -13s; }
+  .lp > *:nth-child(3)::after { top: 64%; animation-duration: 79s; animation-delay: -34s; }
+  .lp > *:nth-child(4)::before { top: 8%; animation-duration: 68s; animation-delay: -21s; }
+  .lp > *:nth-child(4)::after { top: 79%; animation-duration: 58s; animation-delay: -7s; }
+  .lp > *:nth-child(5)::before { top: 17%; animation-duration: 72s; animation-delay: -41s; }
+  .lp > *:nth-child(5)::after { top: 67%; animation-duration: 63s; animation-delay: -16s; }
+}
+
+/* ── 가독성 · 다듬기 (641px 이상) ──
+   단독 화면은 세로를 온전히 쓰니 글씨와 카드를 키운다.
+   묶음 화면(.lp-duo) 안은 한 단계 작게 — 두 섹션이 한 화면을 나눠 쓴다 */
+@media (min-width: 641px) {
+  .lp .badge { margin-bottom: 10px; box-shadow: 3px 3px 0 var(--navy); }
+  .lp .sec-title { font-size: clamp(23px, 2.1vw, 34px); margin-bottom: 10px; }
+  .lp .sec-lead {
+    font-size: clamp(15.5px, 1.15vw, 18px); line-height: 1.95;
+    /* 리드와 카드 사이가 벌어져 카드가 아래로 밀려 보였다 */
+    margin-bottom: clamp(12px, 1.8vh, 24px); max-width: 46em;
+  }
+  .lp-duo .sec-title { font-size: clamp(20px, 1.7vw, 27px); margin-bottom: 8px; }
+  .lp-duo .sec-lead { font-size: clamp(14.5px, 1vw, 16px); line-height: 1.8; margin-bottom: clamp(8px, 1.2vh, 18px); }
+  .lp-duo .badge { margin-bottom: 8px; }
+
+  /* ── 리뷰 (단독 화면) — 왼쪽 예시, 오른쪽 설명 2×2 ── */
+  .lp .rev-grid { grid-template-columns: 1fr 1.15fr; gap: clamp(20px, 2.4vw, 40px); align-items: center; }
+  /* space-between으로 분산했더니 라인 사이가 억지로 벌어졌다.
+     패널은 내용 높이대로 두고 그리드 위에 붙인다 */
+  .lp .rev-panel { padding: clamp(18px, 2.4vh, 30px); border-radius: 12px; align-self: center; }
+  .lp .rev-head {
+    border-bottom: 3px dotted var(--sky2); font-size: clamp(12.5px, 1vw, 15px);
+    padding-bottom: 13px; margin-bottom: 16px;
+  }
+  .lp .rev-line { font-size: clamp(14px, 1.05vw, 16px); line-height: 2.15; }
+  .lp .rev-line .sev { font-size: clamp(11.5px, .9vw, 13.5px); padding: 3px 9px; }
+  .lp .rev-foot { font-size: clamp(12.5px, 1vw, 15px); margin-top: 15px; padding-top: 13px; }
+  /* 2×2로 두면 카드가 좁아 문장이 잘게 쪼개진다. 한 줄에 하나씩 두고 가로로 길게 */
+  .lp .rev-list { display: grid; grid-template-columns: 1fr; gap: clamp(9px, 1.3vh, 16px); }
+  .lp .rev-list li {
+    border-radius: 12px;
+    padding: clamp(12px, 1.7vh, 20px) clamp(16px, 1.3vw, 24px);
+    font-size: clamp(14px, 1.02vw, 15.5px); line-height: 1.8;
+  }
+  .lp .rev-list li b { font-size: clamp(15.5px, 1.15vw, 17.5px); margin-bottom: 6px; }
+
+  /* ── 성장 루프 (단독 화면) — 4열 유지, 카드를 세로로 키운다 ── */
+  /* 루프·케어를 한 화면에 묶으므로 카드는 가로 한 행(4열/3열)로 두고 세로를 줄인다 */
+  .lp .loop-grid { grid-template-columns: repeat(4, 1fr); gap: clamp(12px, 1.4vw, 22px); }
+  .lp .l-card { border-radius: 12px; padding: clamp(11px, 1.5vh, 18px) clamp(13px, 1vw, 18px); }
+  .lp .l-card .n { font-size: clamp(11.5px, .9vw, 13.5px); padding: 5px 11px; margin-bottom: 10px; box-shadow: 3px 3px 0 var(--sky2); }
+  .lp .l-card h3 { font-size: clamp(14.5px, 1.15vw, 17px); margin-bottom: 7px; }
+  .lp .l-card p { font-size: clamp(13px, .98vw, 14.5px); line-height: 1.8; }
+  .l-spr { display: block; margin: clamp(6px, 1vh, 12px) auto 0; height: clamp(28px, 3.6vh, 44px); width: auto; }
+
+  /* ── 케어 (묶음 화면 위칸) — 3열 ── */
+  .lp .care-grid { grid-template-columns: repeat(3, 1fr); gap: clamp(12px, 1.4vw, 22px); }
+  .lp .care { border-radius: 12px; padding: clamp(11px, 1.4vh, 18px) clamp(14px, 1.1vw, 20px); text-align: center; }
+  .lp .care .head { margin-bottom: 9px; justify-content: center; }
+  .lp .care .head h3 { font-size: clamp(15px, 1.2vw, 19px); }
+  .lp .care .head .em { font-size: clamp(21px, 1.8vw, 28px); }
+  /* 비용은 코인 칩처럼 각지고 노랗게 (폰 카드에서 가져온 것) */
+  .lp .care .map {
+    background: var(--yellow); color: var(--navy);
+    border: 2px solid var(--navy); box-shadow: 2px 2px 0 var(--navy);
+    font-family: 'Silkscreen', monospace; font-size: clamp(11px, .85vw, 13px); letter-spacing: .5px;
+  }
+  .lp .care p { font-size: clamp(13.5px, 1vw, 15px); line-height: 1.8; }
+  .care-spr { display: block; margin: clamp(6px, 1vh, 12px) auto 0; height: clamp(28px, 3.6vh, 46px); width: auto; }
+
+  /* ── 성장 단계 (묶음 화면 아래칸) — 5열 ── */
+  .lp .g-grid { gap: clamp(10px, 1.2vw, 20px); }
+  .lp .g-card { border-radius: 12px; padding: clamp(9px, 1.2vh, 15px) 12px; }
+  .lp .g-card .box { height: clamp(78px, 10.5vh, 130px); border-radius: 8px; }
+  .lp .g-card .box img { height: clamp(48px, 6.8vh, 82px); }
+  .lp .g-card .box img.sm { height: clamp(36px, 5vh, 60px); }
+  .lp .g-card .box img.lg { height: clamp(60px, 8.4vh, 102px); }
+  .lp .g-card h3 { font-size: clamp(13.5px, 1.02vw, 16px); margin-top: 10px; }
+  .lp .g-card p { font-size: clamp(12.5px, .92vw, 14px); }
+
+  /* ── 플랜 (단독 화면) — 하루 크레딧을 크게, 모델은 칩으로 ── */
+  /* 설명이 문장 단위로 끊기니 카드가 넓을 필요가 없다. 가운데로 모아 균형을 잡는다.
+     원본은 가운데(PRO)를 1.15fr로 넓혀 강조했는데 셋의 폭이 달라 어색했다 — 같은 폭으로 */
+  .lp .chars { grid-template-columns: repeat(3, 1fr); gap: clamp(14px, 1.4vw, 24px); }
+  .lp .char { border-radius: 12px; padding: clamp(11px, 1.5vh, 20px) clamp(13px, 1vw, 18px); }
+  .lp .char .pname { font-size: clamp(18px, 1.5vw, 25px); }
+  .lp .char .model { font-size: clamp(12px, .95vw, 14px); margin: 5px 0 10px; }
+  .lp .char .credit {
+    font-family: 'GalmuriMono11', monospace;
+    font-size: clamp(21px, 2.4vh, 30px); padding: clamp(6px, 1vh, 12px) 0;
+  }
+  .lp .char .credit small { font-size: clamp(11px, .9vw, 12.5px); margin-top: 5px; }
+  .lp .char .chips {
+    display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;
+    margin: clamp(8px, 1.2vh, 14px) 0;
+  }
+  .lp .char .chip {
+    font-family: 'GalmuriMono11', monospace; font-size: clamp(11px, .88vw, 13px); line-height: 1.9;
+    color: var(--navy); background: var(--white); border: 2px solid var(--navy); padding: 1px 9px;
+  }
+  .lp .char.mid .chip { border-color: var(--coral); color: var(--coral); }
+  .lp .char .chips-plus {
+    font-family: 'GalmuriMono11', monospace; font-size: clamp(11px, .88vw, 13px);
+    color: var(--sub); align-self: center;
+  }
+  .lp .char ul { margin: 7px 0 10px; }
+    /* 플랜 설명의 
+(문장 경계)을 그대로 끊는다 — data/plans.ts 참고 */
+  .lp .char li { font-size: clamp(13px, .98vw, 14.5px); line-height: 1.8; padding: 4px 0 4px 16px; white-space: pre-line; }
+  .lp .plan-note { font-size: clamp(12px, .95vw, 13.5px); margin-top: clamp(8px, 1.4vh, 16px); }
+
+  /* ── 마지막 CTA (단독 화면 + 푸터) ── */
+  .lp .final h2 { font-size: clamp(21px, 2vw, 32px); }
+  .lp .final p {
+    font-size: clamp(13px, 1.05vw, 15.5px);
+    margin: clamp(10px, 1.6vh, 18px) 0 clamp(16px, 2.4vh, 24px);
+  }
+
+  /* 줄바꿈은 문구에 직접 넣는다(쉼표·마침표 기준). 남은 자동 줄바꿈은 어절에서만 */
+  .lp .sec-lead, .lp .rev-list li, .lp .care p, .lp .l-card p { word-break: keep-all; }
+}
+
+/* 페이지 표시 — 데스크톱은 오른쪽 여백이 넓어 세로로 둔다. 폰은 MobileLanding이 따로 그린다.
+   묶은 화면(.lp-duo)은 점 하나로 센다 — 대상 선택자를 Landing.tsx의 SNAP_SEL과 맞춰 둔다 */
+.lp-nav { display: none; }
+@media (min-width: 641px) {
+  .lp-nav {
+    position: fixed; right: 18px; top: 50%; transform: translateY(-50%); z-index: 30;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .lp-nav button {
+    width: 10px; height: 10px; padding: 0; border-radius: 50%;
+    border: 3px solid var(--navy); background: transparent; cursor: pointer;
+  }
+  .lp-nav button:hover { background: var(--yellow); }
+  .lp-nav button.on { background: var(--coral); border-color: var(--coral); }
+  .lp-more {
+    margin-top: 2px; font-size: 15px; line-height: 1; color: var(--coral); pointer-events: none;
+    animation: lpMore 1.6s ease-in-out infinite;
+  }
+  @keyframes lpMore { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+}
+
+/* 플랜 화면 — 설명 한 문장이 한 줄에 들어가야 카드가 안 어색하다.
+   좌우 여백을 줄여 카드 폭을 확보한다 (641px 이상) */
+@media (min-width: 641px) {
+  .lp #plan { padding-left: clamp(16px, 2.4vw, 40px); padding-right: clamp(16px, 2.4vw, 40px); }
+  .lp #plan .wrap { max-width: min(1440px, 96vw); }
+}
+
+/* ── 리뷰 화면 배치 (641px 이상) ──
+   설명 4장을 제목·리드 아래에만 두면 오른쪽이 화면 아래로 밀려 위가 텅 빈다.
+   그래서 리드 행부터 오른쪽 열에 걸치게 했다. 단 제목까지 왼쪽 열에 넣으면
+   폭 517px에 갇혀 두 줄로 접히므로 제목은 두 열을 다 쓴다.
+   rev-grid는 display:contents로 투명하게 만들어 자식(패널·목록)을 wrap 그리드에 직접 앉힌다 */
+@media (min-width: 641px) {
+  .lp #review .wrap {
+    /* 카드 폭을 더 줄여 봤지만(패널 519 / 카드 390) 답답했다 — 이 비율이 낫다 */
+    display: grid; grid-template-columns: 1.2fr .85fr;
+    grid-template-rows: auto auto auto 1fr;
+    column-gap: clamp(20px, 2.4vw, 40px); align-items: start;
+  }
+  /* 배지는 그리드 칸을 꽉 채우면 안 된다 — 내용 폭만 */
+  .lp #review .badge { grid-area: 1 / 1; justify-self: start; }
+  .lp #review .sec-title { grid-area: 2 / 1 / 3 / -1; }
+  .lp #review .sec-lead { grid-area: 3 / 1; }
+  .lp #review .rev-grid { display: contents; }
+  .lp #review .rev-panel { grid-area: 4 / 1; align-self: start; }
+  /* 오른쪽 열 — 리드 행부터 패널 아래까지 */
+  .lp #review .rev-list { grid-area: 3 / 2 / 5 / 3; align-self: center; }
+}
+
+/* ── 플랜 화면 (641px 이상) ──
+   설명 한 문장이 한 줄에 들어가야 카드가 안 어색하다. 좌우 여백을 줄여 폭을 확보한다 */
+@media (min-width: 641px) {
+  .lp #plan { padding-left: clamp(12px, 1.6vw, 32px); padding-right: clamp(12px, 1.6vw, 32px); }
+  .lp #plan .wrap { max-width: min(1500px, 98vw); }
+  .lp #plan .char { padding-left: clamp(11px, .9vw, 16px); padding-right: clamp(11px, .9vw, 16px); }
+  .lp #plan .char li { padding-left: 14px; }
+  /* 카드 폭은 "교과서 예제 … 예제로."가 한 줄에 들어가는 최소치(실측 372px)에
+     여유 12px만 더한 384px. 3열 + gap 36px = 1188px */
+  .lp #plan .chars { max-width: 1188px; margin: 0 auto; }
+}
+
+/* ── 마지막 화면 = 플랜 + CTA + 푸터 (641px 이상) ──
+   CTA(남색 배경)가 화면의 35%를 갖고 플랜이 나머지를 쓴다. 비율을 flex로 못 박아야
+   CTA 위아래 여백이 확보된다 — 내용 높이대로 두면 글이 서로 붙어 보였다.
+   푸터까지 한 화면이므로 예산은 100dvh − GNB(76) − 푸터(64) */
+@media (min-width: 641px) {
+  /* height까지 줘야 아래 flex의 35%가 기준을 갖는다(min-height만으로는 퍼센트가 안 풀린다).
+     빼는 값은 GNB 76px + 랜딩 푸터 실측 76px — 어긋나면 마지막 화면이 그만큼 밀려 잘린다 */
+  .lp > .lp-last { min-height: calc(100dvh - 76px - 76px); height: calc(100dvh - 76px - 76px); }
+  .lp-last .final { flex: 0 0 35%; display: flex; align-items: center; }
+
+  /* 플랜 — 남은 3/5에 들어가도록 헤더·꼬리말 여백을 줄여 위로 올린다 */
+  /* 가운데 정렬이면 위가 헐렁하고, 위에 딱 붙이면 답답하다 — 위에 붙이되 여백을 준다 */
+  .lp-last #plan {
+    flex: 1 1 auto; align-items: flex-start;
+    /* 위는 넉넉히, 아래(남색 CTA와 맞닿는 쪽)는 붙인다 */
+    padding-top: clamp(18px, 2.6vh, 34px); padding-bottom: clamp(0px, .2vh, 4px);
+  }
+  .lp-last #plan .badge { margin-bottom: 6px; padding: 5px 12px; }
+  .lp-last #plan .sec-title { margin-bottom: 6px; }
+  .lp-last #plan .sec-lead { margin-bottom: clamp(8px, 1.1vh, 15px); }
+  .lp-last .plan-note { margin-top: clamp(4px, .6vh, 9px); }
+
+  /* 플랜 카드 자체는 건드리지 않는다 — 섹션 여백만 줄여 위로 올렸다 */
+}
+
+/* 랜딩 푸터 — 아래 패딩 56px은 모바일 탭바를 피하려고 준 값이다.
+   데스크톱 랜딩에서는 그 자리가 필요 없고, 그만큼 마지막 화면 예산이 늘어난다 */
+@media (min-width: 641px) {
+  body:has(.lp) footer.ft { padding: 12px 24px 14px; }
+}

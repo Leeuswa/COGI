@@ -1,0 +1,163 @@
+/* 모바일 리뷰 스튜디오 — 화면 전체를 채팅앱처럼 */
+@media (max-width: 640px) {
+  /* 말풍선만 스크롤하고 입력창은 바닥에 붙는다. 바깥(.app-body) 스크롤은 끈다 */
+  .app-body:has(.mst) { overflow: hidden; }
+  .mst { height: 100%; padding-bottom: 0; gap: 10px; }
+
+  .mst-thread {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  /* 빈 상태 */
+  .mst-empty {
+    margin: auto 0; text-align: center;
+    background: var(--white); border: 2px solid var(--navy); border-radius: 16px; padding: 22px 16px;
+  }
+  .mst-dog { font-size: 30px; margin-bottom: 10px; }
+  .mst-empty > p { font-size: 13px; line-height: 1.9; color: var(--sub); margin-bottom: 16px; }
+  .mst-warn { font-size: 12px; line-height: 1.7; color: var(--coral); margin-bottom: 12px; }
+
+  /* 말풍선 — 내 말은 오른쪽, 코기는 왼쪽 */
+  .mst-bub {
+    max-width: 88%; padding: 12px 13px; border-radius: 14px;
+    font-size: 13px; line-height: 1.85; word-break: keep-all; overflow-wrap: break-word;
+  }
+  .mst-bub p { white-space: pre-line; }
+  /* 후속 답변은 마크다운이라 코드펜스·제목·굵게가 섞여 온다 */
+  .mst-bub .q-text { white-space: pre-line; margin: 0; }
+  .mst-bub .q-text + .codebox, .mst-bub .codebox + .q-text { margin-top: 9px; }
+  .mst-bub .codebox { font-size: 11px; padding: 11px 12px; border-radius: 9px; }
+  .mst-bub .md-h { display: block; margin: 10px 0 4px; font-size: 13px; }
+  .mst-bub .q-text:first-child .md-h:first-child { margin-top: 0; }
+  .mst-bub.cogi { align-self: flex-start; background: var(--white); border: 2px solid var(--navy); color: var(--navy); }
+  .mst-bub.me { align-self: flex-end; background: var(--navy); color: var(--white); }
+  /* 붙여넣은 코드도 옆으로 넘기면 오른쪽이 잘린 줄 모른다 — 줄을 접는다 */
+  .mst-mycode {
+    font-family: 'GalmuriMono11', monospace; font-size: 11px; line-height: 1.75;
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+  }
+
+  .mst-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .mst-sev {
+    flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--white);
+    padding: 3px 9px; border-radius: 999px; background: var(--sub);
+  }
+  .mst-sev.critical { background: var(--coral); }
+  .mst-sev.major { background: #c9862e; }
+  .mst-sev.minor { background: var(--mint); }
+  .mst-cat {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    border: 2px solid var(--navy); color: var(--navy); background: var(--white);
+  }
+  .mst-snip, .mst-desc .codebox {
+    font-size: 11px; padding: 11px 12px; border-radius: 9px; margin-bottom: 9px;
+  }
+  .mst-desc { font-size: 12.5px; line-height: 1.85; }
+  .mst-verdict {
+    display: inline-block; margin-top: 10px; font-size: 11.5px; font-weight: 700;
+    padding: 4px 10px; border-radius: 999px; color: var(--white);
+  }
+  .mst-verdict.ok { background: var(--mint); }
+  .mst-verdict.skip { background: #c9862e; }
+
+  .mst-typing i { animation: mstblink 1s infinite; }
+  .mst-typing i:nth-child(2) { animation-delay: .2s; }
+  .mst-typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes mstblink { 0%, 60%, 100% { opacity: .25 } 30% { opacity: 1 } }
+
+  /* ── 판정 배너 ── */
+  .mst-done {
+    flex-shrink: 0; background: #fffdf3; border: 2px solid var(--coral); border-radius: 14px; padding: 12px 13px;
+  }
+  .mst-done.ready { background: #eefaf4; border-color: var(--mint); }
+  .mst-done > p { font-size: 12.5px; line-height: 1.7; color: var(--navy); margin-bottom: 10px; }
+  .mst-nexttop { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 6px; }
+  .mst-nexttop b { font-size: 12.5px; color: var(--navy); }
+  .mst-nextfile {
+    font-family: 'GalmuriMono11', monospace; font-size: 11px; color: var(--sub);
+    margin-bottom: 10px; overflow-wrap: anywhere;
+  }
+  .mst-picks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 9px; }
+  .mst-picks .btn { width: 100%; text-align: center; }
+
+  /* ── 입력 ── */
+  .mst-input {
+    flex-shrink: 0; background: var(--white); border: 2px solid var(--navy);
+    border-radius: 14px; padding: 10px 11px; margin-bottom: 12px;
+  }
+  .mst-input textarea {
+    width: 100%; padding: 9px 10px; font: inherit; font-size: 16px; line-height: 1.6; resize: none;
+    border: 2px solid #dfe5f0; border-radius: 10px; background: var(--white); color: var(--navy);
+  }
+  /* 즐겨찾기 스킬 칩 — 입력창 바로 위. 넘치면 줄을 접는다(가로 스크롤 금지) */
+  /* 즐겨찾기 스킬 — 버튼으로 접어 둔다 */
+  .mst-fav { margin-bottom: 8px; }
+  .mst-fav-btn {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    font: inherit; font-size: 11.5px; font-weight: 700; padding: 7px 11px;
+    border-radius: 999px; background: var(--white); color: var(--navy); border: 2px solid var(--navy);
+  }
+  .mst-fav-btn.on { background: var(--yellow); }
+  .mst-fav-btn i { font-style: normal; font-size: 8px; color: var(--sub); }
+  .mst-fav .mst-skills { margin-top: 8px; }
+
+  .mst-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .mst-skill {
+    font: inherit; font-size: 11.5px; font-weight: 700; line-height: 1.4;
+    padding: 5px 10px; border-radius: 999px; cursor: pointer;
+    background: #fff6f4; color: var(--coral); border: 2px solid var(--coral);
+    word-break: keep-all; /* 한글 어절 한가운데서 끊기지 않게 */
+  }
+  .mst-skill:disabled { background: #f2f4f8; color: var(--sub); border-color: #dfe5f0; cursor: default; }
+
+  .mst-tools { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+  .mst-model {
+    flex: 1; min-width: 0; padding: 9px 8px; font-size: 12.5px;
+    border: 2px solid var(--navy); border-radius: 10px; background: var(--white); color: var(--navy);
+  }
+  .mst-model:disabled { background: #f2f4f8; color: var(--sub); }
+  .mst-icon { flex-shrink: 0; padding: 9px 12px; }
+  .mst-send { flex-shrink: 0; padding: 9px 12px; font-size: 12px; white-space: nowrap; }
+  .mst-hint { margin-top: 7px; font-size: 11px; line-height: 1.7; color: var(--sub); }
+  .mst-hint a { color: var(--coral); }
+
+  /* ── 미리보기 도크 ── */
+  .mst-dock {
+    flex-shrink: 0; width: 100%; padding: 11px 12px; font: inherit; font-size: 12.5px; text-align: left;
+    background: var(--white); color: var(--navy);
+    border: 2px solid var(--navy); border-radius: 12px; cursor: pointer;
+  }
+  /* 도크는 데스크톱 크기 그대로면 채팅을 다 덮는다. 화면 절반까지만 */
+  .mst-dockbody { flex-shrink: 0; max-height: 50vh; overflow: auto; }
+  .mst-dockbody .dock { border-radius: 12px; }
+
+  /* ── PR 피커 바텀시트 ── */
+  .mst-dim { position: fixed; inset: 0; background: rgba(20, 28, 56, .45); z-index: 60; }
+  .mst-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 61;
+    max-height: 82vh; overflow-y: auto;
+    background: var(--white); border-top: 3px solid var(--navy);
+    border-radius: 18px 18px 0 0;
+    padding: 18px 15px calc(18px + env(safe-area-inset-bottom));
+  }
+  .mst-sheet h3 { font-size: 15px; color: var(--navy); margin-bottom: 8px; overflow-wrap: anywhere; }
+  .mst-sheet .mnote { margin-bottom: 12px; }
+
+  .mst-opts { list-style: none; display: flex; flex-direction: column; margin-bottom: 14px; }
+  .mst-opts li { border-top: 2px solid #eef2fa; }
+  .mst-opts li:first-child { border-top: none; }
+  .mst-opts button, .mst-opts label {
+    display: flex; align-items: center; gap: 9px; width: 100%; padding: 12px 2px;
+    background: none; border: none; font: inherit; text-align: left; cursor: pointer; color: var(--navy);
+  }
+  .mst-opts b { flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+  .mst-opts i {
+    flex-shrink: 0; font-style: normal; font-size: 11px; color: var(--sub);
+    background: #eef2fa; padding: 3px 9px; border-radius: 999px;
+  }
+  .mst-opts i.front { color: var(--white); background: var(--mint); }
+  .mst-opts input { flex-shrink: 0; width: 19px; height: 19px; accent-color: var(--coral); }
+  .mst-all { font-weight: 700; font-size: 13px; }
+  .mst-second { margin-top: 8px; }
+}

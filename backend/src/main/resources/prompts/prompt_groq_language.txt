@@ -1,0 +1,5 @@
+[Groq 전용 강제 규칙 — Groq(llama) 모델로 호출할 때만 프롬프트 끝에 덧붙는다]
+Write ALL natural-language text in "summary" and every "description" in KOREAN ONLY.
+Never mix Russian, Chinese, Japanese, English prose, or any other language in these fields.
+Only code, identifiers, and technical keywords may stay in their original form.
+(summary/description은 반드시 한국어로만 작성 — 코드·식별자만 예외)

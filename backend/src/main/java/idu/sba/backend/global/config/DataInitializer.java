@@ -1,0 +1,821 @@
+package idu.sba.backend.global.config;
+
+import idu.sba.backend.domain.admin.entity.Faq;
+import idu.sba.backend.domain.admin.entity.Notice;
+import idu.sba.backend.domain.admin.repository.FaqRepository;
+import idu.sba.backend.domain.admin.repository.NoticeRepository;
+import idu.sba.backend.domain.growth.entity.WeeklyReport;
+import idu.sba.backend.domain.growth.repository.WeeklyReportRepository;
+import idu.sba.backend.domain.inquiry.entity.Inquiry;
+import idu.sba.backend.domain.inquiry.repository.InquiryRepository;
+import idu.sba.backend.domain.learning.entity.AiSkill;
+import idu.sba.backend.domain.learning.entity.Course;
+import idu.sba.backend.domain.learning.entity.LearningCard;
+import idu.sba.backend.domain.learning.entity.LearningCardQuiz;
+import idu.sba.backend.domain.learning.entity.QuizSubmission;
+import idu.sba.backend.domain.learning.repository.AiSkillRepository;
+import idu.sba.backend.domain.learning.repository.CourseRepository;
+import idu.sba.backend.domain.learning.repository.LearningCardQuizRepository;
+import idu.sba.backend.domain.learning.repository.LearningCardRepository;
+import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
+import idu.sba.backend.domain.notification.entity.Notification;
+import idu.sba.backend.domain.notification.repository.NotificationRepository;
+import idu.sba.backend.domain.payment.entity.ChangeType;
+import idu.sba.backend.domain.payment.entity.CreditUsage;
+import idu.sba.backend.domain.payment.entity.PaymentMethod;
+import idu.sba.backend.domain.payment.entity.Subscription;
+import idu.sba.backend.domain.payment.entity.SubscriptionHistory;
+import idu.sba.backend.domain.payment.repository.CreditUsageRepository;
+import idu.sba.backend.domain.payment.repository.PaymentMethodRepository;
+import idu.sba.backend.domain.payment.repository.PlanRepository;
+import idu.sba.backend.domain.payment.repository.SubscriptionHistoryRepository;
+import idu.sba.backend.domain.payment.repository.SubscriptionRepository;
+import idu.sba.backend.domain.pr.entity.PullRequest;
+import idu.sba.backend.domain.pr.repository.PullRequestRepository;
+import idu.sba.backend.domain.repo.entity.GithubRepository;
+import idu.sba.backend.domain.repo.entity.RepoMember;
+import idu.sba.backend.domain.repo.entity.RepoRole;
+import idu.sba.backend.domain.repo.repository.GithubRepositoryRepository;
+import idu.sba.backend.domain.repo.repository.RepoMemberRepository;
+import idu.sba.backend.domain.retention.entity.PetState;
+import idu.sba.backend.domain.retention.entity.UserStreak;
+import idu.sba.backend.domain.retention.repository.PetStateRepository;
+import idu.sba.backend.domain.retention.repository.UserStreakRepository;
+import idu.sba.backend.domain.review.entity.AiUsageLog;
+import idu.sba.backend.domain.review.entity.IssueCategory;
+import idu.sba.backend.domain.review.entity.IssueSeverity;
+import idu.sba.backend.domain.review.entity.IssueStatus;
+import idu.sba.backend.domain.review.entity.Review;
+import idu.sba.backend.domain.review.entity.ReviewIssue;
+import idu.sba.backend.domain.review.repository.AiUsageLogRepository;
+import idu.sba.backend.domain.review.entity.ReviewGuideline;
+import idu.sba.backend.domain.review.repository.ReviewGuidelineRepository;
+import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
+import idu.sba.backend.domain.review.repository.ReviewRepository;
+import idu.sba.backend.domain.review.service.PromptBuilder;
+import idu.sba.backend.domain.terms.entity.UserAgreement;
+import idu.sba.backend.domain.terms.repository.UserAgreementRepository;
+import idu.sba.backend.domain.user.entity.Level;
+import idu.sba.backend.domain.user.entity.Role;
+import idu.sba.backend.domain.user.entity.User;
+import idu.sba.backend.domain.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
+/*
+ * 개발용 시드 데이터. 빈 DB에 처음 뜰 때만 돌고, 이미 데이터가 있으면 아무것도 하지 않는다.
+ * 사이트의 모든 화면을 로그인 직후 바로 눌러볼 수 있는 게 목표.
+ *
+ * 다시 심고 싶으면 DB를 비우고(DROP DATABASE cogi; CREATE DATABASE cogi;) 재시작하면 된다.
+ *
+ * 테스트 계정 — admin@a.a / 1234 (관리자), user@a.a / 1234 (일반, MAX 플랜)
+ * 로그인 DTO에 @Email이 걸려 있어 아이디는 이메일 형태여야 한다.
+ *
+ * plans·terms는 엔티티에 생성 API가 없어(다른 팀원 코드라 손대지 않음) JdbcTemplate으로 넣는다.
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class DataInitializer implements CommandLineRunner {
+
+    private static final String PW = "1234"; // 테스트 계정 공용 비밀번호
+
+    private final JdbcTemplate jdbc;
+    private final PasswordEncoder passwordEncoder;
+    private final PlanRepository planRepository;
+    private final UserRepository userRepository;
+    private final UserAgreementRepository userAgreementRepository;
+    private final PaymentMethodRepository paymentMethodRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionHistoryRepository subscriptionHistoryRepository;
+    private final CreditUsageRepository creditUsageRepository;
+    private final GithubRepositoryRepository githubRepositoryRepository;
+    private final RepoMemberRepository repoMemberRepository;
+    private final PullRequestRepository pullRequestRepository;
+    private final ReviewRepository reviewRepository;
+    private final ReviewIssueRepository reviewIssueRepository;
+    private final ReviewGuidelineRepository reviewGuidelineRepository;
+    private final PromptBuilder promptBuilder;
+    private final LearningCardRepository learningCardRepository;
+    private final LearningCardQuizRepository learningCardQuizRepository;
+    private final QuizSubmissionRepository quizSubmissionRepository;
+    private final UserStreakRepository userStreakRepository;
+    private final WeeklyReportRepository weeklyReportRepository;
+    private final CourseRepository courseRepository;
+    private final AiSkillRepository aiSkillRepository;
+    private final PetStateRepository petStateRepository;
+    private final NoticeRepository noticeRepository;
+    private final FaqRepository faqRepository;
+    private final InquiryRepository inquiryRepository;
+    private final NotificationRepository notificationRepository;
+
+    @Override
+    @Transactional
+    public void run(String... args) {
+        // 최초 1회만. 둘 중 하나라도 남아 있으면 이미 심은 것으로 본다
+        // (plans는 id를 직접 박아 넣어서 두 번 돌면 중복키로 터진다)
+        if (planRepository.count() > 0 || userRepository.count() > 0) {
+            log.info("시드 데이터가 이미 있어 건너뜁니다.");
+            return;
+        }
+
+        seedPlans();
+        seedTerms();
+        seedGuidelines();
+
+        // 팀장 admin, 팀원 user·kim·lee. githubUsername을 채워야 팀·성장추이 화면이 이름을 제대로 띄운다
+        // (연동 흐름을 직접 밟아볼 user@a.a만 예외로 비워 둔다).
+        // admin만 비워 둔다 — 실제 GitHub 계정을 직접 연동해 봐야 해서 미연동 상태로 시작한다
+        User admin = saveUser("admin@a.a", "관리자", null, Role.ADMIN, Level.ADVANCED, 3L);
+        // user@a.a는 GitHub을 비워 둔다 — 마이페이지에서 직접 연동하는 흐름을 이 계정으로 확인한다.
+        // PR 시드의 작성자 로그인("cogi-user")은 별개 문자열이라 여기 null이어도 그대로 뜬다
+        User me = saveUser("user@a.a", "코기유저", null, Role.USER, Level.INTERMEDIATE, 3L);
+        User kim = saveUser("kim@a.a", "김코기", "kimcogi", Role.USER, Level.BEGINNER, 1L);
+        User lee = saveUser("lee@a.a", "이코기", "leecogi", Role.USER, Level.ADVANCED, 1L);
+
+        seedAgreements(me);
+        seedBilling(me);
+        Long teamRepoId = seedRepoAndPr(admin, me, kim, lee);
+        seedWeakness(me);
+        List<Long> quizIds = seedLearning(me);
+        seedGrowth(me, teamRepoId, quizIds);
+        seedCourses();
+        seedSkills();
+        seedPets(admin, me, kim, lee);
+        seedSupport(me, admin);
+
+        log.info("시드 완료 — admin@a.a(팀장) / user@a.a(팀원) 비밀번호 1234");
+    }
+
+    // ── 요금제. allowed_models 값은 AiModel enum의 id와 정확히 같아야 카드·퀴즈·리뷰가 모델을 찾는다 ──
+    private void seedPlans() {
+        String free = "claude-haiku-4-5,gpt-5.6-luna,gemini-3.5-flash";
+        String pro = free + ",claude-sonnet-5,gpt-5.6-terra";
+        String max = pro + ",claude-opus-4-8,gpt-5.6-sol";
+        jdbc.update("INSERT INTO plans (id,name,daily_credit_limit,allowed_models,price) VALUES (1,'FREE',20,?,0)", free);
+        jdbc.update("INSERT INTO plans (id,name,daily_credit_limit,allowed_models,price) VALUES (2,'PRO',40,?,30000)", pro);
+        jdbc.update("INSERT INTO plans (id,name,daily_credit_limit,allowed_models,price) VALUES (3,'MAX',70,?,50000)", max);
+    }
+
+    // ── 약관. 가입·온보딩 화면이 이 목록을 그대로 띄운다 ──
+    private void seedTerms() {
+        insertTerm("SERVICE", "서비스 이용약관", """
+            제1조(목적)
+            이 약관은 COGI(이하 "회사")가 제공하는 GitHub 연동 기반 코드 학습·분석 서비스(이하 "서비스")의 이용과 관련하여 회사와 회원 간의 권리, 의무 및 책임사항, 이용 조건 및 절차 등 기본적인 사항을 규정함을 목적으로 합니다.
+
+            제2조(정의)
+            1. "서비스"란 회원이 연동한 GitHub 저장소의 커밋·코드를 분석하여 학습 리포트와 피드백을 제공하는 일체의 서비스를 말합니다.
+            2. "회원"이란 이 약관에 동의하고 회사와 이용계약을 체결하여 서비스를 이용하는 자를 말합니다.
+            3. "구독"이란 회원이 유료 요금제를 선택하여 일정 기간 서비스를 이용하는 것을 말합니다.
+
+            제3조(약관의 효력 및 변경)
+            1. 이 약관은 서비스 화면에 게시하거나 기타의 방법으로 회원에게 공지함으로써 효력이 발생합니다.
+            2. 회사는 관련 법령을 위배하지 않는 범위에서 이 약관을 개정할 수 있으며, 개정 시 적용일자 및 개정사유를 명시하여 시행일 7일 전부터 공지합니다. 회원에게 불리한 변경의 경우 30일 전부터 공지합니다.
+            3. 회원이 개정 약관의 적용에 동의하지 않는 경우 이용계약을 해지할 수 있습니다.
+
+            제4조(이용계약의 성립)
+            1. 이용계약은 회원이 되고자 하는 자가 약관에 동의하고 GitHub 계정 연동을 통해 회원가입을 신청한 후, 회사가 이를 승낙함으로써 성립합니다.
+            2. 회사는 서비스 관련 설비의 여유가 없거나 기술적·업무상 문제가 있는 경우 승낙을 유보할 수 있습니다.
+
+            제5조(회원의 의무)
+            1. 회원은 관계 법령, 이 약관의 규정, 이용안내 및 서비스상에 공지한 사항을 준수하여야 합니다.
+            2. 회원은 타인의 GitHub 계정 또는 코드를 무단으로 연동·이용하여서는 안 됩니다.
+            3. 회원은 서비스를 이용하여 얻은 분석 결과를 회사의 사전 동의 없이 영리 목적으로 복제·배포할 수 없습니다.
+
+            제6조(서비스의 제공 및 변경)
+            1. 서비스는 연중무휴 1일 24시간 제공을 원칙으로 합니다. 다만 정기점검 등의 필요로 회사가 정한 날이나 시간은 예외로 합니다.
+            2. 회사는 운영상·기술상의 필요에 따라 제공하는 서비스의 전부 또는 일부를 변경할 수 있으며, 변경 시 사전에 공지합니다.
+
+            제7조(계약 해지 및 이용 제한)
+            1. 회원은 언제든지 서비스 내 설정을 통해 이용계약 해지를 신청할 수 있으며, 회사는 관련 법령이 정하는 바에 따라 이를 처리합니다.
+            2. 회원이 이 약관을 위반하거나 서비스의 정상적인 운영을 방해한 경우, 회사는 사전 통지 후 이용을 제한하거나 계약을 해지할 수 있습니다.
+
+            제8조(책임의 한계)
+            1. 회사는 천재지변, 회원의 귀책사유, GitHub 등 제3자 서비스의 장애로 인하여 서비스를 제공할 수 없는 경우 책임이 면제됩니다.
+            2. 회사가 제공하는 학습 분석 결과는 참고 자료이며, 그 정확성·완전성을 보증하지 않습니다.
+
+            부칙
+            이 약관은 2026년 1월 1일부터 시행합니다.
+            """,
+                true);
+
+        insertTerm("PRIVACY", "개인정보 처리방침", """
+            COGI(이하 "회사")는 「개인정보 보호법」 등 관련 법령을 준수하며, 회원의 개인정보를 소중하게 보호합니다.
+
+            제1조(수집하는 개인정보 항목)
+            1. 필수 항목: 이메일 주소, GitHub 계정 식별자(로그인 ID, 프로필 정보), 연동한 저장소의 커밋 및 코드 데이터
+            2. 자동 수집 항목: 접속 IP, 브라우저 종류, 서비스 이용 기록, 쿠키
+
+            제2조(개인정보의 수집 및 이용 목적)
+            1. 회원 식별 및 본인 확인, 서비스 제공을 위한 GitHub 계정 연동
+            2. 코드 분석 및 개인화된 학습 리포트·피드백 제공
+            3. 유료 결제 및 구독 관리, 요금 정산
+            4. 서비스 관련 공지 전달 및 고객 문의 응대
+
+            제3조(개인정보의 보유 및 이용 기간)
+            1. 회사는 원칙적으로 개인정보 수집·이용 목적이 달성된 후에는 해당 정보를 지체 없이 파기합니다.
+            2. 다만 관계 법령에 따라 보존할 필요가 있는 경우 아래와 같이 보관합니다.
+               - 계약 또는 청약철회 등에 관한 기록: 5년(전자상거래법)
+               - 대금결제 및 재화 등의 공급에 관한 기록: 5년(전자상거래법)
+               - 접속 로그 기록: 3개월(통신비밀보호법)
+
+            제4조(개인정보의 제3자 제공)
+            회사는 회원의 개인정보를 원칙적으로 외부에 제공하지 않습니다. 다만 법령의 규정에 의거하거나 수사기관의 적법한 요청이 있는 경우는 예외로 합니다.
+
+            제5조(개인정보 처리의 위탁)
+            회사는 서비스 운영을 위해 결제대행 및 클라우드 인프라 업무를 외부 전문업체에 위탁할 수 있으며, 위탁 시 관련 법령에 따라 개인정보가 안전하게 관리되도록 필요한 사항을 규정합니다.
+
+            제6조(정보주체의 권리)
+            회원은 언제든지 자신의 개인정보를 조회·수정할 수 있으며, 수집·이용 동의를 철회(회원 탈퇴)할 수 있습니다.
+
+            제7조(개인정보의 파기)
+            회원 탈퇴 시 수집된 개인정보는 지체 없이 파기하며, 전자적 파일 형태의 정보는 복구할 수 없는 기술적 방법으로 삭제합니다.
+
+            제8조(개인정보 보호책임자)
+            회사는 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자를 지정하여 운영하며, 문의는 서비스 내 고객센터를 통해 접수할 수 있습니다.
+
+            부칙
+            이 방침은 2026년 1월 1일부터 시행합니다.
+            """,
+                true);
+
+        insertTerm("PAYMENT", "결제/구독 이용약관", """
+            제1조(목적)
+            이 약관은 COGI(이하 "회사")가 제공하는 유료 구독 서비스의 결제, 갱신, 해지 및 환불에 관한 사항을 규정합니다.
+
+            제2조(요금제 및 결제)
+            1. 회사는 Free, Pro, Max 등 복수의 요금제를 제공하며, 각 요금제의 이용 범위와 금액은 서비스 화면에 표시됩니다.
+            2. 유료 구독료는 회원이 선택한 결제수단을 통해 결제일 기준 1개월 단위로 청구됩니다.
+            3. 결제는 회사가 지정한 결제대행사(PG)를 통해 처리됩니다.
+
+            제3조(구독의 자동 갱신)
+            1. 유료 구독은 회원이 해지하지 않는 한 매 결제주기 종료 시 동일 요금제로 자동 갱신되며, 갱신 시점의 요금이 청구됩니다.
+            2. 회원은 다음 결제일 이전에 언제든지 구독을 해지하여 자동 갱신을 중단할 수 있습니다.
+
+            제4조(요금제 변경)
+            1. 상위 요금제로의 전환(업그레이드)은 즉시 적용되며, 기존 요금제의 잔여 기간을 일할 계산하여 차액만 청구합니다.
+            2. 하위 요금제로의 전환(다운그레이드)은 현재 결제주기가 종료된 다음 결제일부터 적용됩니다.
+
+            제5조(해지 및 환불)
+            1. 회원은 언제든지 구독을 해지할 수 있으며, 해지 시 이미 결제된 현재 주기의 서비스는 주기 종료일까지 계속 이용할 수 있습니다.
+            2. 결제 후 서비스를 전혀 이용하지 않은 경우 등 관련 법령(전자상거래법 등)이 정하는 청약철회 사유에 해당하면 환불받을 수 있습니다.
+            3. 회원의 약관 위반으로 이용계약이 해지되는 경우 잔여 기간에 대한 환불이 제한될 수 있습니다.
+
+            제6조(대금의 미납)
+            결제수단의 오류, 한도 초과 등으로 정기 결제가 실패하는 경우 회사는 일정 기간 재시도할 수 있으며, 최종 실패 시 유료 서비스 제공이 중단되고 요금제는 Free로 전환될 수 있습니다.
+
+            제7조(부가세)
+            표시된 모든 요금은 부가가치세를 포함한 금액입니다.
+
+            부칙
+            이 약관은 2026년 1월 1일부터 시행합니다.
+            """,
+                false);
+
+        insertTerm("MARKETING", "마케팅 정보 수신 동의(이메일)", """
+            제1조(목적)
+            이 동의는 COGI(이하 "회사")가 회원에게 신규 기능, 학습 리포트 요약, 이벤트 및 프로모션 등의 정보를 이메일로 발송하기 위한 것입니다.
+
+            제2조(수집 및 이용 항목)
+            이메일 주소, 서비스 이용 및 학습 활동 기록(맞춤형 콘텐츠 제공 목적)
+
+            제3조(발송 내용)
+            1. 신규 기능 및 서비스 업데이트 안내
+            2. 주간·월간 학습 리포트 요약
+            3. 이벤트, 할인 및 프로모션 정보
+
+            제4조(동의 거부 권리 및 불이익)
+            회원은 마케팅 정보 수신 동의를 거부할 권리가 있으며, 동의하지 않아도 서비스의 이용에는 어떠한 제한도 없습니다.
+
+            제5조(동의 철회)
+            회원은 언제든지 서비스 내 설정 또는 수신한 이메일 하단의 수신거부 링크를 통해 동의를 철회할 수 있습니다. 철회 시 마케팅 목적의 이메일 발송은 즉시 중단됩니다.
+
+            부칙
+            이 동의는 2026년 1월 1일부터 적용됩니다.
+            """,
+                false);
+
+    }
+
+    private void insertTerm(String type, String title, String content, boolean required) {
+        jdbc.update("INSERT INTO terms (type,version,title,content,is_required,effective_date) VALUES (?,'1.0',?,?,?,'2026-01-01')",
+                type, title, content, required);
+    }
+
+    // ── 수준별 리뷰 지침 (ADM-004). DB에 있으면 파일(prompt_level_*.txt)보다 우선 →
+    // 관리자 화면에서 바로 고칠 수 있게 시드해 둔다. 초기값은 파일 내용 그대로.
+    // (DB가 비어 있을 때 PromptBuilder가 읽는 파일을 그대로 가져오므로 텍스트를 중복하지 않는다)
+    private void seedGuidelines() {
+        for (Level level : Level.values()) {
+            reviewGuidelineRepository.save(
+                    ReviewGuideline.of(level, promptBuilder.resolveLevelGuideline(level)));
+        }
+    }
+
+    // ── 계정. 온보딩까지 끝낸 상태로 만들어 로그인 직후 바로 모든 메뉴가 열리게 한다 ──
+    private User saveUser(String email, String nickname, String githubUsername,
+                          Role role, Level level, Long planId) {
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(PW))
+                .nickname(nickname)
+                .build();
+        user.changeRole(role);
+        user.updatePlanId(planId);
+        user.completeOnboarding(level, "Java,Spring,React", true); // 온보딩 미완료면 첫 화면이 막힌다
+        // GitHub에 연동된 것처럼 아이디만 채운다. 토큰은 가짜를 넣어도 GitHub이 401을 주므로 비워 둔다.
+        // null이면 미연동 상태 — 화면에 GitHub 연동 버튼이 그대로 노출된다
+        if (githubUsername != null) {
+            user.linkGithub(githubUsername, githubUsername, null);
+        }
+        return userRepository.save(user);
+    }
+
+    // 필수 약관 2종에 동의한 이력 (마이페이지 약관 동의 내역)
+    // 버전은 insertTerm이 넣는 '1.0'과 맞춘다. 어긋나면 로그인하자마자 재동의 배너가 뜬다 (FR-91)
+    private void seedAgreements(User user) {
+        userAgreementRepository.save(UserAgreement.of(user.getId(), 1L, "1.0"));
+        userAgreementRepository.save(UserAgreement.of(user.getId(), 2L, "1.0"));
+        userAgreementRepository.save(UserAgreement.of(user.getId(), 3L, "1.0"));
+    }
+
+    // ── 결제수단 → 구독(MAX) → 변경 이력 3건 + 오늘 크레딧 사용량 ──
+    private void seedBilling(User user) {
+        PaymentMethod pm = paymentMethodRepository.save(
+                new PaymentMethod(user.getId(), "cust_test_1", "bill_test_1", "1234-****-****-5678"));
+
+        Subscription sub = new Subscription();
+        sub.start(user.getId(), 3L, pm.getId());
+        subscriptionRepository.save(sub);
+
+        // 요금제 페이지의 "변경 / 이전 / 이후 / 차액 / 일시" 표를 채운다
+        saveHistory(sub.getId(), null, 1L, ChangeType.UPGRADE, 0);
+        saveHistory(sub.getId(), 1L, 2L, ChangeType.UPGRADE, 30000);
+        saveHistory(sub.getId(), 2L, 3L, ChangeType.UPGRADE, 20000);
+
+        CreditUsage usage = new CreditUsage();
+        usage.start(user.getId(), LocalDate.now(), 70); // MAX 한도
+        usage.consume(5); // 오늘 5개 쓴 상태로 보여준다
+        creditUsageRepository.save(usage);
+    }
+
+    private void saveHistory(Long subId, Long from, Long to, ChangeType type, int amount) {
+        SubscriptionHistory h = new SubscriptionHistory();
+        h.record(subId, from, to, type, amount);
+        subscriptionHistoryRepository.save(h);
+    }
+
+    // ── 레포 2개 + 팀원 + PR 3건과 그 리뷰 결과 (팀 페이지 / PR 대시보드) ──
+    // 레포 주인은 admin이다. 팀장 화면(위임·내보내기)을 admin으로 로그인해 확인할 수 있어야 해서다
+    private Long seedRepoAndPr(User admin, User me, User kim, User lee) {
+        GithubRepository repo1 = githubRepositoryRepository.save(
+                GithubRepository.link(admin.getId(), "900001", "cogi-backend", false, "cogi/cogi-backend"));
+        GithubRepository repo2 = githubRepositoryRepository.save(
+                GithubRepository.link(admin.getId(), "900002", "cogi-frontend", false, "cogi/cogi-frontend"));
+
+        repoMemberRepository.saveAll(List.of(
+                RepoMember.of(repo1.getId(), admin.getId(), RepoRole.OWNER),
+                RepoMember.of(repo1.getId(), me.getId(), RepoRole.MEMBER),
+                RepoMember.of(repo1.getId(), kim.getId(), RepoRole.MEMBER),
+                RepoMember.of(repo1.getId(), lee.getId(), RepoRole.MEMBER),
+                RepoMember.of(repo2.getId(), admin.getId(), RepoRole.OWNER),
+                RepoMember.of(repo2.getId(), me.getId(), RepoRole.MEMBER)));
+
+        // 지적 없이 통과한 PR — 화면에서 "해결 2 / 미해결 0" 상태를 확인하는 용도
+        prWithIssues(repo1.getId(), 10, "refactor: 주문 조회 쿼리 정리", me, "cogi-user", "claude-sonnet-5", "Java", 2, List.of(
+                issue(IssueCategory.CODE_SMELL, IssueSeverity.MINOR, "OrderService.java", 68,
+                        "내보내기 조건이 두 곳에 흩어져 있습니다. 한쪽만 고치면 나머지가 남아 어긋납니다. 한 군데로 모으는 편이 안전합니다:\n"
+                                + "```java\nprivate boolean exportable(Order o) {   // 판정을 한곳에 모음\n    return o.getSnippet() != null && !o.getSnippet().isEmpty();\n}\n```\n"
+                                + "호출하는 쪽은 `exportable(order)` 하나만 보게 됩니다.", IssueStatus.RESOLVED),
+                issue(IssueCategory.CONVENTION, IssueSeverity.MINOR, "OrderService.java", 24,
+                        "상수가 소문자로 선언돼 있습니다. 자바 관례상 `static final` 은 대문자와 밑줄로 씁니다:\n"
+                                + "```java\nprivate static final int MAX_PAGE_SIZE = 100;   // maxPageSize → MAX_PAGE_SIZE\n```",
+                        IssueStatus.RESOLVED)));
+
+        // 지적이 남아 있는 PR — 심각/보안 이슈가 미해결로 뜨는 상태
+        prWithIssues(repo1.getId(), 11, "feat: 사용자 조회 API 추가", kim, "kimcogi", "claude-haiku-4-5", "Java", 9, List.of(
+                issue(IssueCategory.SECURITY, IssueSeverity.CRITICAL, "VulnerableLookupExample.java", 15,
+                        "SQL 인젝션 위험입니다. 사용자 입력 `userName` 이 검증이나 파라미터화 없이 쿼리에 직접 붙고 있습니다. "
+                                + "`' OR '1'='1` 같은 값을 넣으면 조건이 통째로 무력화됩니다. PreparedStatement로 바인딩하세요:\n"
+                                + "```java\nString query = \"SELECT * FROM users WHERE nickname = ?\";   // 파라미터 자리\nPreparedStatement pstmt = conn.prepareStatement(query);\npstmt.setString(1, userName);   // 값으로만 전달\nreturn pstmt.executeQuery();\n```\n"
+                                + "쿼리 구조와 데이터가 분리되어 인젝션이 원천 차단됩니다.", IssueStatus.OPEN),
+                issue(IssueCategory.SECURITY, IssueSeverity.CRITICAL, "VulnerableLookupExample.java", 11,
+                        "DB 비밀번호가 소스에 평문으로 들어 있습니다. 커밋되면 저장소 접근 권한이 있는 모두와 히스토리에 그대로 남습니다. "
+                                + "환경 변수나 설정 관리 도구로 옮기세요:\n"
+                                + "```java\nprivate static final String DB_PASSWORD = System.getenv(\"DB_PASSWORD\");\n```\n"
+                                + "Spring이면 `@Value` 로 외부 설정에서 주입받아도 됩니다.", IssueStatus.OPEN),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "UserLookup.java", 30,
+                        "빈 결과일 때 `get(0)` 을 호출해 인덱스 예외가 납니다. 비어 있는지 먼저 보세요:\n"
+                                + "```java\nreturn rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));\n```",
+                        IssueStatus.RESOLVED)));
+
+        prWithIssues(repo1.getId(), 12, "fix: 캐시 만료 처리 보완", lee, "leecogi", "claude-haiku-4-5", "Python", 16, List.of(
+                issue(IssueCategory.PERFORMANCE, IssueSeverity.MAJOR, "cache.py", 42,
+                        "반복문 안에서 매번 조회하고 있어 항목 수만큼 쿼리가 나갑니다. 한 번에 가져와 사전으로 바꿔 쓰세요:\n"
+                                + "```python\nrows = repo.find_all(ids)           # 한 번만 조회\nby_id = {r.id: r for r in rows}\nresult = [by_id[i] for i in ids if i in by_id]\n```",
+                        IssueStatus.OPEN),
+                issue(IssueCategory.CONVENTION, IssueSeverity.MINOR, "cache.py", 12,
+                        "함수 이름이 동사로 시작하지 않아 무엇을 하는지 읽히지 않습니다. `cache_data` 보다 `load_cache` 쪽이 의도가 드러납니다.",
+                        IssueStatus.RESOLVED)));
+
+        // 이번 주에도 해결 건을 남겨 성장추이의 해결 곡선이 바닥에 깔리지 않게 한다
+        prWithIssues(repo1.getId(), 13, "fix: 널 반환 정리", me, "cogi-user", "claude-haiku-4-5", "Java", 1, List.of(
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "UserService.java", 22,
+                        "널 대신 `Optional`을 돌려주도록 고쳤습니다. 호출한 쪽이 값 없음을 반드시 다루게 됩니다.",
+                        IssueStatus.RESOLVED),
+                issue(IssueCategory.CODE_SMELL, IssueSeverity.MINOR, "UserService.java", 40,
+                        "중복된 조회 로직을 한 메서드로 모았습니다.", IssueStatus.RESOLVED)));
+
+        return repo1.getId(); // 주간 리포트 드릴다운용 PR을 여기에 심는다
+    }
+
+    // PR 한 건 + 완료된 리뷰 + 이슈들. daysAgo만큼 과거로 밀어야 성장추이 그래프에 주별로 흩어진다
+    private void prWithIssues(Long repoId, int prNumber, String title, User author, String login,
+                              String model, String language, int daysAgo, List<ReviewIssue> issues) {
+        PullRequest pr = PullRequest.open(repoId, prNumber, title, author.getId(), login);
+        pr.selectModel(model);
+        pr.markReviewed();
+        pullRequestRepository.save(pr);
+
+        Review review = Review.createFromPr(author.getId(), pr.getId(), model);
+        review.markCompleted();
+        reviewRepository.save(review);
+        backdate("reviews", review.getId(), daysAgo);
+
+        issues.forEach(i -> {
+            setReviewId(i, review.getId());
+            reviewIssueRepository.save(i);
+            backdate("review_issues", i.getId(), daysAgo);
+        });
+    }
+
+    // ── 약점 통계 시드 (LRN-001). 같은 카테고리 3회 이상이어야 약점으로 올라온다 (FR-56) ──
+    private void seedWeakness(User me) {
+        // 붙여넣기 리뷰 = Java. BUG 3회로 약점 성립, IGNORED 1건은 acknowledged라 집계에서 빠진다
+        Review java = reviewRepository.save(Review.createPaste(me.getId(), "// 시드 코드", "Java", "claude-haiku-4-5"));
+        java.markCompleted();
+        saveIssues(java.getId(), List.of(
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "Foo.java", 10, "널 반환을 그대로 흘려보냄", IssueStatus.OPEN),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "Foo.java", 20, "예외를 삼키고 넘어감", IssueStatus.OPEN),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "Foo.java", 30, "경계 조건 누락", IssueStatus.OPEN),
+                issue(IssueCategory.CONVENTION, IssueSeverity.MINOR, "Foo.java", 50, "메서드명이 동사가 아님", IssueStatus.OPEN),
+                issue(IssueCategory.CONVENTION, IssueSeverity.MINOR, "Foo.java", 60, "상수를 대문자로 쓰지 않음", IssueStatus.OPEN)));
+
+        // 의도한 코드로 표시한 건 — 약점 통계에서 제외되는지 확인용
+        ReviewIssue ignored = issue(IssueCategory.BUG, IssueSeverity.MAJOR, "Foo.java", 40, "의도한 널 반환", IssueStatus.OPEN);
+        setReviewId(ignored, java.getId());
+        ignored.finalizeAs(IssueStatus.IGNORED);
+        reviewIssueRepository.save(ignored);
+
+        // 업로드 리뷰 = Python. 언어가 다르면 따로 집계된다 (FR-65)
+        Review python = reviewRepository.save(
+                Review.createUpload(me.getId(), "# 시드 코드", "Python", "bar.py", "claude-haiku-4-5"));
+        python.markCompleted();
+        saveIssues(python.getId(), List.of(
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "bar.py", 5, "가변 기본 인자 사용", IssueStatus.OPEN),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "bar.py", 15, "except로 전부 잡아버림", IssueStatus.OPEN),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "bar.py", 25, "파일을 닫지 않음", IssueStatus.OPEN)));
+
+        // ai_usage_logs는 일부러 비워 둔다. 실제 AI를 호출할 때만 쌓여야 토큰·비용 화면이 진짜 값을 보여준다
+    }
+
+    private void saveIssues(Long reviewId, List<ReviewIssue> issues) {
+        issues.forEach(i -> {
+            setReviewId(i, reviewId);
+            reviewIssueRepository.save(i);
+        });
+    }
+
+    // ── 학습카드 + 푼 문제 + 연속 학습일 (LRN-002 / RET-001) ──
+    // 만든 퀴즈 id를 돌려줘 주간 리포트용 과거 제출(seedGrowth)에서 재활용한다
+    private List<Long> seedLearning(User me) {
+        LearningCard card = learningCardRepository.save(LearningCard.create(
+                me.getId(), "BUG", "INTERMEDIATE", "Java", "claude-haiku-4-5",
+                "널 반환은 호출한 쪽이 확인을 잊는 순간 그대로 터진다. 값이 없을 수 있다는 사실을 타입에 담아 넘기면 컴파일 단계에서 걸린다.",
+                "널을 흘려보내면 터지는 지점이 반환한 곳에서 멀어진다. 로그를 봐도 원인을 찾기 어렵다.",
+                "public User find(Long id) {\n    return repo.findById(id).orElse(null);\n}",
+                "public Optional<User> find(Long id) {\n    return repo.findById(id);\n}",
+                "널 대신 Optional을 돌려주면 호출한 쪽이 값 없음을 다루게 강제된다.",
+                "널을 돌려주지 말고 Optional로 감싼다\nOptional은 반환 타입에만 쓴다\n값이 없는 게 예외 상황이면 예외를 던진다",
+                "Optional을 필드나 파라미터에 쓴다\nisPresent + get으로 결국 널 체크를 반복한다\norElse에 비싼 연산을 넣는다",
+                "값이 없을 수 있는 메서드가 널을 돌려주고 있지 않은가?\nOptional을 필드에 쓰지 않았는가?\norElseGet을 써야 할 자리에 orElse를 쓰지 않았는가?"));
+
+        // 지난 문제 복습 화면을 채우려면 푼 문제가 여러 개 있어야 한다. 정답·오답을 섞는다
+        LearningCardQuiz q1 = saveQuiz(card.getId(), "MULTIPLE_CHOICE",
+                "값이 없을 수 있는 조회 메서드의 반환 타입으로 가장 적절한 것은?",
+                "null\nOptional<User>\nUser\nList<User>", "Optional<User>",
+                "널을 돌려주면 호출한 쪽이 확인을 잊어도 컴파일러가 못 잡는다. Optional은 값 없음을 타입에 담아 강제하므로 확인을 건너뛸 수 없다.");
+        LearningCardQuiz q2 = saveQuiz(card.getId(), "OX",
+                "Optional은 엔티티 필드 타입으로 쓰는 것이 권장된다.",
+                "O\nX", "X",
+                "Optional은 반환 타입으로 쓰라고 만들어졌다. 필드에 두면 직렬화가 까다로워지고 값이 없는 상태가 두 겹으로 생긴다.");
+        LearningCardQuiz q3 = saveQuiz(card.getId(), "SHORT_ANSWER",
+                "기본값 계산이 비쌀 때 orElse 대신 써야 하는 메서드 이름은?",
+                null, "orElseGet",
+                "orElse는 값이 있든 없든 인자를 먼저 평가한다. orElseGet은 비어 있을 때만 람다를 실행해 불필요한 연산을 건너뛴다.");
+
+        // 정답 2 + 오답 1. gradeAfter는 그 시점 등급이라 정답이 쌓이는 순서대로 넣는다
+        card.recordCorrect();
+        quizSubmissionRepository.save(QuizSubmission.create(q1.getId(), me.getId(), "Optional<User>", true, card.getGrade()));
+        card.recordCorrect();
+        quizSubmissionRepository.save(QuizSubmission.create(q2.getId(), me.getId(), "X", true, card.getGrade()));
+        quizSubmissionRepository.save(QuizSubmission.create(q3.getId(), me.getId(), "orElse", false, card.getGrade()));
+
+        // 사흘 연속 제출한 상태로 만든다 — 하루씩 이어 붙여야 streak가 올라간다
+        UserStreak streak = UserStreak.create(me.getId());
+        streak.recordSubmission(LocalDate.now().minusDays(2));
+        streak.recordSubmission(LocalDate.now().minusDays(1));
+        streak.recordSubmission(LocalDate.now());
+        userStreakRepository.save(streak);
+
+        return List.of(q1.getId(), q2.getId(), q3.getId());
+    }
+
+    // 퀴즈 한 문제 저장 — 보기가 없는 유형(주관식·빈칸)은 options에 null을 넣는다
+    private LearningCardQuiz saveQuiz(Long cardId, String type, String question,
+                                      String options, String answer, String explain) {
+        return learningCardQuizRepository.save(
+                LearningCardQuiz.create(cardId, type, "claude-haiku-4-5", question, options, answer, explain));
+    }
+
+    // ── AI별 추천 스킬 (LRN-005). 화면에서 고른 AI에 맞는 것만 걸러 보여준다 ──
+    private void seedSkills() {
+        aiSkillRepository.saveAll(List.of(
+                AiSkill.of("CLAUDE", "BUG", "확장 사고(Extended Thinking)",
+                        "답을 내기 전에 근거를 길게 따져보게 하는 기능. 원인이 여러 겹인 버그에서 헛다리를 덜 짚는다.",
+                        "복잡한 버그를 물을 때 \"단계별로 근거를 따져본 뒤 결론을 내줘\"를 덧붙인다.",
+                        "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking"),
+                AiSkill.of("CLAUDE", "SECURITY", "프로젝트 지식(Projects)",
+                        "보안 규칙 문서를 프로젝트에 올려두면 매번 붙여넣지 않아도 그 기준으로 검토해 준다.",
+                        "사내 보안 가이드를 Project Knowledge에 올리고 \"이 기준으로 검토해줘\"라고 요청한다.",
+                        "https://www.anthropic.com/news/projects"),
+                AiSkill.of("CLAUDE", "CODE_SMELL", "Claude Code 리팩터링",
+                        "터미널에서 저장소를 통째로 읽고 고쳐준다. 중복 코드처럼 여러 파일에 흩어진 문제에 강하다.",
+                        "`claude` 를 실행하고 \"중복된 로직을 찾아 한 곳으로 모아줘\"라고 지시한다.",
+                        "https://docs.anthropic.com/en/docs/claude-code/overview"),
+                AiSkill.of("CHATGPT", "BUG", "코드 인터프리터",
+                        "코드를 실제로 돌려보고 결과를 확인한다. 재현되는 버그를 빠르게 좁힌다.",
+                        "실패하는 입력과 함께 코드를 올리고 \"직접 실행해서 어디서 갈리는지 찾아줘\"라고 한다.",
+                        "https://help.openai.com/en/articles/8437071"),
+                AiSkill.of("CHATGPT", "PERFORMANCE", "Custom Instructions",
+                        "매번 반복하는 요구사항을 미리 등록해 둔다. 성능 기준을 항상 같이 보게 만든다.",
+                        "설정에 \"성능 지적은 항상 시간복잡도와 함께 설명\"을 넣어 둔다.",
+                        "https://openai.com/index/custom-instructions-for-chatgpt/"),
+                AiSkill.of("CHATGPT", "CONVENTION", "Projects로 컨벤션 고정",
+                        "팀 컨벤션 문서를 프로젝트에 넣어두면 그 규칙으로만 지적한다.",
+                        "스타일 가이드를 올리고 \"이 규칙에서 벗어난 곳만 알려줘\"라고 요청한다.", null),
+                AiSkill.of("GEMINI", "PERFORMANCE", "긴 컨텍스트 분석",
+                        "한 번에 아주 많은 코드를 넣을 수 있다. 파일을 넘나드는 성능 문제를 통으로 본다.",
+                        "관련 파일을 한꺼번에 올리고 \"호출 경로를 따라가며 병목을 짚어줘\"라고 한다.",
+                        "https://ai.google.dev/gemini-api/docs/long-context"),
+                AiSkill.of("GEMINI", "BUG", "Grounding with Search",
+                        "라이브러리 최신 이슈를 검색해 근거로 삼는다. 버전 탓에 생긴 버그에 유용하다.",
+                        "라이브러리와 버전을 밝히고 \"알려진 이슈가 있는지 확인해줘\"라고 요청한다.", null),
+                AiSkill.of("COPILOT", "CONVENTION", "커스텀 인스트럭션 파일",
+                        "저장소에 규칙 파일을 두면 제안이 그 컨벤션을 따라간다.",
+                        "`.github/copilot-instructions.md` 에 네이밍·포맷 규칙을 적어 둔다.",
+                        "https://docs.github.com/en/copilot/customizing-copilot"),
+                AiSkill.of("COPILOT", "CODE_SMELL", "Copilot Chat /fix",
+                        "선택한 코드의 문제를 바로 고쳐 준다. 자잘한 냄새를 즉석에서 걷어낸다.",
+                        "고칠 부분을 선택하고 채팅창에 `/fix` 를 입력한다.", null),
+                AiSkill.of("COPILOT", "SECURITY", "코드 스캐닝 자동 수정",
+                        "취약점을 찾고 수정안을 PR로 올려 준다.",
+                        "저장소 Settings에서 Code scanning을 켜고 autofix를 허용한다.",
+                        "https://docs.github.com/en/code-security")));
+    }
+
+    // ── 다마고치. 계정마다 따로 자라야 해서 각자 한 행씩 만든다 ──
+    private void seedPets(User admin, User me, User kim, User lee) {
+        // 전 계정 갓 시작한 코기. DB를 새로 심으면 코기도 처음부터여야 한다
+        List.of(admin, me, kim, lee).forEach(u -> pet(u.getId()));
+    }
+
+    // 앱이 켜져 있는 채로 시드를 돌리면 화면이 먼저 코기를 만들어 둘 수 있다. 있으면 그걸 쓴다
+    private PetState pet(Long userId) {
+        return petStateRepository.findByUserId(userId)
+                .orElseGet(() -> petStateRepository.save(PetState.create(userId)));
+    }
+
+    // ── 주간 리포트 2주치 (RET-002 / 성장추이) ──
+    // 드릴다운·카테고리 바가 실제로 뜨려면 그 주(window) 안에 me의 PR 이슈가 있어야 한다.
+    // 그래서 지난주·2주전 창에 맞춰 me의 PR을 심고, 리포트 수치는 그 이슈에서 다시 뽑는다
+    // (모달 수치 = 카테고리 바 = 드릴다운이 항상 일치).
+    private void seedGrowth(User me, Long repoId, List<Long> quizIds) {
+        LocalDate thisMonday = LocalDate.now().with(java.time.DayOfWeek.MONDAY);
+        LocalDate lastMon = thisMonday.minusWeeks(1);
+        LocalDate twoMon = thisMonday.minusWeeks(2);
+
+        // 지난주 PR 2건 — 발생 5 / 해결 3, 최다 BUG
+        seedWeekPr(repoId, 21, "feat: 리포트 필터 추가", me, "claude-sonnet-5", "Java", lastMon, List.of(
+                issue(IssueCategory.SECURITY, IssueSeverity.CRITICAL, "ReportController.java", 30,
+                        "권한 검증 없이 남의 리포트가 조회됩니다. userId 소유 확인을 추가하세요.", IssueStatus.OPEN),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "ReportService.java", 55,
+                        "빈 결과에서 첫 원소에 접근해 예외가 납니다. 비었는지 먼저 확인하세요.", IssueStatus.RESOLVED),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "ReportService.java", 70,
+                        "주 경계 계산이 하루 어긋납니다(off-by-one).", IssueStatus.RESOLVED)));
+        seedWeekPr(repoId, 22, "fix: 페이지네이션 경계", me, "claude-haiku-4-5", "Java", lastMon, List.of(
+                issue(IssueCategory.PERFORMANCE, IssueSeverity.MAJOR, "PageUtil.java", 18,
+                        "루프 안에서 매번 카운트 쿼리가 나갑니다. 한 번에 집계하세요.", IssueStatus.OPEN),
+                issue(IssueCategory.CODE_SMELL, IssueSeverity.MINOR, "PageUtil.java", 40,
+                        "경계 계산이 두 곳에 중복돼 있습니다.", IssueStatus.RESOLVED)));
+
+        // 2주 전 PR 2건 — 발생 5 / 해결 3, 최다 SECURITY
+        seedWeekPr(repoId, 23, "feat: 알림 발송", me, "claude-haiku-4-5", "Java", twoMon, List.of(
+                issue(IssueCategory.SECURITY, IssueSeverity.CRITICAL, "Notifier.java", 12,
+                        "액세스 토큰이 로그에 그대로 남습니다.", IssueStatus.OPEN),
+                issue(IssueCategory.SECURITY, IssueSeverity.MAJOR, "Notifier.java", 33,
+                        "HTTP로 전송해 중간자 공격에 노출됩니다. HTTPS로 바꾸세요.", IssueStatus.RESOLVED),
+                issue(IssueCategory.BUG, IssueSeverity.MAJOR, "Notifier.java", 50,
+                        "재시도 로직에서 예외를 삼켜 실패가 묻힙니다.", IssueStatus.RESOLVED)));
+        seedWeekPr(repoId, 24, "refactor: 메일 템플릿 정리", me, "claude-haiku-4-5", "Java", twoMon, List.of(
+                issue(IssueCategory.CODE_SMELL, IssueSeverity.MINOR, "MailTemplate.java", 22,
+                        "같은 HTML 문자열이 여러 번 반복됩니다.", IssueStatus.RESOLVED),
+                issue(IssueCategory.CONVENTION, IssueSeverity.MINOR, "MailTemplate.java", 8,
+                        "상수가 소문자로 선언돼 있습니다.", IssueStatus.OPEN)));
+
+        // 주간 리포트 "학습 활동"이 뜨도록 그 주 창에 퀴즈 제출을 심는다 (제출/정답 수를 다르게)
+        seedWeekQuizzes(me, quizIds, lastMon, 5, 4); // 지난주: 제출 5 · 정답 4 (80%)
+        seedWeekQuizzes(me, quizIds, twoMon, 4, 2);  // 2주전: 제출 4 · 정답 2 (50%)
+
+        // 심은 이슈에서 그대로 수치를 뽑아 리포트를 만든다
+        saveWeekReport(me, lastMon, twoMon);
+        saveWeekReport(me, twoMon, twoMon.minusWeeks(1));
+    }
+
+    // 그 주(weekMonday) 수요일로 퀴즈 제출을 backdate해 심는다. total 중 correct개만 정답.
+    private void seedWeekQuizzes(User me, List<Long> quizIds, LocalDate weekMonday, int total, int correct) {
+        LocalDate onDate = weekMonday.plusDays(2);
+        for (int i = 0; i < total; i++) {
+            Long quizId = quizIds.get(i % quizIds.size());
+            boolean ok = i < correct;
+            QuizSubmission s = quizSubmissionRepository.save(
+                    QuizSubmission.create(quizId, me.getId(), ok ? "정답" : "오답", ok, "BRONZE"));
+            backdateSubmission(s.getId(), onDate);
+        }
+    }
+
+    // submitted_at을 과거로 되돌린다 (@PrePersist가 now로 박아서). 주간 리포트가 주 단위로 집계할 수 있게
+    private void backdateSubmission(Long id, LocalDate onDate) {
+        int daysAgo = (int) ChronoUnit.DAYS.between(onDate, LocalDate.now());
+        if (daysAgo > 0) {
+            jdbc.update("UPDATE quiz_submissions SET submitted_at = DATE_SUB(NOW(), INTERVAL ? DAY) WHERE id = ?", daysAgo, id);
+        }
+    }
+
+    // 특정 주(weekMonday)의 수요일에 걸리도록 backdate해서 그 주 window 안에 PR을 심는다
+    private void seedWeekPr(Long repoId, int prNumber, String title, User me,
+                            String model, String language, LocalDate weekMonday, List<ReviewIssue> issues) {
+        LocalDate onDate = weekMonday.plusDays(2); // 수요일 — window 한가운데라 요일에 상관없이 안전
+        int daysAgo = (int) ChronoUnit.DAYS.between(onDate, LocalDate.now());
+        prWithIssues(repoId, prNumber, title, me, "cogi-user", model, language, daysAgo, issues);
+    }
+
+    // 그 주 [월, 다음주 월) 이슈에서 발생/해결/최다카테고리를 뽑아 리포트 저장. prevWeekStart로 전주 대비 수치까지.
+    private void saveWeekReport(User me, LocalDate weekStart, LocalDate prevWeekStart) {
+        LocalDate weekEnd = weekStart.plusDays(6); // 일요일
+        LocalDateTime from = weekStart.atStartOfDay();
+        LocalDateTime to = weekEnd.plusDays(1).atStartOfDay();
+
+        Object[] s = reviewIssueRepository.weeklySummary(me.getId(), from, to).get(0);
+        int issues = ((Number) s[0]).intValue();
+        int resolved = s[1] == null ? 0 : ((Number) s[1]).intValue();
+
+        Object[] p = reviewIssueRepository.weeklySummary(me.getId(), prevWeekStart.atStartOfDay(), from).get(0);
+        int prev = ((Number) p[0]).intValue();
+
+        var cats = reviewIssueRepository.categoryBreakdown(me.getId(), from, to);
+        String top = cats.isEmpty() ? null : String.valueOf(cats.get(0)[0]);
+
+        String summary = "이슈 " + issues + "건 중 " + resolved + "건을 해결했어요."
+                + (top != null ? " 최다 약점은 " + top + "입니다." : "");
+        weeklyReportRepository.save(WeeklyReport.of(me.getId(), weekStart, weekEnd, issues, resolved, prev, top, summary));
+    }
+
+    // ── 강의 추천 (LRN-003). 약점 category와 맞물려야 화면에 뜬다 ──
+    private void seedCourses() {
+        courseRepository.saveAll(List.of(
+                // ── 언어별 강의 확충 (BUG / PERFORMANCE / CODE_SMELL / CONVENTION / SECURITY × Java·Python·JS·TS·C++ + 언어무관) ──
+                Course.of("BUG", "Java", "UDEMY", "Java Programming Masterclass",
+                        "자바 예외 처리·디버깅까지. 반복 버그의 근본 원인을 잡는 정석.", "https://www.udemy.com/course/java-the-complete-java-developer-course/"),
+                Course.of("BUG", "Python", "UDEMY", "Complete Python Bootcamp",
+                        "파이썬 예외·타입 오류 등 자주 나는 버그를 기초부터 잡는다.", "https://www.udemy.com/course/complete-python-bootcamp/"),
+                Course.of("BUG", "JavaScript", "UDEMY", "The Complete JavaScript Course",
+                        "null/undefined·비동기 등 JS 버그 다발 지점을 집중적으로 다룬다.", "https://www.udemy.com/course/the-complete-javascript-course/"),
+                Course.of("BUG", "TypeScript", "UDEMY", "Understanding TypeScript",
+                        "타입으로 런타임 버그를 컴파일 단계에서 잡는 법.", "https://www.udemy.com/course/understanding-typescript/"),
+                Course.of("BUG", "C++", "UDEMY", "Beginning C++ Programming",
+                        "포인터·메모리 등 C++ 버그의 온상을 기초부터 다진다.", "https://www.udemy.com/course/beginning-c-plus-plus-programming/"),
+                Course.of("BUG", null, "INFLEARN", "실전 디버깅과 예외 처리",
+                        "언어 무관 디버깅 사고법과 예외 처리 원칙.", "https://www.inflearn.com/ko/courses?s=디버깅"),
+                Course.of("PERFORMANCE", "Java", "UDEMY", "Java Multithreading, Concurrency & Performance",
+                        "멀티스레딩·동시성으로 병목 제거. N+1·불필요 연산 개선.", "https://www.udemy.com/course/java-multithreading-concurrency-performance-optimization/"),
+                Course.of("PERFORMANCE", "Python", "UDEMY", "Python 성능 최적화",
+                        "파이썬 느린 코드 프로파일링·최적화 실전.", "https://www.udemy.com/courses/search/?q=Python%20성능%20최적화&lang=ko"),
+                Course.of("PERFORMANCE", "JavaScript", "UDEMY", "JavaScript 성능 최적화",
+                        "렌더링·메모리·비동기 병목을 줄이는 JS 성능 기법.", "https://www.udemy.com/courses/search/?q=JavaScript%20performance&lang=ko"),
+                Course.of("PERFORMANCE", "TypeScript", "INFLEARN", "TypeScript 성능·최적화",
+                        "대규모 TS 프로젝트의 빌드·런타임 성능 개선.", "https://www.inflearn.com/ko/courses?s=타입스크립트%20성능"),
+                Course.of("PERFORMANCE", "C++", "UDEMY", "C++ 고성능 프로그래밍",
+                        "캐시·메모리·알고리즘 관점의 C++ 성능 최적화.", "https://www.udemy.com/courses/search/?q=C%2B%2B%20performance&lang=ko"),
+                Course.of("PERFORMANCE", null, "UDEMY", "The Complete SQL Bootcamp",
+                        "느린 쿼리·인덱스 미사용 등 DB 성능을 다진다(언어무관).", "https://www.udemy.com/course/the-complete-sql-bootcamp/"),
+                Course.of("CODE_SMELL", "Java", "INFLEARN", "자바 클린코드와 리팩터링",
+                        "자바 관점의 중복·긴 함수·나쁜 설계 리팩터링.", "https://www.inflearn.com/ko/courses?s=자바%20클린코드"),
+                Course.of("CODE_SMELL", "Python", "INFLEARN", "파이썬 클린코드",
+                        "파이썬다운 코드로 냄새를 제거하는 법.", "https://www.inflearn.com/ko/courses?s=파이썬%20클린코드"),
+                Course.of("CODE_SMELL", "JavaScript", "UDEMY", "JavaScript Clean Code",
+                        "JS 코드 냄새와 리팩터링 패턴.", "https://www.udemy.com/courses/search/?q=JavaScript%20clean%20code&lang=ko"),
+                Course.of("CODE_SMELL", "TypeScript", "UDEMY", "TypeScript Clean Code",
+                        "타입 안전한 클린코드와 리팩터링.", "https://www.udemy.com/courses/search/?q=TypeScript%20clean%20code&lang=ko"),
+                Course.of("CODE_SMELL", "C++", "UDEMY", "Modern C++ Clean Code",
+                        "모던 C++로 나쁜 코드를 개선하는 법.", "https://www.udemy.com/courses/search/?q=modern%20C%2B%2B&lang=ko"),
+                Course.of("CODE_SMELL", null, "UDEMY", "Clean Code",
+                        "중복·긴 함수·매직넘버 등 코드 냄새 제거(언어무관).", "https://www.udemy.com/course/writing-clean-code/"),
+                Course.of("CONVENTION", "Java", "INFLEARN", "자바 코딩 컨벤션",
+                        "네이밍·포매팅 등 자바 팀 컨벤션.", "https://www.inflearn.com/ko/courses?s=자바%20코딩%20컨벤션"),
+                Course.of("CONVENTION", "Python", "INFLEARN", "파이썬 PEP8 스타일",
+                        "PEP8 등 파이썬 코드 스타일 규칙.", "https://www.inflearn.com/ko/courses?s=파이썬%20PEP8"),
+                Course.of("CONVENTION", "JavaScript", "UDEMY", "JavaScript 코딩 스타일",
+                        "ESLint·표준 스타일로 일관성 잡기.", "https://www.udemy.com/courses/search/?q=JavaScript%20eslint%20style&lang=ko"),
+                Course.of("CONVENTION", "TypeScript", "UDEMY", "TypeScript 스타일 가이드",
+                        "타입 규칙과 린트로 컨벤션 통일.", "https://www.udemy.com/courses/search/?q=TypeScript%20lint&lang=ko"),
+                Course.of("CONVENTION", "C++", "UDEMY", "C++ 코딩 스타일",
+                        "C++ 네이밍·헤더·포매팅 관례.", "https://www.udemy.com/courses/search/?q=C%2B%2B%20coding%20style&lang=ko"),
+                Course.of("CONVENTION", null, "UDEMY", "SOLID Principles",
+                        "일관된 설계 규칙으로 컨벤션 위반을 구조적으로 줄인다(언어무관).", "https://www.udemy.com/course/solid-principles-object-oriented-design/"),
+                Course.of("SECURITY", "Java", "INFLEARN", "자바·스프링 웹 보안",
+                        "스프링 시큐리티·인증/인가 등 자바 웹 보안.", "https://www.inflearn.com/ko/courses?s=스프링%20시큐리티"),
+                Course.of("SECURITY", "Python", "UDEMY", "Python 보안",
+                        "파이썬 웹/스크립트의 취약점과 방어.", "https://www.udemy.com/courses/search/?q=Python%20security&lang=ko"),
+                Course.of("SECURITY", "JavaScript", "UDEMY", "JavaScript 웹 보안",
+                        "XSS·CSRF 등 프론트/노드 취약점 방어.", "https://www.udemy.com/courses/search/?q=JavaScript%20security&lang=ko"),
+                Course.of("SECURITY", "TypeScript", "UDEMY", "Node/TypeScript 보안",
+                        "타입 안전한 백엔드의 보안 실무.", "https://www.udemy.com/courses/search/?q=Node%20security&lang=ko"),
+                Course.of("SECURITY", "C++", "UDEMY", "C++ 시큐어 코딩",
+                        "버퍼 오버플로우 등 C++ 메모리 보안.", "https://www.udemy.com/courses/search/?q=C%2B%2B%20secure%20coding&lang=ko"),
+                Course.of("SECURITY", null, "UDEMY", "Web Security & Bug Bounty",
+                        "SQL 인젝션·XSS 등 웹 취약점 공격/방어(언어무관).", "https://www.udemy.com/course/web-security-bug-bounty-learn-penetration-testing/")));
+    }
+
+    // ── 공지·FAQ·문의·알림 (관리자 화면과 고객센터) ──
+    private void seedSupport(User me, User admin) {
+        noticeRepository.save(Notice.create(admin.getId(), "코기 정식 오픈 안내",
+                "학습카드와 주간 리포트가 열렸습니다. 마이페이지에서 확인해 주세요.", 4));
+        noticeRepository.save(Notice.create(admin.getId(), "정기 점검 안내",
+                "매주 일요일 새벽 2시부터 30분간 점검이 있습니다.", 4));
+
+        faqRepository.saveAll(List.of(
+                Faq.create("크레딧은 언제 초기화되나요?", "매일 자정(한국 시간)에 요금제 한도만큼 다시 채워집니다.", "요금제", true),
+                Faq.create("약점은 어떻게 잡히나요?", "같은 카테고리 지적이 3번 쌓이면 약점 통계에 올라옵니다.", "학습", true),
+                Faq.create("의도한 코드인데 약점으로 잡혔어요", "이슈에서 '인지함'을 누르면 그 건은 통계에서 빠집니다.", "학습", true),
+                Faq.create("요금제를 바꾸면 언제 반영되나요?", "결제 즉시 반영되고 차액은 일할 계산됩니다.", "요금제", true)));
+
+        inquiryRepository.save(Inquiry.create(me.getId(), me.getEmail(), me.getNickname(),
+                "PR 리뷰가 안 돌아요", "웹훅을 붙였는데 리뷰 결과가 생기지 않습니다. 확인 부탁드립니다."));
+
+        notificationRepository.saveAll(List.of(
+                Notification.of(me.getId(), "🔴", "새 약점이 잡혔어요", "Java BUG가 3회 반복됐습니다.", "/app/weakness"),
+                Notification.of(me.getId(), "📗", "학습카드가 준비됐어요", "BUG 카드로 퀴즈를 풀어보세요.", "/app/cards"),
+                Notification.of(me.getId(), "📈", "주간 리포트 도착", "지난주 이슈가 4건 줄었습니다.", "/app/growth")));
+    }
+
+    // 이슈 하나 만들기 (reviewId는 리뷰를 저장한 뒤에 채운다)
+    private ReviewIssue issue(IssueCategory category, IssueSeverity severity,
+                              String filePath, int line, String description, IssueStatus status) {
+        ReviewIssue i = ReviewIssue.of(null, category, severity, filePath, line, description);
+        if (status == IssueStatus.RESOLVED) {
+            i.finalizeAs(IssueStatus.RESOLVED); // 해결 처리된 건도 섞어야 해결률이 보인다
+        }
+        return i;
+    }
+
+    // ReviewIssue.of는 reviewId를 생성 시점에 받는데, 리뷰를 먼저 저장해야 id가 나온다.
+    // 엔티티에 setter를 뚫는 대신(다른 팀원 코드) 시드에서만 리플렉션으로 채운다
+    private void setReviewId(ReviewIssue issue, Long reviewId) {
+        try {
+            var field = ReviewIssue.class.getDeclaredField("reviewId");
+            field.setAccessible(true);
+            field.set(issue, reviewId);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("시드 이슈에 reviewId를 넣지 못했습니다", e);
+        }
+    }
+
+    // created_at은 @PrePersist가 현재 시각으로 박아서, 과거 데이터는 저장 후 되돌려야 한다.
+    // 성장추이가 주 단위로 묶어 보여주려면 날짜가 흩어져 있어야 한다
+    private void backdate(String table, Long id, int daysAgo) {
+        if (daysAgo > 0) {
+            jdbc.update("UPDATE " + table + " SET created_at = DATE_SUB(NOW(), INTERVAL ? DAY) WHERE id = ?", daysAgo, id);
+        }
+    }
+}
