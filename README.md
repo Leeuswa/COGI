@@ -2,7 +2,7 @@
 
 > AI가 GitHub Pull Request를 리뷰하고, 발견한 약점을 학습 카드와 주간 성장 리포트로 이어주는 **성장형 코드 리뷰 플랫폼**
 
-🔗 **배포:** http://43.202.36.123 · 💻 **Repository:** https://github.com/Leeuswa/COGI
+ **배포:** http://43.202.36.123 ·  **Repository:** https://github.com/Leeuswa/COGI
 
 ---
 
