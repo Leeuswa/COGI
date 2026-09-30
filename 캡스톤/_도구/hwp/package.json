@@ -1,0 +1,1 @@
+{ "private": true, "dependencies": { "cfb": "^1.2.2", "hwp.js": "0.0.3", "playwright": "^1.50.0", "esbuild": "^0.25.0" } }
