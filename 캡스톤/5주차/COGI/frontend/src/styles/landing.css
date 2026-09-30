@@ -1,0 +1,28 @@
+/* 랜딩 (임시 레이아웃) */
+.hero {
+  display: grid; grid-template-columns: 1fr 1fr;
+  align-items: center; gap: 40px;
+  padding: 60px 6vw;
+}
+.hero-copy .lv {
+  display: inline-block; font-family: 'Silkscreen', monospace; font-size: 12px;
+  background: var(--navy); color: var(--yellow); padding: 6px 12px; margin-bottom: 20px;
+}
+.hero-copy h1 { font-size: 38px; line-height: 1.4; }
+.hero-copy .sub { margin-top: 20px; font-size: 15px; line-height: 1.9; color: var(--sub); }
+.hero-copy .cta-row { margin-top: 28px; display: flex; gap: 14px; }
+
+/* 캐릭터 자리 표시 */
+.placeholder {
+  height: 320px; display: grid; place-items: center; text-align: center;
+  border: 3px dashed var(--sub); color: var(--sub); font-size: 14px; line-height: 1.8;
+  background: rgba(255, 255, 255, .4);
+}
+
+.todo-sec { padding: 10px 6vw 60px; }
+.todo-sec h2 { font-size: 20px; margin-bottom: 14px; }
+.todo-sec ul { list-style: square; padding-left: 20px; line-height: 2.1; font-size: 14px; }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+}
