@@ -21,6 +21,16 @@ final class WeeklyReportTexts {
         };
     }
 
+    // 비율(%) 반올림 — 해결률·정답률·카테고리 막대 공통. 분모 0이면 0
+    static int percent(long part, long total) {
+        return total == 0 ? 0 : (int) Math.round(part * 100.0 / total);
+    }
+
+    // 전주 대비 증감률(%) — |1 - 현재/이전| × 100. 이전이 0이면 비교 불가라 0
+    static int changePct(int prev, int cur) {
+        return prev == 0 ? 0 : (int) Math.round(Math.abs(1 - cur / (double) prev) * 100);
+    }
+
     // 코기의 다음 주 추천
     static List<String> nextActions(String topCategory, int issues, int resolved) {
         List<String> a = new ArrayList<>();

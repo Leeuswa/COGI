@@ -91,7 +91,7 @@ public class WeeklyReportService {
                 .countByUserIdAndSubmittedAtGreaterThanEqualAndSubmittedAtLessThan(rp.getUserId(), from, to);
         int quizCorrect = (int) quizSubmissionRepository
                 .countByUserIdAndIsCorrectTrueAndSubmittedAtGreaterThanEqualAndSubmittedAtLessThan(rp.getUserId(), from, to);
-        int correctRate = quizSubmits == 0 ? 0 : (int) Math.round(quizCorrect * 100.0 / quizSubmits);
+        int correctRate = WeeklyReportTexts.percent(quizCorrect, quizSubmits);
 
         return new WeeklyReportResponseDTO(
                 rp.getId(), rp.getPeriodStart().toString(), rp.getPeriodEnd().toString(),
@@ -109,7 +109,7 @@ public class WeeklyReportService {
         User u = userRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         if (u.getEmail() == null) return;
 
-        int rate = rp.getIssueCount() == 0 ? 0 : (int) Math.round(rp.getResolvedCount() * 100.0 / rp.getIssueCount());
+        int rate = WeeklyReportTexts.percent(rp.getResolvedCount(), rp.getIssueCount());
         String name = u.getNickname() != null ? u.getNickname() : "회원";
         String inner = """
             <p style="margin:0 0 8px;color:#1b2a4a;font-size:17px;font-weight:bold;">%s님의 주간 성장 리포트</p>

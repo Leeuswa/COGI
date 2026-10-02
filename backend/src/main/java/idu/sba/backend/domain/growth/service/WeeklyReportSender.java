@@ -50,7 +50,7 @@ public class WeeklyReportSender {
         List<Object[]> cats = reviewIssueRepository.categoryBreakdown(userId, from, to);
         String topCategory = cats.isEmpty() ? null : String.valueOf(cats.get(0)[0]);
 
-        int rate = (int) Math.round(resolved * 100.0 / issues);
+        int rate = WeeklyReportTexts.percent(resolved, issues);
         String summary = buildSummary(issues, resolved, prevIssues, rate);
 
         // 저장 (주간리포트 탭에서 목록으로 보임)
@@ -66,15 +66,15 @@ public class WeeklyReportSender {
 
             // 전주 대비 한 줄 — 증감 %는 전주 값이 있을 때만(0으로 나누기 방지)
             String trend = prevIssues == 0 ? "지난주부터 집계를 시작했어요."
-                    : issues < prevIssues ? "전주 " + prevIssues + "건 → " + pct(prevIssues, issues) + "% 감소"
-                    : issues > prevIssues ? "전주 " + prevIssues + "건 → " + pct(prevIssues, issues) + "% 증가"
+                    : issues < prevIssues ? "전주 " + prevIssues + "건 → " + WeeklyReportTexts.changePct(prevIssues, issues) + "% 감소"
+                    : issues > prevIssues ? "전주 " + prevIssues + "건 → " + WeeklyReportTexts.changePct(prevIssues, issues) + "% 증가"
                     : "전주와 같아요.";
 
             // 카테고리별 발생 — 코랄 막대(발생 총합 대비 비율). 이메일 안전하게 table로 그림
             StringBuilder catRows = new StringBuilder();
             for (Object[] c : cats) {
                 int cnt = ((Number) c[1]).intValue();
-                int w = (int) Math.round(cnt * 100.0 / issues);
+                int w = WeeklyReportTexts.percent(cnt, issues);
                 catRows.append("""
                     <tr>
                       <td width="76" style="padding:5px 8px 5px 0;color:#1b2a4a;font-size:12px;font-weight:bold;white-space:nowrap;">%s</td>
@@ -157,10 +157,6 @@ public class WeeklyReportSender {
                 : issues > prevIssues ? " 전주보다 늘었어요."
                 : " 전주와 비슷해요.";
         return "지난주 발생 " + issues + "건 중 " + resolved + "건 해결(해결률 " + rate + "%)." + trend;
-    }
-    // 증감률(%) — |1 - 현재/이전| × 100. trend에서 prevIssues>0일 때만 호출됨
-    private int pct(int prev, int cur) {
-        return (int) Math.round(Math.abs((1 - cur / (double) prev)) * 100);
     }
 
     // 좌측 코랄 바 박스
