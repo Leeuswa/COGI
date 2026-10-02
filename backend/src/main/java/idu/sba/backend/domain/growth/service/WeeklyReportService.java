@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -28,6 +29,7 @@ public class WeeklyReportService {
     private final UserRepository userRepository;
     private final HtmlMailSender htmlMailSender;
     private final QuizSubmissionRepository quizSubmissionRepository;
+    private static final DateTimeFormatter MD = DateTimeFormatter.ofPattern("MM/dd");
 
     // 내 리포트 목록 (최신 주부터). 저장된 수치 + 카테고리 분포(조회 시 계산) + 자동 액션.
     @Transactional(readOnly = true)
@@ -109,15 +111,12 @@ public class WeeklyReportService {
         User u = userRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         if (u.getEmail() == null) return;
 
-        int rate = WeeklyReportTexts.percent(rp.getResolvedCount(), rp.getIssueCount());
+        // 자동 발송 메일과 같은 템플릿 — 카테고리 분포는 그 주 범위로 다시 집계
+        var cats = reviewIssueRepository.categoryBreakdown(
+                userId, rp.getPeriodStart().atStartOfDay(), rp.getPeriodEnd().plusDays(1).atStartOfDay());
         String name = u.getNickname() != null ? u.getNickname() : "회원";
-        String inner = """
-            <p style="margin:0 0 8px;color:#1b2a4a;font-size:17px;font-weight:bold;">%s님의 주간 성장 리포트</p>
-            <p style="margin:0 0 16px;color:#40507a;font-size:13px;">%s</p>
-            <div style="background:#ffd23f;border:3px solid #1b2a4a;padding:16px;text-align:center;color:#1b2a4a;font-size:14px;">
-              발생 %d건 · 해결 %d건 · 해결률 %d%%
-            </div>
-            """.formatted(name, rp.getSummary(), rp.getIssueCount(), rp.getResolvedCount(), rate);
+        String heading = name + "님의 " + rp.getPeriodStart().format(MD) + " ~ " + rp.getPeriodEnd().format(MD) + " 성장 리포트";
+        String inner = WeeklyReportMail.render(heading, rp, cats);
         htmlMailSender.send(u.getEmail(), "[COGI] 주간 성장 리포트", inner);
     }
 }
