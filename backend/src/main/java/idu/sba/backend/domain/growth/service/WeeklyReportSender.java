@@ -4,6 +4,7 @@ import idu.sba.backend.domain.growth.entity.WeeklyReport;
 import idu.sba.backend.domain.growth.repository.WeeklyReportRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.user.entity.User;
+import idu.sba.backend.domain.user.entity.UserStatus;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import idu.sba.backend.global.mail.HtmlMailSender;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,7 @@ public class WeeklyReportSender {
     @Transactional
     public void sendFor(Long userId) {
         User u = userRepository.findById(userId).orElse(null);
-        if (u == null) return;
+        if (u == null || u.getStatus() != UserStatus.ACTIVE) return; // 수동 생성(/generate)도 같은 기준
 
         LocalDate thisMonday = LocalDate.now().with(DayOfWeek.MONDAY);
         LocalDate lastMonday = thisMonday.minusWeeks(1);

@@ -2,6 +2,7 @@ package idu.sba.backend.domain.growth.scheduler;
 
 import idu.sba.backend.domain.growth.service.WeeklyReportSender;
 import idu.sba.backend.domain.user.entity.User;
+import idu.sba.backend.domain.user.entity.UserStatus;
 import idu.sba.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,8 +18,8 @@ public class WeeklyReportScheduler {
     // 매주 월요일 09:00 (KST) — 지난주 성장 리포트 저장 + 메일 발송
     @Scheduled(cron = "0 0 9 ? * MON", zone = "Asia/Seoul")
     public void sendWeeklyReports() {
-        // ponytail: 유저 수 적어 findAll. 많아지면 페이징/배치로.
-        for (User u : userRepository.findAll()) {
+        // 탈퇴·정지 회원은 제외 (탈퇴 회원은 이메일이 익명화돼 있어 메일이 엉뚱한 주소로 나감)
+        for (User u : userRepository.findByStatus(UserStatus.ACTIVE)) {
             try {
                 sender.sendFor(u.getId());
             } catch (Exception e) {

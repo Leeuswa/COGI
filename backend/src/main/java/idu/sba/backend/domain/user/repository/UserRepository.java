@@ -7,6 +7,7 @@ import idu.sba.backend.domain.user.entity.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User,Long> {
@@ -23,6 +24,8 @@ public interface UserRepository extends JpaRepository<User,Long> {
     Optional<User> findByKakaoId(String kakaoId);
     //레포 초대 시 GitHub 아이디로 대상 사용자 조회
     Optional<User> findByGithubUsername(String githubUsername);
+    //주간 리포트 배치 대상 조회 (활성 회원만)
+    List<User> findByStatus(UserStatus status);
 
     // 탈퇴 보관기간 만료분 정리용. 탈퇴 시점 컬럼을 따로 두지 않고 updatedAt을 쓰는 이유:
     // withdraw()가 엔티티를 수정하면서 @PreUpdate로 updatedAt이 그 시각으로 찍히고,
