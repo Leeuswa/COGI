@@ -37,7 +37,7 @@ public class GrowthController {
     public ApiResponse<GrowthCompareResponseDTO> getGrowthCompare(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long teamId,
-            @RequestParam(defaultValue = "4w") String period){
+            @RequestParam(defaultValue = "4W") String period) {
         return ApiResponse.ok(growthService.getGrowthCompare(userId,teamId,period));
     }
 }

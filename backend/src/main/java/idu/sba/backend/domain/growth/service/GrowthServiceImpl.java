@@ -47,10 +47,7 @@ public class GrowthServiceImpl implements GrowthService {
         List<Long> targetUserIds = resolveTargets(teamId, currentUserId, me.getRole(), memberId);
 
         // 기간(4/8/12주) → 각 주의 월요일 뼈대. weekStarts[0]이 곧 조회 시작일
-        int weeks = switch (period == null ? "4W" : period) { case "8W" -> 8; case "12W" -> 12; default -> 4; };
-        LocalDate thisMonday = LocalDate.now().with(DayOfWeek.MONDAY);
-        List<LocalDate> weekStarts = new ArrayList<>();
-        for (int i = weeks - 1; i >= 0; i--) weekStarts.add(thisMonday.minusWeeks(i));
+        List<LocalDate> weekStarts = weekStarts(period);
 
         // 집계 결과(sparse): 주("yyyy-MM-dd") → [발생, 해결]
         Map<String, long[]> byWeek = new HashMap<>();
@@ -81,10 +78,7 @@ public class GrowthServiceImpl implements GrowthService {
                 .collect(Collectors.toMap(User::getId,
                         u -> "@" + (u.getGithubUsername() != null ? u.getGithubUsername() : u.getNickname())));
 
-        int weeks = switch (period == null ? "4W" : period) { case "8W" -> 8; case "12W" -> 12; default -> 4; };
-        LocalDate thisMonday = LocalDate.now().with(DayOfWeek.MONDAY);
-        List<LocalDate> weekStarts = new ArrayList<>();
-        for (int i = weeks - 1; i >= 0; i--) weekStarts.add(thisMonday.minusWeeks(i));
+        List<LocalDate> weekStarts = weekStarts(period);
         List<String> labels = weekStarts.stream().map(w -> w.format(LABEL)).toList();
 
         // userId → (주 문자열 → 발생수)
@@ -102,6 +96,16 @@ public class GrowthServiceImpl implements GrowthService {
         }).toList();
 
         return new GrowthCompareResponseDTO(labels, series);
+    }
+
+    // 기간(4W/8W/12W) → 최근 N주의 월요일 목록(과거 → 이번 주). 대소문자 구분 없이, 모르는 값은 4주
+    private List<LocalDate> weekStarts(String period) {
+        String p = period == null ? "" : period.toUpperCase();
+        int weeks = switch (p) { case "8W" -> 8; case "12W" -> 12; default -> 4; };
+        LocalDate thisMonday = LocalDate.now().with(DayOfWeek.MONDAY);
+        List<LocalDate> weekStarts = new ArrayList<>();
+        for (int i = weeks - 1; i >= 0; i--) weekStarts.add(thisMonday.minusWeeks(i));
+        return weekStarts;
     }
 
     private List<Long> resolveTargets(Long teamId, Long currentUserId, RepoRole myRole, Long memberId) {
