@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -95,15 +94,8 @@ public class WeeklyReportService {
                 rp.getIssueCount(), rp.getResolvedCount(), prev,
                 rp.getTopCategory(), categories,
                 quizSubmits, correctRate, rp.getStreakEnd(),   // 실제 학습 활동
-                rp.getSummary(), buildActions(rp));
-    }
-
-    private List<String> buildActions(WeeklyReport rp) {
-        List<String> a = new ArrayList<>();
-        if (rp.getTopCategory() != null) a.add(rp.getTopCategory() + " 유형 학습카드를 복습해보세요.");
-        if (rp.getResolvedCount() < rp.getIssueCount()) a.add("미해결 이슈를 스튜디오에서 마저 판정해보세요.");
-        a.add("이번 주도 PR을 올려 리뷰를 받아보세요.");
-        return a;
+                rp.getSummary(),
+                WeeklyReportTexts.nextActions(rp.getTopCategory(), rp.getIssueCount(), rp.getResolvedCount()));
     }
 
     // 저장된 리포트를 다시 메일로 (팝업의 메일로 보내기)

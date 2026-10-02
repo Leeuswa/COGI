@@ -88,14 +88,12 @@ public class WeeklyReportSender {
                       </td>
                       <td width="34" style="padding:5px 0 5px 8px;text-align:right;color:#1b2a4a;font-weight:bold;font-size:12px;white-space:nowrap;">%d건</td>
                     </tr>
-                    """.formatted(catKo(String.valueOf(c[0])), w, cnt));
+                    """.formatted(WeeklyReportTexts.catKo(String.valueOf(c[0])), w, cnt));
             }
 
             // 다음 주 추천 — 좌측 코랄 바가 붙은 박스 (앱 팝업과 동일 규칙)
             StringBuilder actions = new StringBuilder();
-            if (topCategory != null) actions.append(actionBox(catKo(topCategory) + " 유형 학습카드를 복습해보세요."));
-            if (resolved < issues) actions.append(actionBox("미해결 이슈를 스튜디오에서 마저 판정해보세요."));
-            actions.append(actionBox("이번 주도 PR을 올려 리뷰를 받아보세요."));
+            for (String a : WeeklyReportTexts.nextActions(topCategory, issues, resolved)) actions.append(actionBox(a));
 
             String inner = """
                 <p style="margin:0 0 6px;color:#1b2a4a;font-size:18px;font-weight:bold;">%s님의 지난주 성장 리포트</p>
@@ -138,7 +136,7 @@ public class WeeklyReportSender {
                 """.formatted(
                     name, summary,
                     issues, resolved, rate, trend,
-                    topCategory == null ? "-" : catKo(topCategory),
+                    topCategory == null ? "-" : WeeklyReportTexts.catKo(topCategory),
                     catRows, actions);
 
             htmlMailSender.send(u.getEmail(), "[COGI] 지난주 성장 리포트", inner);
@@ -163,18 +161,6 @@ public class WeeklyReportSender {
     // 증감률(%) — |1 - 현재/이전| × 100. trend에서 prevIssues>0일 때만 호출됨
     private int pct(int prev, int cur) {
         return (int) Math.round(Math.abs((1 - cur / (double) prev)) * 100);
-    }
-
-    // 카테고리 코드 → 한글 (프론트 CATEGORY_KO와 동일)
-    private String catKo(String code) {
-        return switch (code) {
-            case "BUG" -> "버그";
-            case "PERFORMANCE" -> "성능";
-            case "CODE_SMELL" -> "코드 냄새";
-            case "CONVENTION" -> "컨벤션";
-            case "SECURITY" -> "보안";
-            default -> code;
-        };
     }
 
     // 좌측 코랄 바 박스
