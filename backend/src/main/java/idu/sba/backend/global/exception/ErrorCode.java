@@ -107,6 +107,10 @@ public enum ErrorCode {
     LEARNING_QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 퀴즈입니다."),
     WEAKNESS_STATS_EMPTY(HttpStatus.BAD_REQUEST,"아직 약점 데이터가 없어요. 코드 리뷰를 먼저 받아보세요."),
 
+    //주간 리포트(RET-002)
+    WEEKLY_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND,"존재하지 않는 주간 리포트입니다."),
+    WEEKLY_REPORT_ACCESS_DENIED(HttpStatus.FORBIDDEN,"본인의 주간 리포트만 조회할 수 있습니다."),
+
     //관리자 본인 권한수정
     CANNOT_CHANGE_OWN_ROLE(HttpStatus.FORBIDDEN, "본인 권한은 변경할 수 없습니다."),
     //관리자 본인 상태수정

@@ -72,7 +72,7 @@ public class GrowthServiceImpl implements GrowthService {
         // 겹쳐보기는 개인별 데이터가 드러나므로 팀장(OWNER)만
         RepoMember me = repoMemberRepository.findByRepoIdAndUserId(teamId, currentUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_REPO_MEMBER));
-        if (me.getRole() != RepoRole.OWNER) throw new BusinessException(ErrorCode.NOT_REPO_MEMBER);
+        if (me.getRole() != RepoRole.OWNER) throw new BusinessException(ErrorCode.INSUFFICIENT_REPO_PERMISSION);
 
         // 팀원 전원 + 표시 이름 맵(findAllById로 한 번에 — 멤버마다 조회하는 N+1 방지)
         List<RepoMember> members = repoMemberRepository.findByRepoId(teamId);

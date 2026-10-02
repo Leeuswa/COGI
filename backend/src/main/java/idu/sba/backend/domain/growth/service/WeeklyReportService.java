@@ -39,9 +39,7 @@ public class WeeklyReportService {
     // 리포트 드릴다운 — 그 주(period) 이슈가 걸린 PR 목록. status=RESOLVED면 해결 이슈가 있는 PR만.
     @Transactional(readOnly = true)
     public List<WeeklyReportPrDTO> getReportPrs(Long userId, Long reportId, String status) {
-        WeeklyReport rp = weeklyReportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT));
-        if (!rp.getUserId().equals(userId)) throw new BusinessException(ErrorCode.INVALID_INPUT); // 남의 리포트 차단
+        WeeklyReport rp = findMyReport(userId, reportId);
 
         LocalDateTime from = rp.getPeriodStart().atStartOfDay();
         LocalDateTime to = rp.getPeriodEnd().plusDays(1).atStartOfDay(); // periodEnd(일요일) 포함
@@ -56,9 +54,7 @@ public class WeeklyReportService {
     // 리포트 드릴다운(이슈 단위) — 그 주 이슈를 하나하나. status=RESOLVED면 해결된 이슈만.
     @Transactional(readOnly = true)
     public List<WeeklyReportIssueDTO> getReportIssues(Long userId, Long reportId, String status) {
-        WeeklyReport rp = weeklyReportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT));
-        if (!rp.getUserId().equals(userId)) throw new BusinessException(ErrorCode.INVALID_INPUT); // 남의 리포트 차단
+        WeeklyReport rp = findMyReport(userId, reportId);
 
         LocalDateTime from = rp.getPeriodStart().atStartOfDay();
         LocalDateTime to = rp.getPeriodEnd().plusDays(1).atStartOfDay();
@@ -68,6 +64,14 @@ public class WeeklyReportService {
                 .map(WeeklyReportIssueDTO::from)
                 .filter(i -> !resolvedOnly || "RESOLVED".equals(i.status())) // 해결 탭이면 해결된 이슈만
                 .toList();
+    }
+
+    // 리포트 조회 + 본인 것인지 확인 (드릴다운·메일 재발송 공통)
+    private WeeklyReport findMyReport(Long userId, Long reportId) {
+        WeeklyReport rp = weeklyReportRepository.findById(reportId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.WEEKLY_REPORT_NOT_FOUND));
+        if (!rp.getUserId().equals(userId)) throw new BusinessException(ErrorCode.WEEKLY_REPORT_ACCESS_DENIED);
+        return rp;
     }
 
     private WeeklyReportResponseDTO toDto(WeeklyReport rp) {
@@ -101,9 +105,7 @@ public class WeeklyReportService {
     // 저장된 리포트를 다시 메일로 (팝업의 메일로 보내기)
     @Transactional(readOnly = true)
     public void sendMail(Long userId, Long reportId) {
-        WeeklyReport rp = weeklyReportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT));
-        if (!rp.getUserId().equals(userId)) throw new BusinessException(ErrorCode.INVALID_INPUT); // 남의 리포트 차단
+        WeeklyReport rp = findMyReport(userId, reportId);
         User u = userRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         if (u.getEmail() == null) return;
 

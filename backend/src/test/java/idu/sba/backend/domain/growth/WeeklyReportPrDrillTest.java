@@ -92,6 +92,6 @@ class WeeklyReportPrDrillTest {
 
         assertThatThrownBy(() -> service.getReportPrs(USER, REPORT, "OPEN"))
                 .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+                .extracting("errorCode").isEqualTo(ErrorCode.WEEKLY_REPORT_ACCESS_DENIED);
     }
 }
