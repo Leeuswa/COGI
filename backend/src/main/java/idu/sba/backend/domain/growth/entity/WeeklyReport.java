@@ -8,7 +8,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "weekly-reports")
+// 한 사람당 한 주에 리포트 1건 — 배치와 수동 생성(/generate)이 동시에 돌아도 중복 저장 안 되게 DB에서 막는다
+@Table(name = "weekly-reports",
+        uniqueConstraints = @UniqueConstraint(name = "uk_weekly_report_user_period",
+                columnNames = {"user_id", "period_start"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WeeklyReport {
