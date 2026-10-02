@@ -113,7 +113,7 @@ function DesktopWeeklyReports() {
             <h3>이번 주 학습 활동</h3>
             <p style={{ fontSize: 13.5, lineHeight: 2, marginBottom: 20 }}>
               퀴즈 제출 <b>{open.quizSubmits}회</b> · 정답률 <b>{open.correctRate}%</b> ·
-              주말 기준 연속 학습 <b style={{ color: 'var(--coral)' }}>{open.streakEnd}일</b>
+              주말 기준 연속 학습 <b style={{ color: 'var(--coral)' }}>{open.streakEnd ?? '-'}일</b>
             </p>
 
             {/* 다음 주 추천 */}

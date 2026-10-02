@@ -27,6 +27,7 @@ public class WeeklyReport {
     private int resolvedCount; //그 주 해결 건
     private int prevIssueCount; //전주 발생(전주 대비 계산용)
     private String topCategory; //최다 카테고리
+    private Integer streakEnd; //리포트 생성 시점 연속 학습일 (이 컬럼 추가 전 리포트는 null)
 
     @Column(columnDefinition = "TEXT")
     private String summary; //자동 생성 요약 문장
@@ -54,6 +55,11 @@ public class WeeklyReport {
     public static WeeklyReport of(Long userId, LocalDate periodStart, LocalDate periodEnd,
                                   int issueCount, int resolvedCount, int prevIssueCount, String topCategory, String summary) {
         return new WeeklyReport(userId, periodStart, periodEnd, issueCount, resolvedCount, prevIssueCount, topCategory, summary);
+    }
+
+    // 지난 리포트를 열어도 그 주 값이 보이도록 생성 시점에 박제
+    public void recordStreakEnd(int streak) {
+        this.streakEnd = streak;
     }
 
 }

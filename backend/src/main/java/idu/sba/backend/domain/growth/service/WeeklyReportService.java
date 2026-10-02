@@ -6,7 +6,6 @@ import idu.sba.backend.domain.growth.dto.WeeklyReportResponseDTO;
 import idu.sba.backend.domain.growth.entity.WeeklyReport;
 import idu.sba.backend.domain.growth.repository.WeeklyReportRepository;
 import idu.sba.backend.domain.learning.repository.QuizSubmissionRepository;
-import idu.sba.backend.domain.retention.repository.UserStreakRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -17,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +29,6 @@ public class WeeklyReportService {
     private final UserRepository userRepository;
     private final HtmlMailSender htmlMailSender;
     private final QuizSubmissionRepository quizSubmissionRepository;
-    private final UserStreakRepository userStreakRepository;
 
     // 내 리포트 목록 (최신 주부터). 저장된 수치 + 카테고리 분포(조회 시 계산) + 자동 액션.
     @Transactional(readOnly = true)
@@ -84,7 +81,7 @@ public class WeeklyReportService {
 
         Integer prev = rp.getPrevIssueCount() > 0 ? rp.getPrevIssueCount() : null;
 
-        // 이번 주 학습 활동 — 그 주 [월, 다음주 월) 범위의 퀴즈 제출/정답 + 현재 연속 학습일
+        // 이번 주 학습 활동 — 그 주 [월, 다음주 월) 범위의 퀴즈 제출/정답 + 생성 시점 연속 학습일
         LocalDateTime from = rp.getPeriodStart().atStartOfDay();
         LocalDateTime to = rp.getPeriodEnd().plusDays(1).atStartOfDay();
         int quizSubmits = (int) quizSubmissionRepository
@@ -92,14 +89,12 @@ public class WeeklyReportService {
         int quizCorrect = (int) quizSubmissionRepository
                 .countByUserIdAndIsCorrectTrueAndSubmittedAtGreaterThanEqualAndSubmittedAtLessThan(rp.getUserId(), from, to);
         int correctRate = quizSubmits == 0 ? 0 : (int) Math.round(quizCorrect * 100.0 / quizSubmits);
-        int streak = userStreakRepository.findByUserId(rp.getUserId())
-                .map(s -> s.effectiveStreak(LocalDate.now())).orElse(0);
 
         return new WeeklyReportResponseDTO(
                 rp.getId(), rp.getPeriodStart().toString(), rp.getPeriodEnd().toString(),
                 rp.getIssueCount(), rp.getResolvedCount(), prev,
                 rp.getTopCategory(), categories,
-                quizSubmits, correctRate, streak,   // 실제 학습 활동
+                quizSubmits, correctRate, rp.getStreakEnd(),   // 실제 학습 활동
                 rp.getSummary(), buildActions(rp));
     }
 

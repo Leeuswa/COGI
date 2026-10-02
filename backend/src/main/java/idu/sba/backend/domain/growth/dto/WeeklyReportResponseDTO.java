@@ -15,9 +15,9 @@ public class WeeklyReportResponseDTO {
     private final Integer prevIssueCount; // 전주 없으면 null (프론트가 null이면 비교 스킵)
     private final String topCategory;
     private final List<Category> categories;
-    private final int quizSubmits;   // 학습활동은 프론트(GameContext) 소관 → MVP 0
+    private final int quizSubmits;
     private final int correctRate;
-    private final int streakEnd;
+    private final Integer streakEnd; // 리포트 생성 시점 연속 학습일, 예전 리포트는 null
     private final String summary;
     private final List<String> actions;
 

@@ -137,7 +137,7 @@ export default function MobileReports() {
                   <p className="mnote">
                     퀴즈 제출 <b>{r.quizSubmits}회</b> · 정답률 <b>{r.correctRate}%</b>
                     <br />
-                    주말 기준 연속 학습 <b className="hot">{r.streakEnd}일</b>
+                    주말 기준 연속 학습 <b className="hot">{r.streakEnd ?? '-'}일</b>
                   </p>
 
                   <h3 className="mrp-h">코기의 다음 주 추천</h3>

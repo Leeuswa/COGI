@@ -2,6 +2,7 @@ package idu.sba.backend.domain.growth.service;
 
 import idu.sba.backend.domain.growth.entity.WeeklyReport;
 import idu.sba.backend.domain.growth.repository.WeeklyReportRepository;
+import idu.sba.backend.domain.retention.repository.UserStreakRepository;
 import idu.sba.backend.domain.review.repository.ReviewIssueRepository;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.entity.UserStatus;
@@ -24,6 +25,7 @@ public class WeeklyReportSender {
     private final ReviewIssueRepository reviewIssueRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final HtmlMailSender htmlMailSender;
+    private final UserStreakRepository userStreakRepository;
 
     // 한 사용자의 "지난주(월~일)" 리포트를 저장 + 메일 발송. 활동 없거나 이미 생성됐으면 스킵.
     @Transactional
@@ -52,8 +54,11 @@ public class WeeklyReportSender {
         String summary = buildSummary(issues, resolved, prevIssues, rate);
 
         // 저장 (주간리포트 탭에서 목록으로 보임)
-        weeklyReportRepository.save(WeeklyReport.of(
-                userId, lastMonday, thisMonday.minusDays(1), issues, resolved, prevIssues, topCategory, summary));
+        WeeklyReport report = WeeklyReport.of(
+                userId, lastMonday, thisMonday.minusDays(1), issues, resolved, prevIssues, topCategory, summary);
+        report.recordStreakEnd(userStreakRepository.findByUserId(userId)
+                .map(s -> s.effectiveStreak(LocalDate.now())).orElse(0));
+        weeklyReportRepository.save(report);
 
         // 2) 메일 발송 (이메일 있을 때만)
         if (u.getEmail() != null) {
