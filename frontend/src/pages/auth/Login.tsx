@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import * as api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import DemoLoginButtons from '../../components/DemoLoginButtons';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -80,6 +81,7 @@ export default function Login() {
           <button className="sns-btn kakao" onClick={() => social('kakao')}>
             카카오톡으로 계속하기
           </button>
+          <DemoLoginButtons onError={setErr} />
         </div>
 
         <div className="divider">OR EMAIL</div>
