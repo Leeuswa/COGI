@@ -48,6 +48,36 @@ final class DemoSeedData {
 
     // ── PR 과 리뷰 지적 ──
     static final List<Pr> PRS = List.of(
+            // 11~9주 전 — 팀원만. 성장 추이 「최근 12주」 의 앞쪽이 비지 않게 (체험 계정의 약점·리포트 수에는 안 들어간다)
+            new Pr(0, 98, "feat: 프로젝트 기본 구조", 1, 11, 2, "claude-haiku-4-5", List.of(
+                    i(SECURITY, MAJOR, "SecurityConfig.java", 18, 'R',
+                            "CSRF 보호를 통째로 꺼 두었습니다. 쿠키로 로그인하는 화면이 있다면 다른 사이트에서 요청을 위조할 수 있습니다. API 만 쓰는 경로에만 끄세요."),
+                    i(BUG, MAJOR, "Application.java", 12, 'R',
+                            "기본 시간대를 정하지 않아 서버마다 날짜 계산이 달라집니다. 시작할 때 `Asia/Seoul` 로 맞추거나 시간대를 받는 API 만 쓰세요."),
+                    i(CONVENTION, MINOR, "build.gradle", 7, 'R',
+                            "라이브러리 버전이 `latest.release` 로 열려 있어 빌드할 때마다 다른 버전이 받아집니다. 버전을 고정하세요."),
+                    i(CODE_SMELL, MINOR, "CommonUtil.java", 5, 'R',
+                            "날짜·문자열·파일 처리가 `CommonUtil` 하나에 모여 300줄이 넘습니다. 하는 일별로 클래스를 나누세요."),
+                    i(PERFORMANCE, MINOR, "application.yml", 21, 'R',
+                            "커넥션 풀 크기가 2 로 잡혀 있어 동시에 요청이 몰리면 대기열이 길어집니다. 예상 동시 요청 수에 맞춰 늘리세요."))),
+            new Pr(0, 99, "feat: 카테고리 관리", 2, 10, 3, "claude-haiku-4-5", List.of(
+                    i(BUG, MAJOR, "CategoryService.java", 33, 'R',
+                            "상위 카테고리를 자기 자신으로 지정할 수 있어 트리를 그릴 때 무한 반복에 빠집니다. 저장 전에 순환 여부를 확인하세요."),
+                    i(PERFORMANCE, MAJOR, "CategoryService.java", 51, 'R',
+                            "카테고리 트리를 그릴 때 단계마다 하위 목록을 다시 조회합니다. 한 번에 전부 읽어 메모리에서 묶으세요."),
+                    i(SECURITY, MINOR, "CategoryController.java", 19, 'R',
+                            "카테고리 삭제 API 가 일반 회원에게도 열려 있습니다. 관리자만 부를 수 있게 막으세요."),
+                    i(CONVENTION, MINOR, "CategoryController.java", 8, 'R',
+                            "응답 DTO 대신 엔티티를 그대로 돌려줘 내부 칸까지 밖으로 나갑니다. 응답 전용 DTO 로 바꾸세요."))),
+            new Pr(0, 100, "feat: 상품 등록 검증", 1, 9, 4, "claude-haiku-4-5", List.of(
+                    i(BUG, MAJOR, "ProductRequest.java", 16, 'R',
+                            "가격에 음수를 넣어도 저장됩니다. `@PositiveOrZero` 를 붙여 요청 단계에서 막으세요."),
+                    i(BUG, MINOR, "ProductRequest.java", 22, 'R',
+                            "상품 이름 길이 제한이 없어 DB 칸 길이를 넘으면 500 으로 끝납니다. `@Size(max = 100)` 으로 먼저 막으세요."),
+                    i(CODE_SMELL, MINOR, "ProductService.java", 30, 'R',
+                            "검증 실패마다 `RuntimeException` 을 던져 어떤 오류인지 응답에서 구분이 안 됩니다. 뜻이 드러나는 예외로 바꾸세요."),
+                    i(PERFORMANCE, MINOR, "ProductService.java", 45, 'O',
+                            "중복 이름 확인을 위해 전체 상품을 읽어 옵니다. `existsByName` 한 번으로 확인하세요."))),
             // 8주 전
             new Pr(0, 101, "feat: 상품 목록 조회 API", 0, 8, 2, "claude-haiku-4-5", List.of(
                     i(BUG, MAJOR, "ProductController.java", 42, 'R',
