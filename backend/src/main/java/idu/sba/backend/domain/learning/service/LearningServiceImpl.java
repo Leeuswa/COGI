@@ -80,6 +80,16 @@ public class LearningServiceImpl implements LearningService {
     private static final String KIND_BY_WEAKNESS = "BY_WEAKNESS"; // 약점 기반 추천(JSON). latest가 kind로 골라 꺼낸다
     private static final int SKILL_RECOMMEND_BY_WEAKNESS_CREDIT = 2; // 약점 기반 추천은 모델 등급이 아니라 고정 2크레딧
 
+    // AI 입력으로 들어가는 값의 허용 범위. 화면이 보내는 값만 받는다 — 그 밖의 값은 AI를 부르기 전에 끊는다
+    private static final Set<String> QUIZ_TYPES = Set.of("MULTIPLE_CHOICE", "OX", "SHORT_ANSWER", "FILL_BLANK"); // constants.ts QUIZ_TYPES
+    private static final String DEFAULT_QUIZ_TYPE = "MULTIPLE_CHOICE"; // 프론트 createQuiz 기본값과 같다
+    private static final Set<Integer> PLAN_DAYS = Set.of(3, 5, 7, 14); // CardDetail PLAN_DAYS
+    private static final Set<String> LEVELS = Set.of("BEGINNER", "INTERMEDIATE", "ADVANCED");
+    private static final Set<String> SKILL_PROVIDERS = Set.of("CLAUDE", "CHATGPT", "GEMINI", "COPILOT"); // skill_recommend*.txt가 정한 4곳
+    private static final int MAX_CATEGORY_LENGTH = 100;
+    private static final int MAX_LANGUAGE_LENGTH = 30;
+    private static final int MAX_FREE_TEXT_LENGTH = 2000; // 스킬 추천 자유 입력 — 「한 문단」이면 넉넉하다
+
     // AI 응답 전용 리더. 날 줄바꿈과 모르는 키를 눈감아 준다 — 이유는 parseAi 주석에 있다.
     // 주입받는 공용 ObjectMapper는 API 응답 직렬화에도 쓰여서 여기 규칙을 얹으면 안 된다
     private static final JsonMapper LENIENT_JSON = JsonMapper.builder()
@@ -190,6 +200,11 @@ public class LearningServiceImpl implements LearningService {
     @Override
     @Transactional
     public LearningCardResponseDTO createCard(Long userId, LearningCardCreateRequestDTO request) {
+        // 카테고리·언어는 AI 입력에 그대로 들어간다. 줄을 바꿔 지시문을 덧붙이거나 긴 글을 넣지 못하게 크레딧 쓰기 전에 끊는다
+        requireSingleLine(request.getCategory(), MAX_CATEGORY_LENGTH, false);
+        requireSingleLine(request.getLanguage(), MAX_LANGUAGE_LENGTH, true);
+        String level = normalizeLevel(request.getLevel());
+
         // 프론트가 모델을 안 보내므로 플랜의 기본(첫 허용) 모델을 쓴다 — 리뷰와 동일하게 플랜별 모델 반영
         String modelName = defaultModelName(userId);
 
@@ -199,14 +214,14 @@ public class LearningServiceImpl implements LearningService {
         AiModel model = resolveAiModel(modelName);
         // 수준과 모델 티어에 따라 프롬프트가 갈린다 — 같은 카테고리라도 초급/고급, 1티어/3티어 결과가 달라진다
         AiGenerationResult result = aiReviewClient.generate(model,
-                promptBuilder.buildCard(request.getLevel(), modelName), buildCardInput(request));
+                promptBuilder.buildCard(level, modelName), buildCardInput(request));
 
         // 벤더 호출은 실제로 일어나 비용이 났으므로 사용량을 기록
         aiUsageLogRepository.save(AiUsageLog.of(userId, modelName,
                 result.inputTokens(), result.outputTokens(), result.cost(), REQUEST_TYPE_CARD));
 
         CardContent content = parseCard(result.content());
-        LearningCard card = LearningCard.create(userId, request.getCategory(), request.getLevel(), request.getLanguage(),
+        LearningCard card = LearningCard.create(userId, request.getCategory(), level, request.getLanguage(),
                 modelName, content.conceptContent(), content.whyItMatters(), content.badExample(),
                 content.goodExample(), content.diffExplain(), joinLines(content.keyPoints()),
                 joinLines(content.pitfalls()), joinLines(content.selfCheck()));
@@ -243,6 +258,12 @@ public class LearningServiceImpl implements LearningService {
     @Transactional
     public QuizResponseDTO createQuiz(Long userId, Long cardId, String questionType, String requestedModel) {
         LearningCard card = requireOwnedCard(userId, cardId);
+        // 유형 값은 시스템 프롬프트 끝에 붙는다. 정해진 네 가지 말고는 받지 않는다 — 지시문을 끼워 넣는 길을 막는다
+        if (questionType == null || questionType.isBlank()) {
+            questionType = DEFAULT_QUIZ_TYPE;
+        } else if (!QUIZ_TYPES.contains(questionType)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
 
         // 사용자가 고른 모델을 쓰되 플랜에 없는 모델이면 거부한다. 안 골랐으면 카드 만들 때 쓴 모델로 간다
         String modelName = resolveQuizModel(userId, requestedModel, card.getModelName());
@@ -267,6 +288,10 @@ public class LearningServiceImpl implements LearningService {
     @Transactional
     public LearningCardResponseDTO createStudyPlan(Long userId, Long cardId, int days) {
         LearningCard card = requireOwnedCard(userId, cardId);
+        // 화면은 3·5·7·14일만 고르게 한다. API로 10만 일을 보내면 크레딧 한 번 값으로 AI가 최대 길이까지 쓴다
+        if (!PLAN_DAYS.contains(days)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
 
         // 계획은 카드를 만든 모델로 짠다. 퀴즈와 달리 따로 고르게 하지 않았다
         String modelName = card.getModelName();
@@ -382,8 +407,12 @@ public class LearningServiceImpl implements LearningService {
             throw new BusinessException(ErrorCode.LEARNING_QUIZ_NOT_FOUND);
         }
 
-        boolean correct = quiz.getAnswer().trim().equals(answer == null ? "" : answer.trim());
-        if (correct) {
+        // 정답이 빈 옛 퀴즈(AI가 answer를 빼먹은 것)는 맞힐 수 없는 문제로 본다 — 예전엔 여기서 NPE로 500이 났다
+        boolean correct = quiz.getAnswer() != null
+                && quiz.getAnswer().trim().equals(answer == null ? "" : answer.trim());
+        // 같은 퀴즈는 처음 맞혔을 때만 승급 카운트에 넣는다. 정답이 응답에 실려 오니
+        // 한 문제를 계속 다시 내면 퀴즈 하나로 초록까지 올라갔다. 제출 기록과 연속 학습일은 그대로 남긴다
+        if (correct && !alreadySolved(userId, quizId)) {
             card.recordCorrect(); // 정답만 등급에 반영 (더티체킹으로 저장)
         }
         quizSubmissionRepository.save(QuizSubmission.create(quizId, userId, answer, correct, card.getGrade()));
@@ -444,6 +473,28 @@ public class LearningServiceImpl implements LearningService {
         return card;
     }
 
+    private boolean alreadySolved(Long userId, Long quizId) {
+        return quizSubmissionRepository.findByUserIdAndQuizIdInOrderBySubmittedAtAsc(userId, List.of(quizId)).stream()
+                .anyMatch(QuizSubmission::isCorrect);
+    }
+
+    // AI 입력에 들어가는 한 줄짜리 값 검사 — 비었거나(필수일 때), 너무 길거나, 줄바꿈·제어문자가 있으면 400
+    private static void requireSingleLine(String value, int maxLength, boolean optional) {
+        if (value == null || value.isBlank()) {
+            if (optional) return;
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        if (value.length() > maxLength || value.chars().anyMatch(Character::isISOControl)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    // 수준은 세 값 중 하나로 저장한다. 모르는 값은 프롬프트가 원래 하던 대로 초급으로 떨어뜨린다
+    private static String normalizeLevel(String level) {
+        String upper = level == null ? "" : level.trim().toUpperCase();
+        return LEVELS.contains(upper) ? upper : "BEGINNER";
+    }
+
     // 모델 문자열 → enum (플랜 설정이 어긋난 경우 방어)
     private AiModel resolveAiModel(String modelName) {
         try {
@@ -456,11 +507,23 @@ public class LearningServiceImpl implements LearningService {
     @Override
     @Transactional
     public void toggleSkillFavorite(Long userId, Long skillId) {
+        // 공용 스킬이나 내가 만든 스킬만 찜할 수 있다. 확인이 없으면 남의 스킬 id를 찜해 두고
+        // 즐겨찾기 목록으로 그 사람이 받은 추천(약점 기반 이유·프롬프트)을 읽을 수 있었다
+        AiSkill skill = aiSkillRepository.findById(skillId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT));
+        if (!visibleTo(skill, userId)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT); // 없는 것과 같은 답 — 남의 스킬이 있다는 것도 알리지 않는다
+        }
         if (aiSkillFavoriteRepository.existsByUserIdAndSkillId(userId, skillId)) {
             aiSkillFavoriteRepository.deleteByUserIdAndSkillId(userId, skillId);
         } else {
             aiSkillFavoriteRepository.save(AiSkillFavorite.of(userId, skillId));
         }
+    }
+
+    // 공용 큐레이션(userId 없음)이거나 내 것
+    private static boolean visibleTo(AiSkill skill, Long userId) {
+        return skill.getUserId() == null || skill.getUserId().equals(userId);
     }
 
     @Override
@@ -484,6 +547,7 @@ public class LearningServiceImpl implements LearningService {
                 .map(AiSkillFavorite::getSkillId)
                 .toList();
         return aiSkillRepository.findAllById(favoriteIds).stream()
+                .filter(skill -> visibleTo(skill, userId)) // 고치기 전에 걸어 둔 남의 스킬 찜이 남아 있어도 안 보인다
                 .map(skill -> AiSkillResponseDTO.of(skill, true)) // 여기 나온 건 다 내가 찜한 것
                 .toList();
     }
@@ -493,8 +557,8 @@ public class LearningServiceImpl implements LearningService {
     public SkillByWeaknessResponseDTO recommendSkill(Long userId, SkillRecommendRequestDTO request) {
         // 빈 입력으로 AI를 부르면 크레딧만 날아간다. 여기서 끊는다
         String input = request.getWeaknessOrRequirement();
-        if (input == null || input.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        if (input == null || input.isBlank() || input.length() > MAX_FREE_TEXT_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT); // 긴 글은 지시문을 숨겨 넣기 쉽고 입력 토큰 값만 늘린다
         }
 
         // 카드 생성과 같은 패턴 — 플랜 기본 모델로 크레딧부터 체크·소모
@@ -617,7 +681,13 @@ public class LearningServiceImpl implements LearningService {
     }
 
     private QuizContent parseQuiz(String content) {
-        return parseAi(content, QuizContent.class, "퀴즈");
+        QuizContent quiz = parseAi(content, QuizContent.class, "퀴즈");
+        // 문제나 정답이 빠진 퀴즈는 풀 수 없다. 저장하지 않고 던져 크레딧까지 롤백한다
+        if (quiz.question() == null || quiz.question().isBlank() || quiz.answer() == null || quiz.answer().isBlank()) {
+            log.error("AI 퀴즈 응답에 문제나 정답이 없습니다 - 원문={}", abbreviate(content));
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
+        return quiz;
     }
 
     // 플랜의 기본 모델 — allowed_models의 첫 값이 그 플랜 기본이라는 규칙을 한 곳에만 둔다
@@ -707,9 +777,19 @@ public class LearningServiceImpl implements LearningService {
             log.error("AI 응답에 items가 비어 있습니다 - 원문={}", abbreviate(content));
             throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
         }
-        return raw.stream()
-                .map(r -> SkillByWeaknessItemDTO.parsed(r.provider(), r.title(), r.why(), r.howTo(), r.prompt()))
+        // 프롬프트가 정한 네 곳 밖의 provider나 제목 없는 항목은 버린다. AI 답은 그대로 믿지 않고 저장 전에 거른다
+        List<SkillByWeaknessItemDTO> items = raw.stream()
+                .filter(r -> r != null && r.provider() != null
+                        && SKILL_PROVIDERS.contains(r.provider().trim().toUpperCase())
+                        && r.title() != null && !r.title().isBlank())
+                .map(r -> SkillByWeaknessItemDTO.parsed(
+                        r.provider().trim().toUpperCase(), r.title(), r.why(), r.howTo(), r.prompt()))
                 .toList();
+        if (items.isEmpty()) {
+            log.error("AI 스킬 추천에 쓸 항목이 없습니다 - 원문={}", abbreviate(content));
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED);
+        }
+        return items;
     }
 
 
