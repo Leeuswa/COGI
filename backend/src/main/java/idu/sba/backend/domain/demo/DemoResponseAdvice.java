@@ -16,6 +16,11 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import idu.sba.backend.global.ai.AiModel;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -27,6 +32,8 @@ import java.util.List;
  *   DB 의 email 은 그대로 NULL 이라 이 주소로는 이메일 로그인 · 비밀번호 찾기 · 메일 발송이 되지 않는다.
  *   example.com 은 어디로도 배달되지 않게 정해 둔 예약 도메인이다.
  * - 공지(마이페이지 공지 탭, 관리자 「전체 공지」 이력): 실제 공지가 하나도 없을 때만 예시 3건
+ * - 관리자 「AI 사용량」(테스트 관리자만): 고른 기간에 실제 기록이 하나도 없을 때만 예시 기록.
+ *   기간 안의 날짜로만 만들고, 사용자 칸은 체험 계정과 가상 팀원 이름(음수 id)이라 실제 회원과 섞이지 않는다
  */
 @RestControllerAdvice
 @RequiredArgsConstructor
@@ -36,6 +43,24 @@ public class DemoResponseAdvice implements ResponseBodyAdvice<Object> {
     static final String PROFILE_PATH = "/api/users/me/profile";
     static final String NOTICES_PATH = "/api/notices";
     static final String ADMIN_NOTICES_PATH = "/api/admin/notices";
+    static final String ADMIN_AI_USAGE_PATH = "/api/admin/ai-usage";
+
+    // 며칠 전 · 몇 시 · 누가(0 = 계정, 1·2 = 가상 팀원) · 모델 · 요청 종류 · 입력 · 출력 토큰
+    record SampleUsage(int daysAgo, int hour, int who, AiModel model, String type, int in, int out) {}
+
+    static final List<SampleUsage> SAMPLE_USAGE = List.of(
+            new SampleUsage(0, 10, 0, AiModel.GEMINI_FLASH, "REVIEW", 4_210, 1_180),
+            new SampleUsage(0, 9, 1, AiModel.CLAUDE_SONNET, "LEARNING_CARD", 2_050, 1_620),
+            new SampleUsage(1, 16, 2, AiModel.GPT_LUNA, "QUESTION", 1_340, 420),
+            new SampleUsage(1, 11, 0, AiModel.CLAUDE_HAIKU, "SKILL_RECOMMEND", 1_880, 950),
+            new SampleUsage(2, 14, 1, AiModel.GEMINI_FLASH, "REVIEW", 6_730, 1_540),
+            new SampleUsage(3, 15, 0, AiModel.GPT_TERRA, "REVIEW", 5_120, 1_310),
+            new SampleUsage(4, 13, 2, AiModel.CLAUDE_SONNET, "STUDY_PLAN", 1_460, 880),
+            new SampleUsage(5, 10, 1, AiModel.GEMINI_FLASH, "LEARNING_CARD", 2_240, 1_710),
+            new SampleUsage(6, 17, 0, AiModel.CLAUDE_HAIKU, "REVIEW", 3_980, 1_060),
+            new SampleUsage(8, 12, 2, AiModel.GPT_LUNA, "REVIEW", 4_470, 1_200),
+            new SampleUsage(10, 9, 0, AiModel.GEMINI_FLASH, "QUESTION", 1_120, 390),
+            new SampleUsage(12, 15, 1, AiModel.CLAUDE_SONNET, "REVIEW", 5_860, 1_450));
 
     record SampleNotice(String subject, String content, int daysAgo, boolean urgent, int recipients, int failed) {}
 
@@ -66,7 +91,8 @@ public class DemoResponseAdvice implements ResponseBodyAdvice<Object> {
                                   ServerHttpRequest request, ServerHttpResponse response) {
         String path = request.getURI().getPath();
         if (body == null || body instanceof String
-                || !(PROFILE_PATH.equals(path) || NOTICES_PATH.equals(path) || ADMIN_NOTICES_PATH.equals(path))
+                || !(PROFILE_PATH.equals(path) || NOTICES_PATH.equals(path) || ADMIN_NOTICES_PATH.equals(path)
+                     || ADMIN_AI_USAGE_PATH.equals(path))
                 || !"GET".equals(request.getMethod().name())) {
             return body;
         }
@@ -83,10 +109,51 @@ public class DemoResponseAdvice implements ResponseBodyAdvice<Object> {
             if (data instanceof ObjectNode profile && (profile.get("email") == null || profile.get("email").isNull())) {
                 profile.put("email", displayEmail(kind));
             }
+        } else if (ADMIN_AI_USAGE_PATH.equals(path)) {
+            if (data instanceof ArrayNode list && list.isEmpty()) {
+                fillUsage(list, kind, request.getURI().getQuery());
+            }
         } else if (data instanceof ArrayNode list && list.isEmpty()) {
             fillNotices(list, ADMIN_NOTICES_PATH.equals(path));
         }
         return root;
+    }
+
+    // from · to 는 컨트롤러가 이미 검사한 값이다. 못 읽으면 채우지 않는다
+    private void fillUsage(ArrayNode list, DemoKind kind, String query) {
+        LocalDate from;
+        LocalDate to;
+        try {
+            from = LocalDate.parse(queryParam(query, "from"));
+            to = LocalDate.parse(queryParam(query, "to"));
+        } catch (RuntimeException e) {
+            return;
+        }
+        List<String> names = List.of(kind.nickname(), kind.mates().get(0).nickname(), kind.mates().get(1).nickname());
+        long id = -1;
+        for (SampleUsage u : SAMPLE_USAGE) {
+            LocalDate day = to.minusDays(u.daysAgo());
+            if (day.isBefore(from)) continue;
+            ObjectNode row = list.addObject();
+            row.put("id", id--);
+            row.put("createdAt", day.atTime(u.hour(), 20).toString());
+            row.put("userId", -1L - u.who());
+            row.put("nickname", names.get(u.who()));
+            row.put("modelName", u.model().id());
+            row.put("requestType", u.type());
+            row.put("inputTokens", u.in());
+            row.put("outputTokens", u.out());
+            row.put("cost", BigDecimal.valueOf(u.model().calculateCost(u.in(), u.out())).setScale(6, RoundingMode.HALF_UP));
+        }
+    }
+
+    private static String queryParam(String query, String name) {
+        if (query == null) return null;
+        for (String pair : query.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && pair.substring(0, eq).equals(name)) return pair.substring(eq + 1);
+        }
+        return null;
     }
 
     private void fillNotices(ArrayNode list, boolean adminView) {

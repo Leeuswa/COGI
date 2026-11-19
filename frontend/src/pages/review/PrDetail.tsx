@@ -314,7 +314,7 @@ export default function PrDetail() {
       <PageHead
         badge={`PR #${pr.githubPrNumber}`}
         title={pr.title}
-        lead={`${pr.authorName} · ${pr.createdAt.replace('T', ' ')} · 스튜디오에서 검토를 마친 결과를 확인하는 곳이에요`}
+        lead={`${pr.authorName} · ${pr.createdAt.replace('T', ' ').slice(0, 16)} · 스튜디오에서 검토를 마친 결과를 확인하는 곳이에요`}
       />
 
       {/* 다음 리뷰에 쓸 모델 선택 (API-028, FR-34/35) — 지금 보이는 결과엔 영향 없고,
@@ -361,7 +361,7 @@ export default function PrDetail() {
             {reviewHistory.map((h, i) => (
               <div key={h.reviewId} className="row" style={{ gap: 10, fontSize: 13, color: 'var(--sub)' }}>
                 <span className="chip navy">{i === 0 ? '최신' : `${reviewHistory.length - i}차`}</span>
-                <span>{h.createdAt.replace('T', ' ')}</span>
+                <span>{h.createdAt.replace('T', ' ').slice(0, 16)}</span>
                 <span className="mono">{h.modelName}</span>
                 <span>이슈 {h.issueCount}건{h.criticalCount > 0 ? ` (CRITICAL ${h.criticalCount})` : ''}</span>
               </div>
