@@ -86,4 +86,40 @@ class DemoResponseAdviceTest {
                 ApiResponse.ok(List.of(Map.of("id", 1, "subject", "실제 공지"))));
         assertThat(real.get("data").size()).isEqualTo(1);
     }
+
+    private Object usage(long userId, String from, String to, Object body) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(userId, null, List.of()));
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", DemoResponseAdvice.ADMIN_AI_USAGE_PATH);
+        req.setQueryString("from=" + from + "&to=" + to);
+        return advice.beforeBodyWrite(body, null, null, null, new ServletServerHttpRequest(req), null);
+    }
+
+    @Test
+    void AI_사용량이_비면_테스트_관리자에게만_기간_안의_예시_기록을_보여준다() {
+        JsonNode out = (JsonNode) usage(DEMO_ADMIN, "2026-10-19", "2026-11-19", ApiResponse.ok(List.of()));
+        JsonNode rows = out.get("data");
+        assertThat(rows.size()).isEqualTo(DemoResponseAdvice.SAMPLE_USAGE.size());
+        for (JsonNode r : rows) {
+            assertThat(r.get("id").asLong()).isNegative();
+            assertThat(r.get("userId").asLong()).isNegative();
+            assertThat(r.get("createdAt").asString()).isBetween("2026-10-19", "2026-11-19T23:59");
+            assertThat(r.get("cost").asDouble()).isPositive();
+        }
+        assertThat(rows.get(0).get("nickname").asString()).isEqualTo("체험 관리자");
+
+        // 기간이 짧으면 그 안의 날짜만
+        JsonNode oneDay = (JsonNode) usage(DEMO_ADMIN, "2026-11-19", "2026-11-19", ApiResponse.ok(List.of()));
+        assertThat(oneDay.get("data").size()).isEqualTo(2);
+    }
+
+    @Test
+    void AI_사용량에_실제_기록이_있거나_진짜_회원이면_그대로() {
+        ApiResponse<List<Object>> empty = ApiResponse.ok(List.of());
+        assertThat(usage(REAL_USER, "2026-10-19", "2026-11-19", empty)).isSameAs(empty);
+
+        JsonNode real = (JsonNode) usage(DEMO_ADMIN, "2026-10-19", "2026-11-19",
+                ApiResponse.ok(List.of(Map.of("id", 9, "modelName", "gemini-3.5-flash"))));
+        assertThat(real.get("data").size()).isEqualTo(1);
+    }
 }
