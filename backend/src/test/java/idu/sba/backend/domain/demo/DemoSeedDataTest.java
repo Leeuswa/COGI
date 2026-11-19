@@ -49,6 +49,19 @@ class DemoSeedDataTest {
     }
 
     @Test
+    void 성장_추이_최근_12주의_앞쪽도_팀_PR_이_있다() {
+        Set<Integer> weeks = new HashSet<>();
+        DemoSeedData.PRS.forEach(p -> weeks.add(p.weeksAgo()));
+        for (int w = 0; w < 12; w++) assertThat(weeks).as(w + "주 전").contains(w);
+        // 9주 전보다 오래된 PR 은 팀원 것만 — 체험 계정의 약점 · 주간 리포트 수는 그대로
+        assertThat(DemoSeedData.PRS.stream().filter(p -> p.weeksAgo() > 8)).allMatch(p -> p.author() != 0);
+        // 첫 주(11주 전) 이슈가 이번 주보다 많아야 「좋은 신호예요」 가 보인다
+        int first = DemoSeedData.PRS.stream().filter(p -> p.weeksAgo() == 11).mapToInt(p -> p.issues().size()).sum();
+        int last = DemoSeedData.PRS.stream().filter(p -> p.weeksAgo() == 0).mapToInt(p -> p.issues().size()).sum();
+        assertThat(first).isGreaterThan(last);
+    }
+
+    @Test
     void 퀴즈는_푼_것과_안_푼_것이_섞여_있고_등급이_골고루다() {
         int submissions = 0;
         int unsolved = 0;
@@ -78,6 +91,7 @@ class DemoSeedDataTest {
     void 테스트_계정_표시는_실제_GitHub_값과_겹치지_않는다() {
         for (DemoKind k : DemoKind.values()) {
             assertThat(k.key()).startsWith(DemoAccountRegistry.KEY_PREFIX); // 실제 GitHub id 는 숫자뿐
+            assertThat(k.githubUsername()).contains("."); // 화면에는 연동 계정으로 보이되 실제 GitHub 아이디와 겹치지 않게
             k.mates().forEach(mate -> {
                 assertThat(mate.key()).startsWith(DemoAccountRegistry.KEY_PREFIX);
                 assertThat(mate.githubUsername()).contains("."); // GitHub 아이디에는 점이 못 들어간다

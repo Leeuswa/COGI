@@ -128,7 +128,7 @@ public class DemoSeeder {
         LocalDate today = now.toLocalDate();
         List<Backdate> later = new ArrayList<>();
 
-        User account = ensureUser(kind.key(), kind.nickname(), null, kind.role());
+        User account = ensureUser(kind.key(), kind.nickname(), kind.githubUsername(), kind.role());
         List<User> mates = kind.mates().stream()
                 .map(m -> ensureUser(m.key(), m.nickname(), m.githubUsername(), Role.USER))
                 .toList();
@@ -143,7 +143,7 @@ public class DemoSeeder {
         wipe(ids);
 
         Optional<Plan> max = planRepository.findByName("MAX");
-        resetUser(account, kind.nickname(), null, kind.key(), kind.role(), max.map(Plan::getId).orElse(null));
+        resetUser(account, kind.nickname(), kind.githubUsername(), kind.key(), kind.role(), max.map(Plan::getId).orElse(null));
         for (int i = 0; i < mates.size(); i++) {
             DemoKind.Mate m = kind.mates().get(i);
             resetUser(mates.get(i), m.nickname(), m.githubUsername(), m.key(), Role.USER, null);
@@ -179,7 +179,7 @@ public class DemoSeeder {
         return userRepository.findByGithubId(key).orElseGet(() -> {
             // 이메일·비밀번호 없음 → 이메일 로그인으로는 들어올 수 없다. 테스트 로그인 길로만 토큰이 나간다
             User user = User.builder().email(null).password(null).nickname(nickname).build();
-            user.linkGithub(key, githubUsername, null); // 토큰이 없으니 GitHub 을 부르는 기능은 "미연동" 으로 동작한다
+            user.linkGithub(key, githubUsername, null); // 토큰은 없다. GitHub 을 부르는 길은 DemoGuardFilter 가 예시 응답으로 대신한다
             user.changeRole(role);
             return userRepository.save(user);
         });
@@ -303,7 +303,7 @@ public class DemoSeeder {
                 String.valueOf(base + 1), DemoSeedData.REPO_NAMES[0], false, REPO_OWNER + "/" + DemoSeedData.REPO_NAMES[0]));
         GithubRepository board = githubRepositoryRepository.save(GithubRepository.link(account.getId(),
                 String.valueOf(base + 2), DemoSeedData.REPO_NAMES[1], true, REPO_OWNER + "/" + DemoSeedData.REPO_NAMES[1]));
-        later.add(new Backdate("repositories", "linked_at", shop.getId(), now.minusDays(60)));
+        later.add(new Backdate("repositories", "linked_at", shop.getId(), now.minusDays(90)));
         later.add(new Backdate("repositories", "linked_at", board.getId(), now.minusDays(40)));
 
         List<RepoMember> members = new ArrayList<>();
@@ -313,14 +313,14 @@ public class DemoSeeder {
         members.add(RepoMember.of(board.getId(), mates.get(0).getId(), RepoRole.MEMBER));
         repoMemberRepository.saveAll(members);
         for (RepoMember m : members) {
-            later.add(new Backdate("repo_members", "joined_at", m.getId(), now.minusDays(m.getRepoId().equals(shop.getId()) ? 59 : 39)));
+            later.add(new Backdate("repo_members", "joined_at", m.getId(), now.minusDays(m.getRepoId().equals(shop.getId()) ? 89 : 39)));
         }
 
         Map<Integer, SeededPr> byNumber = new HashMap<>();
         for (DemoSeedData.Pr p : DemoSeedData.PRS) {
             GithubRepository repo = p.repo() == 0 ? shop : board;
             User author = p.author() == 0 ? account : mates.get(p.author() - 1);
-            String login = p.author() == 0 ? null : kind.mates().get(p.author() - 1).githubUsername();
+            String login = p.author() == 0 ? kind.githubUsername() : kind.mates().get(p.author() - 1).githubUsername();
 
             PullRequest pr = PullRequest.open(repo.getId(), p.number(), p.title(), author.getId(), login);
             pr.selectModel(p.model());
