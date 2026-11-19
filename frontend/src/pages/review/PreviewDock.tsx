@@ -915,6 +915,8 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
 
   useEffect(() => {
     const onMsg = (e) => {
+      // 내 미리보기 iframe 이 보낸 것만 받는다. 다른 창이 {cogi:"code"} 를 보내 편집기 코드를 바꾸지 못하게
+      if (e.source !== frameRef.current?.contentWindow) return;
       const d = e.data || {};
       if (d.cogi === "pick") {
         setPicked(d);
@@ -1334,11 +1336,13 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
               transform: `scale(${zoom / 100})`,
             }}
           >
+            {/* allow-same-origin 은 넣지 않는다. 미리보기에는 PR 파일 원문 · 업로드 파일 · AI가 고친 코드가 뜨는데,
+                둘을 같이 주면 그 스크립트가 우리 주소 권한(로그인 쿠키 · 부모 화면)으로 돈다. 편집 엔진은 postMessage만 써서 없어도 된다 */}
             <iframe
               ref={frameRef}
               title="라이브 미리보기"
               className="dock-frame"
-              sandbox="allow-scripts allow-same-origin"
+              sandbox="allow-scripts"
               srcDoc={srcDoc}
             />
           </div>
