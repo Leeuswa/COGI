@@ -39,7 +39,7 @@ class AiReviewClientIntegrationTest {
 
     @Test
     void 비로그인_groq_실제_호출() {
-        callAndPrint(AiModel.GROQ_LLAMA_70B);
+        callAndPrint(AiModel.GROQ_GPT_OSS_120B);
     }
 
     @Test
