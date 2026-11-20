@@ -57,7 +57,7 @@ public class GuestReviewService {
 
     // 게스트 체험 모델 — 앞이 우선, 실패(rate limit/장애) 시 다음으로 폴백.
     // 실제로 성공한 모델을 usage 로그·claim 시 reviews.model_name 에 남긴다.
-    private static final List<AiModel> GUEST_MODELS = List.of(AiModel.GEMINI_FLASH, AiModel.GROQ_LLAMA_70B);
+    private static final List<AiModel> GUEST_MODELS = List.of(AiModel.GEMINI_FLASH, AiModel.GROQ_GPT_OSS_120B);
 
     // 체험 횟수 유지 창. 첫 리뷰 시점부터 24시간 뒤 카운터가 만료돼 3회가 리셋된다.
     private static final Duration TRIAL_WINDOW = Duration.ofHours(24);

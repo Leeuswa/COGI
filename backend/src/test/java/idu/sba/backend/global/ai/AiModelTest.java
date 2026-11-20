@@ -10,7 +10,7 @@ class AiModelTest {
     @Test
     void 모델_ID로_provider를_올바르게_찾는다() {
         assertThat(AiModel.fromId("gemini-3.5-flash")).isEqualTo(AiModel.GEMINI_FLASH);
-        assertThat(AiModel.fromId("llama-3.3-70b-versatile")).isEqualTo(AiModel.GROQ_LLAMA_70B);
+        assertThat(AiModel.fromId("openai/gpt-oss-120b")).isEqualTo(AiModel.GROQ_GPT_OSS_120B);
         assertThat(AiModel.fromId("claude-haiku-4-5")).isEqualTo(AiModel.CLAUDE_HAIKU);
         assertThat(AiModel.fromId("claude-sonnet-5")).isEqualTo(AiModel.CLAUDE_SONNET);
         assertThat(AiModel.fromId("claude-opus-4-8")).isEqualTo(AiModel.CLAUDE_OPUS);
@@ -22,7 +22,7 @@ class AiModelTest {
     @Test
     void 각_모델은_올바른_provider에_매핑된다() {
         assertThat(AiModel.GEMINI_FLASH.provider()).isEqualTo(AiProvider.GEMINI);
-        assertThat(AiModel.GROQ_LLAMA_70B.provider()).isEqualTo(AiProvider.GROQ);
+        assertThat(AiModel.GROQ_GPT_OSS_120B.provider()).isEqualTo(AiProvider.GROQ);
         assertThat(AiModel.CLAUDE_HAIKU.provider()).isEqualTo(AiProvider.CLAUDE);
         assertThat(AiModel.CLAUDE_SONNET.provider()).isEqualTo(AiProvider.CLAUDE);
         assertThat(AiModel.CLAUDE_OPUS.provider()).isEqualTo(AiProvider.CLAUDE);

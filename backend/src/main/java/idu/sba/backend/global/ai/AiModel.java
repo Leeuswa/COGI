@@ -8,7 +8,7 @@ public enum AiModel {
 
     // 비로그인 체험
     GEMINI_FLASH("gemini-3.5-flash", AiProvider.GEMINI, 1.50, 9.0), // Google 공식 가격(ai.google.dev) 확인 완료
-    GROQ_LLAMA_70B    ("llama-3.3-70b-versatile",  AiProvider.GROQ,   0.0,  0.0),  // 가격 미확인 — 확인 후 갱신 필요
+    GROQ_GPT_OSS_120B ("openai/gpt-oss-120b",     AiProvider.GROQ,   0.0,  0.0),  // 가격 미확인 — 확인 후 갱신 필요
 
     // FREE
     CLAUDE_HAIKU("claude-haiku-4-5", AiProvider.CLAUDE, 1.0, 5.0),
