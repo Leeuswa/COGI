@@ -23,7 +23,12 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "cogi.demo", name = "enabled", havingValue = "true")
 public class DemoAccountRegistry {
 
-    static final String KEY_PREFIX = "cogi-demo:";
+    public static final String KEY_PREFIX = "cogi-demo:";
+
+    // 테스트 로그인 계정이나 가상 팀원인지 — 이 클래스가 꺼져 있어도(cogi.demo.enabled=false) 쓸 수 있게 static
+    public static boolean isDemoGithubId(String githubId) {
+        return githubId != null && githubId.startsWith(KEY_PREFIX);
+    }
 
     private final JdbcTemplate jdbc;
 

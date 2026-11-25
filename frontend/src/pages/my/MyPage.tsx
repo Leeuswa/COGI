@@ -73,7 +73,9 @@ function DesktopMyPage() {
       const e = params.get('error');
       setLinkError(e === 'github_already_linked'
         ? '이미 연결된 GitHub 계정입니다.'
-        : 'GitHub 연동에 실패했어요. 다시 시도해주세요.');
+        : e === 'demo_account'
+          ? '테스트 계정은 GitHub 계정을 연결할 수 없어요.'
+          : 'GitHub 연동에 실패했어요. 다시 시도해주세요.');
       setTab('github');
       setParams({}, { replace: true });
     }

@@ -108,6 +108,20 @@ class DemoGuardFilterTest {
     }
 
     @Test
+    void 테스트_계정은_실제_GitHub_연동을_시작할_수_없다() throws Exception {
+        // 화면의 연동 버튼은 GET /api/users/me/github/authorize 로 페이지를 옮긴다. 여기가 열려 있으면
+        // 테스트 계정에 실제 GitHub 이 붙어 githubId 의 cogi-demo: 표시가 사라진다
+        for (long demo : new long[]{DEMO_USER, DEMO_ADMIN}) {
+            for (String path : new String[]{"/api/users/me/github/authorize", "/api/users/me/github/callback"}) {
+                MockHttpServletResponse res = run(demo, "GET", path, "4.4.4.4");
+                assertThat(res.getStatus()).as(demo + " " + path).isEqualTo(302);
+                assertThat(res.getRedirectedUrl()).as(demo + " " + path).isEqualTo("/app/my?error=demo_account");
+            }
+        }
+        assertThat(run(REAL_USER, "GET", "/api/users/me/github/authorize", "4.4.4.4").getStatus()).isEqualTo(299);
+    }
+
+    @Test
     void 테스트_유저도_돈_메일_외부계정_기능은_막힌다() throws Exception {
         for (String[] w : new String[][]{
                 {"POST", "/api/payments/methods"}, {"POST", "/api/subscriptions"}, {"PATCH", "/api/subscriptions/3"},
