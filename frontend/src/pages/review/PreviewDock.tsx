@@ -345,7 +345,7 @@ const ENGINE = `<script id="__cogi_engine">
     if (r) { const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); }
   }, true);
 
-  /* 링크·폼 이동 차단 — srcDoc 문서의 기준 주소는 부모(우리 앱)라서
+  /* 링크·폼 이동 차단 — 미리보기 문서(/preview.html)의 기준 주소는 우리 앱이라서
      원본의 상대 링크(../index.html)가 우리 주소로 풀린다. 미리보기는 화면 확인용이라 따라갈 곳이 없다.
      mousedown 의 preventDefault 로는 click 기본동작이 안 막혀 따로 잡는다 */
   document.addEventListener('click', (e) => {
@@ -680,6 +680,9 @@ const isEditingField = (el?: Element | null) => {
 // 가져온 파일 하나의 상태 — 성공하면 content/size/encoding, 실패하면 error만 채워진다
 type AssetEntry = { content: string; size: number; encoding: string; status: "ok" | "error"; error?: string };
 
+// 미리보기를 /preview.html 로 띄울 수 있는지 — 한 번 확인하면 이 페이지에서는 다시 묻지 않는다
+let previewFrameMode: "probe" | "file" | "inline" = "probe";
+
 export default function PreviewDock({ code, onCode, repoId }: { code: any; onCode: any; repoId?: any }) {
   const [picked, setPicked] = useState(null);
   const [text, setText] = useState("");
@@ -918,6 +921,7 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
       // 내 미리보기 iframe 이 보낸 것만 받는다. 다른 창이 {cogi:"code"} 를 보내 편집기 코드를 바꾸지 못하게
       if (e.source !== frameRef.current?.contentWindow) return;
       const d = e.data || {};
+      if (d.cogi === "frame-ready") onFrameReadyRef.current();
       if (d.cogi === "pick") {
         setPicked(d);
         // 입력창에서 타이핑 중이면 값을 덮지 않는다. apply 뒤 iframe이 pick을 다시 보내는데,
@@ -1038,6 +1042,37 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
   }, [doc]);
 
   const srcDoc = useMemo(() => doc + ENGINE, [doc]);
+  // 미리보기 문서는 srcDoc 으로 넣지 않고 /preview.html 이 받아서 그린다.
+  // srcDoc 문서는 부모(앱)의 CSP 를 그대로 물려받아서, 앱 CSP 에서 script-src 'unsafe-inline' 을 빼면
+  // 편집 엔진(ENGINE)과 PR 의 인라인 스크립트가 멈춘다. /preview.html 은 서버가 CSP 를 따로 주는 별도 문서다.
+  // 문서가 바뀌면 key 로 iframe 을 새로 띄운다(srcDoc 을 바꾸면 문서가 다시 뜨던 것과 같다)
+  // /preview.html 이 뜨면 먼저 {cogi:"frame-ready"} 를 보낸다. 그걸 받은 뒤에 문서를 넘긴다.
+  // 서버가 아직 /preview.html 에 X-Frame-Options: DENY 를 주는 동안에는 틀이 안 떠서 신호가 안 온다.
+  // 그때는 예전처럼 srcDoc 으로 그린다(서버 헤더를 나누기 전에 이 코드가 먼저 배포돼도 미리보기가 안 깨진다)
+  const [inline, setInline] = useState(previewFrameMode === "inline");
+  const frameKey = useRef({ doc: null as unknown, n: 0, ready: false });
+  if (frameKey.current.doc !== srcDoc) frameKey.current = { doc: srcDoc, n: frameKey.current.n + 1, ready: false };
+  const srcDocRef = useRef(srcDoc);
+  srcDocRef.current = srcDoc;
+  const onFrameReady = () => {
+    const w = frameRef.current?.contentWindow;
+    if (!w || frameKey.current.ready) return;
+    frameKey.current.ready = true;
+    previewFrameMode = "file";
+    w.postMessage({ cogi: "doc", html: srcDocRef.current }, "*");
+    w.postMessage({ cogi: "tree?" }, "*");
+  };
+  const onFrameLoad = () => {
+    if (inline || previewFrameMode === "file") return;
+    const n = frameKey.current.n;
+    setTimeout(() => {
+      if (frameKey.current.n !== n || frameKey.current.ready) return;
+      previewFrameMode = "inline";
+      setInline(true);
+    }, 1500);
+  };
+  const onFrameReadyRef = useRef(onFrameReady);
+  onFrameReadyRef.current = onFrameReady;
   const st = picked?.style;
 
   // 파일 탭 — 메인 HTML 하나뿐이면 아예 안 그린다(기존 화면 그대로)
@@ -1339,11 +1374,12 @@ export default function PreviewDock({ code, onCode, repoId }: { code: any; onCod
             {/* allow-same-origin 은 넣지 않는다. 미리보기에는 PR 파일 원문 · 업로드 파일 · AI가 고친 코드가 뜨는데,
                 둘을 같이 주면 그 스크립트가 우리 주소 권한(로그인 쿠키 · 부모 화면)으로 돈다. 편집 엔진은 postMessage만 써서 없어도 된다 */}
             <iframe
+              key={frameKey.current.n}
               ref={frameRef}
               title="라이브 미리보기"
               className="dock-frame"
               sandbox="allow-scripts"
-              srcDoc={srcDoc}
+              {...(inline ? { srcDoc } : { src: "/preview.html", onLoad: onFrameLoad })}
             />
           </div>
         </div>
