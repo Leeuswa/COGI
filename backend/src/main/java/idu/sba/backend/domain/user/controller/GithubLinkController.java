@@ -1,5 +1,6 @@
 package idu.sba.backend.domain.user.controller;
 
+import idu.sba.backend.domain.demo.DemoAccountRegistry;
 import idu.sba.backend.domain.repo.service.RepoMemberService;
 import idu.sba.backend.domain.user.entity.User;
 import idu.sba.backend.domain.user.repository.UserRepository;
@@ -72,6 +73,12 @@ public class GithubLinkController {
             Long userId = jwtProvider.parseGithubLinkState(state);   // state 검증 → 연동 시작한 userId
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+            // 테스트 로그인 계정에 실제 GitHub 을 붙이면 cogi-demo: 표시가 사라져
+            // 역할(체험 관리자면 ADMIN)을 가진 일반 계정이 된다. 토큰 교환 전에 끊는다
+            if (DemoAccountRegistry.isDemoGithubId(user.getGithubId())) {
+                throw new BusinessException(ErrorCode.DEMO_ACCOUNT);
+            }
 
             String ghToken = exchangeCodeForToken(code);             // code → access token (서버에서)
             Map<String, Object> ghUser = fetchGithubUser(ghToken);   // GitHub 신원(id, login)

@@ -49,6 +49,7 @@ import java.util.regex.Pattern;
  *
  * 1) 테스트 관리자: 관리자 콘솔(/api/admin/**)은 읽기(GET)만 된다. 그 밖의 사용자 기능은 아래 2)~4) 를 유저와 같이 따른다
  * 2) 테스트 계정 공통: 실제 돈·메일·외부 계정이 걸린 요청은 403 (결제, 탈퇴, 비밀번호, 2단계 인증, GitHub·카카오 연결, 초대 메일, 문의)
+ *    GitHub 계정 연동(authorize · callback)은 페이지 이동이라 403 대신 마이페이지 안내로 돌려보낸다
  * 3) AI 를 부르는 요청: 하루 횟수 제한 (접속 주소별 + 전체). 넘으면 크레딧 소진과 같은 429 응답
  * 4) GitHub 이 있어야 되는 기능: GitHub 대신 예시 응답 — 실제 GitHub 으로는 아무 요청도 가지 않는다
  *    읽기: 내 GitHub 저장소 목록, 열린 PR, PR 변경 파일, 미리보기 파일
@@ -108,6 +109,11 @@ public class DemoGuardFilter extends OncePerRequestFilter {
     private static final Pattern INVITE = Pattern.compile("^/api/repos/(\\d+)/members/invite$");
     private static final Pattern INVITE_ANSWER = Pattern.compile("^/api/repos/(\\d+)/members/invitations/\\d+/(accept|reject)$");
 
+    // 마이페이지 연동 버튼은 fetch 가 아니라 페이지 이동(GET)이라 JSON 대신 마이페이지로 돌려보낸다.
+    // 연동되면 githubId 의 cogi-demo: 표시가 사라져 테스트 계정이 역할을 가진 채 일반 계정으로 남는다
+    private static final Pattern GH_ACCOUNT_LINK = Pattern.compile("^/api/users/me/github/(authorize|callback)$");
+    static final String DEMO_LINK_DENIED_REDIRECT = "/app/my?error=demo_account";
+
     static final String MSG_REAL_REPO = "테스트 계정은 실제 GitHub 저장소를 연동할 수 없어요.";
     static final String MSG_REAL_INVITE = "테스트 계정은 다른 회원의 팀 초대에 답할 수 없어요.";
 
@@ -135,6 +141,10 @@ public class DemoGuardFilter extends OncePerRequestFilter {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         boolean read = "GET".equals(method) || "HEAD".equals(method) || "OPTIONS".equals(method);
 
+        if (GH_ACCOUNT_LINK.matcher(path).matches()) {
+            response.sendRedirect(DEMO_LINK_DENIED_REDIRECT);
+            return;
+        }
         if (!read && registry.isDemoAdmin(userId) && ADMIN_CONSOLE.matcher(path).matches()) {
             write(response, HttpStatus.FORBIDDEN, ApiResponse.fail(MSG_ADMIN_READ_ONLY));
             return;

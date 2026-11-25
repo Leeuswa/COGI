@@ -47,6 +47,7 @@ public enum ErrorCode {
     //깃허브 연동
     GITHUB_LINK_FAILED(HttpStatus.BAD_REQUEST, "GitHub 연동에 실패했습니다."),
     GITHUB_ALREADY_LINKED(HttpStatus.CONFLICT, "이미 다른 계정에 연결된 GitHub입니다."),
+    DEMO_ACCOUNT(HttpStatus.FORBIDDEN, "테스트 계정은 GitHub 계정을 연결할 수 없습니다."),
 
     //AST 컨텍스트 추출
     AST_PARSE_ERROR(HttpStatus.BAD_REQUEST,"코드를 파싱할 수 없습니다."),
