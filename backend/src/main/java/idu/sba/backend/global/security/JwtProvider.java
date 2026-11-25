@@ -56,11 +56,13 @@ public class JwtProvider {
         return parse(token).get("role",String.class);
     }
 
-    //토큰 유효성 검증: 키가 맞고,만료가 안됐으면 true, 틀리면 false
+    //로그인 토큰 검증: 키가 맞고, 만료가 안됐고, 로그인 토큰이면 true
+    //2차 인증 임시 토큰·GitHub 연동 state 도 같은 키로 서명되므로 용도(purpose)가 붙은 토큰은 거절한다.
+    //로그인 토큰은 purpose 없이 role 을 담는다(createToken) — 이미 나간 로그인 토큰도 그대로 통한다
     public boolean validateToken(String token){
         try{
-            parse(token);
-            return true;
+            Claims claims = parse(token);
+            return claims.get("purpose") == null && claims.get("role", String.class) != null;
         } catch (Exception e){
             return false; //서명불일치,토큰만료,형식오류
         }
