@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 281" width="860" height="281">
+<style>text{font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR',system-ui,sans-serif}</style>
+<defs><marker id="a" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 L2,4 z" fill="#6e7781"/></marker></defs>
+<path d="M208,62.5 L220,62.5" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#a)"/>
+<path d="M421,62.5 L433,62.5" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#a)"/>
+<path d="M634,62.5 L646,62.5" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#a)"/>
+<path d="M208,192.5 L220,192.5" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#a)"/>
+<path d="M421,192.5 L433,192.5" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#a)"/>
+<path d="M634,192.5 L646,192.5" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#a)"/>
+<path d="M749.5,110 C749.5,130.5 110.5,118.5 110.5,139" fill="none" stroke="#6e7781" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="18" y="20" width="185" height="85" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="110.5" y="49.0" font-size="15" font-weight="700" text-anchor="middle" fill="#1f2328">1. 코드 가져오기</text>
+<text x="110.5" y="71.0" font-size="13" text-anchor="middle" fill="#59636e">GitHub PR, 붙여 넣기,</text>
+<text x="110.5" y="89.0" font-size="13" text-anchor="middle" fill="#59636e">파일 올리기</text>
+<rect x="231" y="20" width="185" height="85" rx="8" fill="#ddf4ff" stroke="#0969da" stroke-width="1.5"/>
+<text x="323.5" y="49.0" font-size="15" font-weight="700" text-anchor="middle" fill="#0550ae">2. AI 코드 리뷰</text>
+<text x="323.5" y="71.0" font-size="13" text-anchor="middle" fill="#59636e">지적마다 종류,</text>
+<text x="323.5" y="89.0" font-size="13" text-anchor="middle" fill="#59636e">심각도, 파일 위치</text>
+<rect x="444" y="20" width="185" height="85" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="536.5" y="49.0" font-size="15" font-weight="700" text-anchor="middle" fill="#1f2328">3. 리뷰 스튜디오</text>
+<text x="536.5" y="71.0" font-size="13" text-anchor="middle" fill="#59636e">지적마다</text>
+<text x="536.5" y="89.0" font-size="13" text-anchor="middle" fill="#59636e">해결, 무시, 재검증</text>
+<rect x="657" y="20" width="185" height="85" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="749.5" y="49.0" font-size="15" font-weight="700" text-anchor="middle" fill="#1f2328">4. 약점으로 묶기</text>
+<text x="749.5" y="71.0" font-size="13" text-anchor="middle" fill="#59636e">같은 종류 지적이</text>
+<text x="749.5" y="89.0" font-size="13" text-anchor="middle" fill="#59636e">3번 이상이면</text>
+<rect x="18" y="150" width="185" height="85" rx="8" fill="#ddf4ff" stroke="#0969da" stroke-width="1.5"/>
+<text x="110.5" y="179.0" font-size="15" font-weight="700" text-anchor="middle" fill="#0550ae">5. AI 학습 카드</text>
+<text x="110.5" y="201.0" font-size="13" text-anchor="middle" fill="#59636e">개념, 기존 코드와</text>
+<text x="110.5" y="219.0" font-size="13" text-anchor="middle" fill="#59636e">추천 코드</text>
+<rect x="231" y="150" width="185" height="85" rx="8" fill="#ddf4ff" stroke="#0969da" stroke-width="1.5"/>
+<text x="323.5" y="179.0" font-size="15" font-weight="700" text-anchor="middle" fill="#0550ae">6. AI 퀴즈</text>
+<text x="323.5" y="201.0" font-size="13" text-anchor="middle" fill="#59636e">객관식, OX,</text>
+<text x="323.5" y="219.0" font-size="13" text-anchor="middle" fill="#59636e">단답, 빈칸</text>
+<rect x="444" y="150" width="185" height="85" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="536.5" y="179.0" font-size="15" font-weight="700" text-anchor="middle" fill="#1f2328">7. 제출과 채점</text>
+<text x="536.5" y="201.0" font-size="13" text-anchor="middle" fill="#59636e">처음 맞힌 퀴즈만</text>
+<text x="536.5" y="219.0" font-size="13" text-anchor="middle" fill="#59636e">단계가 오름</text>
+<rect x="657" y="150" width="185" height="85" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
+<text x="749.5" y="179.0" font-size="15" font-weight="700" text-anchor="middle" fill="#1f2328">8. 연속 학습일</text>
+<text x="749.5" y="201.0" font-size="13" text-anchor="middle" fill="#59636e">코인으로</text>
+<text x="749.5" y="219.0" font-size="13" text-anchor="middle" fill="#59636e">코기 키우기</text>
+<rect x="690" y="253" width="22" height="14" rx="3" fill="#ddf4ff" stroke="#0969da" stroke-width="1.5"/>
+<text x="720" y="264.5" font-size="12" fill="#59636e">AI 가 일하는 칸</text>
+</svg>
